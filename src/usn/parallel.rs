@@ -348,4 +348,156 @@ mod tests {
             assert_eq!(s.usn, p.usn, "usn mismatch at index {}", i);
         }
     }
+
+    #[test]
+    fn test_find_first_record_boundary_returns_none_for_garbage() {
+        // Data with no valid record starts - all non-zero garbage with invalid version fields
+        let mut data = vec![0xAA; 1024];
+        // Make sure no accidental valid version/record_len combos
+        for i in (0..data.len()).step_by(8) {
+            if i + 6 <= data.len() {
+                // Set version fields to 0xFF (invalid)
+                data[i + 4] = 0xFF;
+                data[i + 5] = 0xFF;
+            }
+        }
+        let result = find_first_record_boundary(&data, 0);
+        assert!(result.is_none(), "Should return None for data with no valid records");
+    }
+
+    #[test]
+    fn test_find_first_record_boundary_returns_none_for_all_zeros() {
+        // All-zero data has no valid records (zero-filled regions are skipped)
+        let data = vec![0u8; 1024];
+        let result = find_first_record_boundary(&data, 0);
+        assert!(result.is_none(), "Should return None for all-zero data");
+    }
+
+    #[test]
+    fn test_find_first_record_boundary_returns_none_for_short_data() {
+        // Data shorter than 8 bytes
+        let data = vec![0xAA; 4];
+        let result = find_first_record_boundary(&data, 0);
+        assert!(result.is_none(), "Should return None for data shorter than 8 bytes");
+    }
+
+    #[test]
+    fn test_find_first_record_boundary_finds_valid_record() {
+        // Some garbage followed by a valid V2 record header
+        let mut data = vec![0xFF; 64];
+        // Invalidate version fields in garbage area
+        for i in (0..32).step_by(8) {
+            data[i + 4] = 0xFF;
+            data[i + 5] = 0xFF;
+        }
+        // Place a valid record header at offset 32
+        let record_len: u32 = 0x3C + 16; // valid V2 size
+        data[32..36].copy_from_slice(&record_len.to_le_bytes());
+        data[36..38].copy_from_slice(&2u16.to_le_bytes()); // version 2
+        data[38..40].copy_from_slice(&0u16.to_le_bytes()); // minor version 0
+
+        let result = find_first_record_boundary(&data, 0);
+        assert_eq!(result, Some(32));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_v2() {
+        let mut data = vec![0u8; 16];
+        let record_len: u32 = 0x50; // valid V2 size
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        data[6..8].copy_from_slice(&0u16.to_le_bytes());
+        assert!(is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_v3() {
+        let mut data = vec![0u8; 16];
+        let record_len: u32 = 0x60;
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        data[6..8].copy_from_slice(&0u16.to_le_bytes());
+        assert!(is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_invalid_version() {
+        let mut data = vec![0u8; 16];
+        let record_len: u32 = 0x50;
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&99u16.to_le_bytes()); // invalid version
+        data[6..8].copy_from_slice(&0u16.to_le_bytes());
+        assert!(!is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_nonzero_minor_version() {
+        let mut data = vec![0u8; 16];
+        let record_len: u32 = 0x50;
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        data[6..8].copy_from_slice(&1u16.to_le_bytes()); // non-zero minor
+        assert!(!is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_too_small_length() {
+        let mut data = vec![0u8; 16];
+        data[0..4].copy_from_slice(&(0x20u32).to_le_bytes()); // < USN_V2_MIN_SIZE
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        data[6..8].copy_from_slice(&0u16.to_le_bytes());
+        assert!(!is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_too_large_length() {
+        let mut data = vec![0u8; 16];
+        data[0..4].copy_from_slice(&(70000u32).to_le_bytes()); // > USN_MAX_RECORD_SIZE
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        data[6..8].copy_from_slice(&0u16.to_le_bytes());
+        assert!(!is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_is_valid_record_start_insufficient_data() {
+        let data = vec![0u8; 4]; // less than 8 bytes
+        assert!(!is_valid_record_start(&data, 0));
+    }
+
+    #[test]
+    fn test_parallel_parse_chunk_with_no_valid_records_after_boundary() {
+        // Create data > CHUNK_SIZE where after the first chunk boundary
+        // there are no valid record starts, forcing find_first_record_boundary
+        // to return None for the continuation.
+        let mut data = Vec::new();
+
+        // Build valid records for the first chunk
+        let records_for_first_chunk = 10;
+        for i in 0..records_for_first_chunk {
+            data.extend_from_slice(&build_v2_record(
+                (i + 1) as u64, 1, 5, 1, (i * 100) as i64, 0x100,
+                &format!("file_{:04}.txt", i),
+            ));
+        }
+
+        // Pad the rest of the first chunk and beyond with garbage that has
+        // no valid record starts (non-zero, invalid version fields)
+        let first_chunk_data_len = data.len();
+        let remaining = CHUNK_SIZE + 1024 - first_chunk_data_len;
+        let mut garbage = vec![0xBB; remaining];
+        for i in (0..garbage.len()).step_by(8) {
+            if i + 6 <= garbage.len() {
+                garbage[i + 4] = 0xFF;
+                garbage[i + 5] = 0xFF;
+            }
+        }
+        data.extend_from_slice(&garbage);
+
+        assert!(data.len() > CHUNK_SIZE, "Data should exceed chunk size");
+
+        let result = parse_usn_journal_parallel(&data).unwrap();
+        // Should find all records from the first chunk
+        assert_eq!(result.len(), records_for_first_chunk,
+            "Should find records from first chunk even when second chunk has no valid boundaries");
+    }
 }

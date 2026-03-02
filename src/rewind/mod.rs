@@ -530,6 +530,77 @@ mod tests {
     }
 
     #[test]
+    fn test_resolve_path_hits_depth_limit_linear_chain() {
+        // Create a chain of 258 entries (> 256 depth limit) that is NOT circular
+        // but exceeds the depth guard. Entry 1000 -> 1001 -> 1002 -> ... -> 1257
+        // None of them point to root, so path resolution will recurse 257+ times.
+        let mut engine = RewindEngine::new();
+        let chain_length = 258;
+        for i in 0..chain_length {
+            let entry_num = 1000 + i as u64;
+            let parent_num = 1001 + i as u64; // Points to next in chain
+            engine.insert(
+                EntryKey::new(entry_num, 1),
+                EntryInfo {
+                    name: format!("dir_{}", i),
+                    parent: EntryKey::new(parent_num, 1),
+                },
+            );
+        }
+
+        // Resolving from the start of the chain should hit depth limit
+        let path = engine.resolve_path(&EntryKey::new(1000, 1));
+        assert!(
+            path.contains("UNRESOLVED") || path.contains("UNKNOWN"),
+            "Should hit depth limit or reach unknown entry, got: {}",
+            path
+        );
+    }
+
+    #[test]
+    fn test_resolve_path_from_hits_depth_limit_in_rewind() {
+        // Create a circular reference that will hit the depth limit in the
+        // resolve_path_from function (used in the forward pass of rewind).
+        // Build entries: A -> B -> C -> A (cycle)
+        let mut engine = RewindEngine::new();
+        engine.insert(
+            EntryKey::new(100, 1),
+            EntryInfo {
+                name: "A".to_string(),
+                parent: EntryKey::new(200, 1),
+            },
+        );
+        engine.insert(
+            EntryKey::new(200, 1),
+            EntryInfo {
+                name: "B".to_string(),
+                parent: EntryKey::new(300, 1),
+            },
+        );
+        engine.insert(
+            EntryKey::new(300, 1),
+            EntryInfo {
+                name: "C".to_string(),
+                parent: EntryKey::new(100, 1),
+            },
+        );
+
+        // Process a record whose parent is in the cycle
+        let records = vec![
+            make_record(400, 1, 100, 1, UsnReason::FILE_CREATE, "trapped.txt", 10),
+        ];
+
+        let resolved = engine.rewind(&records);
+        assert_eq!(resolved.len(), 1);
+        // The parent path should contain UNRESOLVED due to the circular chain
+        assert!(
+            resolved[0].parent_path.contains("UNRESOLVED"),
+            "Circular parent chain should produce UNRESOLVED, got: {}",
+            resolved[0].parent_path
+        );
+    }
+
+    #[test]
     fn test_resolve_path_from_standalone() {
         // Test the resolve_path_from function directly via rewind behavior
         let mut engine = RewindEngine::new();

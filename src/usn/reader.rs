@@ -404,4 +404,148 @@ mod tests {
         assert_eq!(records[1].major_version, 3);
         assert_eq!(records[2].major_version, 2);
     }
+
+    #[test]
+    fn test_streaming_reader_fill_buffer_with_unconsumed_data() {
+        // Create data that spans multiple buffer fills.
+        // First, fill most of the 64KB buffer with valid records, then add
+        // a record that straddles the buffer boundary.
+        // This triggers the fill_buffer path where buf_offset > 0 && buf_offset < buf_len,
+        // meaning unconsumed data needs to be moved to front of buffer.
+        let mut data = Vec::new();
+        let record_size;
+        {
+            let sample = build_v2_record_bytes(1, 1, 5, 5, 0x100, "sample.txt");
+            record_size = sample.len();
+        }
+
+        // Fill just under 64KB with records, then add zeros, then another record
+        // that will require a buffer refill with leftover data
+        let num_records_to_fill = (BUF_SIZE - record_size) / record_size;
+        for i in 0..num_records_to_fill {
+            data.extend_from_slice(&build_v2_record_bytes(
+                (i + 1) as u64, 1, 5, 5, 0x100,
+                &format!("f{:04}.txt", i),
+            ));
+        }
+
+        // Add a few zeros to push the next record across the buffer boundary
+        let remaining = BUF_SIZE - (num_records_to_fill * record_size);
+        if remaining > 0 && remaining < record_size {
+            data.extend_from_slice(&vec![0u8; remaining]);
+        }
+
+        // Add more records after the boundary
+        for i in 0..5 {
+            data.extend_from_slice(&build_v2_record_bytes(
+                (num_records_to_fill + i + 1) as u64, 1, 5, 5, 0x100,
+                &format!("after{}.txt", i),
+            ));
+        }
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        // Should find all records from both sides of the buffer boundary
+        assert!(records.len() >= num_records_to_fill + 5,
+            "Expected at least {} records, got {}", num_records_to_fill + 5, records.len());
+    }
+
+    #[test]
+    fn test_streaming_reader_record_at_exact_buffer_boundary() {
+        // Place records such that one record ends exactly at the buffer boundary
+        // and the next starts exactly at the next fill.
+        let sample = build_v2_record_bytes(1, 1, 5, 5, 0x100, "sample.txt");
+        let record_size = sample.len();
+
+        let mut data = Vec::new();
+        // Calculate how many records fit exactly in the buffer
+        let records_per_buffer = BUF_SIZE / record_size;
+        let exact_fill = records_per_buffer * record_size;
+
+        // Fill exactly to the buffer size
+        for i in 0..records_per_buffer {
+            data.extend_from_slice(&build_v2_record_bytes(
+                (i + 1) as u64, 1, 5, 5, 0x100, "exact.txt",
+            ));
+        }
+
+        // Pad to exactly BUF_SIZE if needed
+        if exact_fill < BUF_SIZE {
+            data.extend_from_slice(&vec![0u8; BUF_SIZE - exact_fill]);
+        }
+
+        // Add one more record that starts at the exact boundary
+        data.extend_from_slice(&build_v2_record_bytes(
+            (records_per_buffer + 1) as u64, 1, 5, 5, 0x100, "boundary.txt",
+        ));
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        // The last record "boundary.txt" should be found
+        assert!(records.iter().any(|r| r.filename == "boundary.txt"),
+            "Should find the record at the buffer boundary");
+    }
+
+    #[test]
+    fn test_streaming_reader_record_straddles_buffer() {
+        // Create data where a record starts in one buffer fill and extends
+        // into the next fill. This tests the refill path where
+        // buf_offset + record_len > buf_len triggers fill_buffer.
+        let sample = build_v2_record_bytes(1, 1, 5, 5, 0x100, "sample.txt");
+        let record_size = sample.len();
+
+        let mut data = Vec::new();
+        // Fill most of the buffer
+        let records_to_fill = (BUF_SIZE / record_size) - 1;
+        for i in 0..records_to_fill {
+            data.extend_from_slice(&build_v2_record_bytes(
+                (i + 1) as u64, 1, 5, 5, 0x100, "fill.txt",
+            ));
+        }
+
+        let current_len = data.len();
+        // Add zeros to position us near the end of the buffer
+        // Leave less than record_size bytes before the boundary
+        let padding = BUF_SIZE - current_len - (record_size / 2);
+        if padding > 0 {
+            data.extend_from_slice(&vec![0u8; padding]);
+        }
+
+        // Now add a record that will straddle the buffer boundary
+        data.extend_from_slice(&build_v2_record_bytes(
+            999, 1, 5, 5, 0x100, "straddle.txt",
+        ));
+
+        // Add trailing data
+        data.extend_from_slice(&vec![0u8; 256]);
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        // The straddling record should be found
+        assert!(records.iter().any(|r| r.filename == "straddle.txt"),
+            "Should find the record that straddles the buffer boundary");
+    }
+
+    #[test]
+    fn test_streaming_reader_data_larger_than_buffer() {
+        // Create data significantly larger than the 64KB buffer to ensure
+        // multiple fill_buffer cycles work correctly
+        let mut data = Vec::new();
+        let total_records = 2000; // Each ~80 bytes = ~160KB > 64KB buffer
+        for i in 0..total_records {
+            data.extend_from_slice(&build_v2_record_bytes(
+                (i + 1) as u64, 1, 5, 5, 0x100,
+                &format!("r{:04}.txt", i),
+            ));
+        }
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), total_records,
+            "Should parse all {} records across multiple buffer fills", total_records);
+    }
 }

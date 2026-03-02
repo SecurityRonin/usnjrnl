@@ -687,4 +687,77 @@ mod tests {
         assert_eq!(stats.rejected_timestamp, 0);
         assert_eq!(stats.rejected_structure, 0);
     }
+
+    #[test]
+    fn test_try_carve_v2_parse_error() {
+        // Call try_carve_v2 directly with a record_len parameter that differs
+        // from the internal record_len field in the data. The carver slices
+        // record_len bytes and passes them to parse_usn_record_v2, which
+        // re-reads the internal record_len field. If that field is invalid,
+        // the parser returns Err and the carver increments rejected_structure.
+        let valid_ts: i64 = 133_500_480_000_000_000;
+        let mut stats = CarvingStats::default();
+
+        let mut data = vec![0u8; 0x50]; // 80 bytes
+        // Internal record_len = 0x20 (too small for V2, triggers parse error)
+        data[0..4].copy_from_slice(&(0x20u32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        data[0x38..0x3A].copy_from_slice(&4u16.to_le_bytes()); // filename_length = 4
+        data[0x3A..0x3C].copy_from_slice(&0x3Cu16.to_le_bytes()); // filename_offset = 0x3C
+        data[0x20..0x28].copy_from_slice(&valid_ts.to_le_bytes());
+
+        // Outer record_len = 0x50, but internal says 0x20 -> parse_usn_record_v2 bails
+        let result = try_carve_v2(&data, 0, 0x50, &mut stats);
+        assert!(result.is_none(), "Should fail because internal record_len is invalid");
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_try_carve_v3_parse_error() {
+        // Same approach as v2: create data where the internal record_len differs
+        // from what the carver passes, causing parse_usn_record_v3 to fail.
+        let valid_ts: i64 = 133_500_480_000_000_000;
+        let mut stats = CarvingStats::default();
+
+        let mut data = vec![0u8; 0x60]; // 96 bytes
+        // Set internal record_len to something invalid (< USN_V3_MIN_SIZE)
+        data[0..4].copy_from_slice(&(0x30u32).to_le_bytes()); // too small for V3
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        data[0x48..0x4A].copy_from_slice(&4u16.to_le_bytes()); // filename_length = 4
+        data[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes()); // filename_offset = 0x4C
+        data[0x30..0x38].copy_from_slice(&valid_ts.to_le_bytes());
+
+        // Call try_carve_v3 with outer record_len=0x60 but data says 0x30 internally
+        let result = try_carve_v3(&data, 0, 0x60, &mut stats);
+        assert!(result.is_none(), "Should fail because internal record_len is invalid for V3");
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_v2_record_with_mismatched_internal_length() {
+        // Embed a record in larger data where the record's own length field
+        // is set to > USN_MAX_RECORD_SIZE, triggering parse_usn_record_v2 to bail.
+        let valid_ts: i64 = 133_500_480_000_000_000;
+        let name_utf16: Vec<u16> = "ab".encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2; // 4 bytes
+        let outer_len = 0x3C + name_bytes_len; // 64 bytes
+        let aligned = (outer_len + 7) & !7;
+        let mut buf = vec![0u8; aligned];
+
+        // Set internal record_len to something > USN_MAX_RECORD_SIZE
+        buf[0..4].copy_from_slice(&(70000u32).to_le_bytes());
+        buf[4..6].copy_from_slice(&2u16.to_le_bytes());
+        buf[6..8].copy_from_slice(&0u16.to_le_bytes());
+        buf[0x20..0x28].copy_from_slice(&valid_ts.to_le_bytes());
+        buf[0x38..0x3A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        buf[0x3A..0x3C].copy_from_slice(&0x3Cu16.to_le_bytes());
+        for (i, &ch) in name_utf16.iter().enumerate() {
+            buf[0x3C + i * 2..0x3C + i * 2 + 2].copy_from_slice(&ch.to_le_bytes());
+        }
+
+        let mut stats = CarvingStats::default();
+        let result = try_carve_v2(&buf, 0, aligned, &mut stats);
+        assert!(result.is_none());
+        assert!(stats.rejected_structure > 0);
+    }
 }

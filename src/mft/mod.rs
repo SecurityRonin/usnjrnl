@@ -477,4 +477,130 @@ mod tests {
         entry.file_size = 1_048_576;
         assert_eq!(entry.file_size, 1_048_576);
     }
+
+    #[test]
+    fn test_mft_data_parse_invalid_data() {
+        // Random garbage data that is not a valid MFT - should error or return empty
+        let garbage = vec![0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04];
+        let result = MftData::parse(&garbage);
+        // Either it errors out or it parses with zero valid entries
+        match result {
+            Ok(mft_data) => assert!(mft_data.entries.is_empty()),
+            Err(_) => {} // Error is also acceptable for invalid data
+        }
+    }
+
+    #[test]
+    fn test_mft_data_parse_short_data() {
+        // Data shorter than one MFT entry (1024 bytes)
+        let data = vec![0xAA; 512];
+        let result = MftData::parse(&data);
+        match result {
+            Ok(mft_data) => assert!(mft_data.entries.is_empty()),
+            Err(_) => {}
+        }
+    }
+
+    #[test]
+    fn test_mft_data_parse_corrupt_entries_skipped() {
+        // The `mft` crate can panic on malformed entries, so we use catch_unwind
+        // to verify that MftData::parse either succeeds (with empty entries for
+        // corrupt data), errors out, or panics without crashing the test suite.
+        //
+        // Build a minimal valid-looking MFT entry structure:
+        // - FILE signature at offset 0
+        // - Update sequence offset at 0x04 (u16) = 0x30 (after the header)
+        // - Update sequence size at 0x06 (u16) = 3 (1 + number of sectors)
+        // - Allocated size of entry at 0x1C (u32) = 1024
+        // - Flags at 0x16 (u16) = 0x01 (in-use)
+        // - First attribute offset at 0x14 (u16) = 0x38
+        // - Bytes used at 0x18 (u32) = 0x38 (just the header, no attributes)
+        let mut data = vec![0u8; 1024 * 4];
+        for i in 0..4 {
+            let o = i * 1024;
+            data[o..o + 4].copy_from_slice(b"FILE");
+            data[o + 0x04..o + 0x06].copy_from_slice(&0x30u16.to_le_bytes()); // update seq offset
+            data[o + 0x06..o + 0x08].copy_from_slice(&3u16.to_le_bytes()); // update seq size
+            data[o + 0x14..o + 0x16].copy_from_slice(&0x38u16.to_le_bytes()); // first attr offset
+            data[o + 0x16..o + 0x18].copy_from_slice(&0x01u16.to_le_bytes()); // flags: in-use
+            data[o + 0x18..o + 0x1C].copy_from_slice(&0x38u32.to_le_bytes()); // bytes used
+            data[o + 0x1C..o + 0x20].copy_from_slice(&1024u32.to_le_bytes()); // allocated size
+            // Write end-of-attributes marker (0xFFFFFFFF) at first attribute offset
+            data[o + 0x38..o + 0x3C].copy_from_slice(&0xFFFFFFFFu32.to_le_bytes());
+        }
+        let result = std::panic::catch_unwind(|| MftData::parse(&data));
+        match result {
+            Ok(Ok(mft_data)) => {
+                // All entries lack $FILE_NAME, so should be skipped via `continue`
+                assert!(mft_data.entries.is_empty(),
+                    "Corrupt entries without $FILE_NAME should be skipped");
+            }
+            Ok(Err(_)) => {} // Parse error is acceptable
+            Err(_) => {} // Panic from mft crate is acceptable (we caught it)
+        }
+    }
+
+    #[test]
+    fn test_mft_entry_ads_detection_field() {
+        // Test that the has_ads field works correctly with manually constructed entries
+        let mut entry = make_mft_entry(100, 1, "file_with_ads.txt", 5, 5, false, true);
+        assert!(!entry.has_ads);
+        entry.has_ads = true;
+        assert!(entry.has_ads);
+
+        // Verify ADS entry shows up in detect_timestomping correctly (no false positives)
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+        // ADS alone should not trigger timestomping
+        assert_eq!(mft_data.detect_timestomping().len(), 0);
+    }
+
+    #[test]
+    fn test_mft_data_seed_rewind_multiple() {
+        // Test seeding rewind with multiple entries and verify path resolution
+        let e1 = make_mft_entry(10, 1, "Users", 5, 5, true, true);
+        let e2 = make_mft_entry(20, 1, "admin", 10, 1, true, true);
+        let e3 = make_mft_entry(30, 1, "Desktop", 20, 1, true, true);
+
+        let mut by_entry = HashMap::new();
+        by_entry.insert(10u64, 0usize);
+        by_entry.insert(20u64, 1usize);
+        by_entry.insert(30u64, 2usize);
+
+        let mut by_key = HashMap::new();
+        by_key.insert(EntryKey::new(10, 1), 0usize);
+        by_key.insert(EntryKey::new(20, 1), 1usize);
+        by_key.insert(EntryKey::new(30, 1), 2usize);
+
+        let mft_data = MftData {
+            entries: vec![e1, e2, e3],
+            by_entry,
+            by_key,
+        };
+
+        let engine = mft_data.seed_rewind();
+        assert_eq!(engine.lookup_len(), 3);
+        let path = engine.resolve_path(&EntryKey::new(30, 1));
+        assert_eq!(path, ".\\Users\\admin\\Desktop");
+    }
+
+    #[test]
+    fn test_mft_data_full_path_field() {
+        let entry = make_mft_entry(100, 1, "test.txt", 5, 5, false, true);
+        assert_eq!(entry.full_path, ".\\test.txt");
+    }
+
+    #[test]
+    fn test_mft_data_is_directory_and_in_use() {
+        let dir_entry = make_mft_entry(100, 1, "Documents", 5, 5, true, true);
+        assert!(dir_entry.is_directory);
+        assert!(dir_entry.is_in_use);
+
+        let deleted_entry = make_mft_entry(200, 1, "deleted.txt", 5, 5, false, false);
+        assert!(!deleted_entry.is_directory);
+        assert!(!deleted_entry.is_in_use);
+    }
 }

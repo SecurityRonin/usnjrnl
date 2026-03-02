@@ -156,4 +156,102 @@ mod tests {
         // All entries should be marked as not matching (insufficient data)
         assert!(result.matches.iter().all(|&m| !m));
     }
+
+    #[test]
+    fn test_exact_four_entries_identical() {
+        // Data with exactly 4 entries (the exact boundary) - both MFT and mirror
+        let data = vec![0xBBu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        let result = compare_mft_mirror(&data, &data).unwrap();
+        assert!(result.is_consistent);
+        assert!(result.matches.iter().all(|&m| m));
+        assert!(result.diff_offsets.iter().all(|d| d.is_empty()));
+    }
+
+    #[test]
+    fn test_fewer_than_four_entries_in_mirror() {
+        // Mirror has only 2 entries (fewer than the expected 4)
+        // This should trigger the warning for entries 2 and 3
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        let mirr = vec![0xAAu8; MFT_ENTRY_SIZE * 2]; // Only 2 entries
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        // First two entries match (same data)
+        assert!(result.matches[0]);
+        assert!(result.matches[1]);
+        // Entries 2 and 3 are missing from mirror
+        assert!(!result.matches[2]);
+        assert!(!result.matches[3]);
+    }
+
+    #[test]
+    fn test_fewer_than_four_entries_in_mft() {
+        // MFT has only 3 entries
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * 3];
+        let mirr = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        assert!(result.matches[0]);
+        assert!(result.matches[1]);
+        assert!(result.matches[2]);
+        assert!(!result.matches[3]); // MFT too short for entry 3
+    }
+
+    #[test]
+    fn test_exactly_one_byte_short_of_four_entries() {
+        // Mirror is one byte short of having all 4 entries
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        let mirr = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT - 1];
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        assert!(result.matches[0]);
+        assert!(result.matches[1]);
+        assert!(result.matches[2]);
+        assert!(!result.matches[3]); // Last entry doesn't fit
+    }
+
+    #[test]
+    fn test_mirror_with_more_than_four_entries() {
+        // Extra data beyond 4 entries should be ignored
+        let data = vec![0xCCu8; MFT_ENTRY_SIZE * 8]; // 8 entries
+        let result = compare_mft_mirror(&data, &data).unwrap();
+        assert!(result.is_consistent);
+        assert!(result.matches.iter().all(|&m| m));
+    }
+
+    #[test]
+    fn test_each_entry_can_differ_independently() {
+        // Verify that differences in each of the 4 entries are detected independently
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        for entry_idx in 0..MIRROR_ENTRY_COUNT {
+            let mut mirr = mft.clone();
+            // Change one byte in this specific entry
+            mirr[entry_idx * MFT_ENTRY_SIZE + 100] = 0xBB;
+
+            let result = compare_mft_mirror(&mft, &mirr).unwrap();
+            assert!(!result.is_consistent);
+            for j in 0..MIRROR_ENTRY_COUNT {
+                if j == entry_idx {
+                    assert!(!result.matches[j],
+                        "Entry {} should not match", j);
+                    assert_eq!(result.diff_offsets[j].len(), 1);
+                    assert_eq!(result.diff_offsets[j][0], 100);
+                } else {
+                    assert!(result.matches[j],
+                        "Entry {} should match", j);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_exact_boundary_data_length_multiple_of_1024() {
+        // Data length is exactly a multiple of 1024 (boundary test)
+        let data = vec![0xDDu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        assert_eq!(data.len() % MFT_ENTRY_SIZE, 0);
+        let result = compare_mft_mirror(&data, &data).unwrap();
+        assert!(result.is_consistent);
+    }
 }

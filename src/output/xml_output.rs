@@ -236,4 +236,106 @@ mod tests {
         assert!(output.contains("<source_info>42</source_info>"));
         assert!(output.contains("<security_id>99</security_id>"));
     }
+
+    #[test]
+    fn test_xml_dot_first_filename_bashrc() {
+        // .bashrc has no "real" extension - rsplit('.') gives ["bashrc", ""]
+        // .next() returns "bashrc", and "bashrc".len() (6) < ".bashrc".len() (7) is true
+        // so extension should be "bashrc"
+        let resolved = vec![make_record(
+            ".bashrc",
+            ".\\.bashrc",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("<filename>.bashrc</filename>"));
+        assert!(output.contains("<extension>bashrc</extension>"));
+    }
+
+    #[test]
+    fn test_xml_no_extension_filename() {
+        // "Makefile" has no dot, so rsplit('.') gives ["Makefile"]
+        // .next() returns "Makefile", "Makefile".len() (8) < "Makefile".len() (8) is false
+        // so filter removes it and extension is ""
+        let resolved = vec![make_record(
+            "Makefile",
+            ".\\Makefile",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("<filename>Makefile</filename>"));
+        assert!(output.contains("<extension></extension>"));
+    }
+
+    #[test]
+    fn test_xml_double_extension() {
+        // "archive.tar.gz" should extract "gz" as the extension
+        let resolved = vec![make_record(
+            "archive.tar.gz",
+            ".\\archive.tar.gz",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("<extension>gz</extension>"));
+    }
+
+    #[test]
+    fn test_xml_dot_only_filename() {
+        // A filename that is just "." - edge case
+        // rsplit('.') gives ["", ""], .next() returns ""
+        // "".len() (0) < ".".len() (1) is true, but extension is ""
+        let resolved = vec![make_record(
+            ".",
+            ".\\.",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("<filename>.</filename>"));
+        // Extension should be empty string since after the dot there's nothing
+        assert!(output.contains("<extension></extension>"));
+    }
+
+    #[test]
+    fn test_xml_filename_ending_with_dot() {
+        // "file." has a trailing dot - rsplit('.') gives ["", "file"]
+        // .next() returns "", "".len() (0) < "file.".len() (5) is true
+        // so extension = ""
+        let resolved = vec![make_record(
+            "file.",
+            ".\\file.",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("<extension></extension>"));
+    }
 }
