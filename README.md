@@ -73,12 +73,15 @@ How `usnjrnl` compares against every notable USN journal tool, past and present.
 
 | Feature | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
+| **Artifacts analyzed** | **4** | **1** | **3** | **3** | **3** | **3** | **1** |
 | MFT path resolution | Yes | Yes | Yes | Yes | Yes | Yes | Via MFTECmd |
 | Rewind (reused MFT entries) | Yes | No | No | No | No | No | Yes |
 | $LogFile USN extraction | Yes | No | Yes | Yes | Yes | Yes | No |
 | TriForce correlation | Yes | No | Yes | Yes | Partial | Partial | No |
 | Ghost record recovery | Yes | No | No | No | No | No | No |
 | $MFTMirr integrity check | Yes | No | No | No | No | No | No |
+
+> `usnjrnl` is the only tool that analyzes all four NTFS artifacts ($UsnJrnl + $MFT + $LogFile + $MFTMirr). The original TriForce technique (2013) correlates three. We extend it with $MFTMirr byte-level integrity verification to detect tampering with critical system metadata.
 
 ### Forensic Detection
 
@@ -138,16 +141,19 @@ Before Rewind:  UNKNOWN\UNKNOWN\malware.exe
 After Rewind:   .\Users\admin\AppData\Local\Temp\malware.exe
 ```
 
-### TriForce Correlation
+### TriForce Correlation + $MFTMirr Integrity
 
-Four NTFS artifacts record overlapping file activity:
+The original [TriForce](https://www.hecfblog.com/2013/01/ntfs-triforce-deeper-look-inside.html) technique (David Cowen, 2013) correlates three NTFS artifacts:
 
 1. **$UsnJrnl** records file creates, deletes, renames, and data changes
 2. **$MFT** stores the current file system state with timestamps
 3. **$LogFile** contains transaction logs that embed USN records
-4. **$MFTMirr** mirrors the first critical MFT entries for integrity verification
 
-When an attacker clears the USN journal, the $LogFile still contains copies of recent USN records in its RCRD pages. `usnjrnl` extracts these embedded records, cross-references them against the journal, and flags the difference as "ghost records": proof of activity the attacker tried to erase. It also compares $MFT against $MFTMirr to detect tampering with critical system metadata entries ($MFT, $MFTMirr, $LogFile, $Volume) — a consistency check no other open-source tool performs.
+`usnjrnl` implements the full TriForce correlation and extends it with a fourth artifact:
+
+4. **$MFTMirr** — Windows mirrors the first four MFT entries ($MFT, $MFTMirr, $LogFile, $Volume) to this backup file. `usnjrnl` performs byte-level comparison between $MFT and $MFTMirr, detecting tampering with critical system metadata that no other tool checks. This is not part of the original TriForce — it is an additional integrity verification unique to `usnjrnl`.
+
+When an attacker clears the USN journal, the $LogFile still contains copies of recent USN records in its RCRD pages. `usnjrnl` extracts these embedded records, cross-references them against the journal, and flags the difference as "ghost records" — proof of activity the attacker tried to erase.
 
 ```
 [+] 23 USN records recovered from $LogFile
@@ -155,6 +161,15 @@ When an attacker clears the USN journal, the $LogFile still contains copies of r
 [!] Ghost records (evidence of cleared journal entries):
     LSN=48201 USN=1024 2024-01-15T03:42:11Z [FILE_CREATE] mimikatz.exe
     LSN=48205 USN=1088 2024-01-15T03:42:12Z [FILE_DELETE|CLOSE] mimikatz.exe
+
+[+] $MFTMirr is consistent with $MFT
+```
+
+Or when tampering is detected:
+
+```
+[!] $MFTMirr INCONSISTENCY DETECTED:
+    Entry 2 ($LogFile): 14 byte differences
 ```
 
 ### Anti-Forensics Detection
