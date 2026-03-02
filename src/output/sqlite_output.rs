@@ -190,4 +190,165 @@ mod tests {
             .unwrap();
         assert_eq!(filename, "test.exe");
     }
+
+    #[test]
+    fn test_sqlite_export_with_mft_entries() {
+        use crate::mft::MftEntry;
+
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test_mft.sqlite");
+
+        let record = UsnRecord {
+            mft_entry: 100,
+            mft_sequence: 3,
+            parent_mft_entry: 50,
+            parent_mft_sequence: 1,
+            usn: 12345,
+            timestamp: DateTime::from_timestamp(1700000000, 0).unwrap(),
+            reason: UsnReason::FILE_CREATE,
+            filename: "test.exe".into(),
+            file_attributes: FileAttributes::ARCHIVE,
+            source_info: 0,
+            security_id: 0,
+            major_version: 2,
+        };
+        let resolved = vec![ResolvedRecord {
+            record,
+            full_path: ".\\temp\\test.exe".into(),
+            parent_path: ".\\temp".into(),
+        }];
+
+        let mft_entries = vec![
+            MftEntry {
+                entry_number: 100,
+                sequence_number: 3,
+                filename: "test.exe".into(),
+                parent_entry: 50,
+                parent_sequence: 1,
+                is_directory: false,
+                is_in_use: true,
+                si_created: Some(DateTime::from_timestamp(1700000000, 0).unwrap()),
+                si_modified: Some(DateTime::from_timestamp(1700000100, 0).unwrap()),
+                si_mft_modified: Some(DateTime::from_timestamp(1700000100, 0).unwrap()),
+                si_accessed: Some(DateTime::from_timestamp(1700000200, 0).unwrap()),
+                fn_created: Some(DateTime::from_timestamp(1700000000, 0).unwrap()),
+                fn_modified: Some(DateTime::from_timestamp(1700000100, 0).unwrap()),
+                fn_mft_modified: Some(DateTime::from_timestamp(1700000100, 0).unwrap()),
+                fn_accessed: Some(DateTime::from_timestamp(1700000200, 0).unwrap()),
+                full_path: ".\\temp\\test.exe".into(),
+                file_size: 65536,
+                has_ads: false,
+            },
+            MftEntry {
+                entry_number: 50,
+                sequence_number: 1,
+                filename: "temp".into(),
+                parent_entry: 5,
+                parent_sequence: 5,
+                is_directory: true,
+                is_in_use: true,
+                si_created: None,
+                si_modified: None,
+                si_mft_modified: None,
+                si_accessed: None,
+                fn_created: None,
+                fn_modified: None,
+                fn_mft_modified: None,
+                fn_accessed: None,
+                full_path: ".\\temp".into(),
+                file_size: 0,
+                has_ads: true,
+            },
+        ];
+
+        export_sqlite(&db_path, &resolved, Some(&mft_entries)).unwrap();
+
+        // Verify USN data
+        let conn = Connection::open(&db_path).unwrap();
+        let usn_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(usn_count, 1);
+
+        // Verify MFT data
+        let mft_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM MFT", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mft_count, 2);
+
+        let mft_filename: String = conn
+            .query_row(
+                "SELECT FileName FROM MFT WHERE EntryNumber = 100",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(mft_filename, "test.exe");
+
+        let mft_is_dir: i64 = conn
+            .query_row(
+                "SELECT IsDirectory FROM MFT WHERE EntryNumber = 50",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(mft_is_dir, 1);
+
+        let mft_has_ads: i64 = conn
+            .query_row(
+                "SELECT HasAds FROM MFT WHERE EntryNumber = 50",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(mft_has_ads, 1);
+    }
+
+    #[test]
+    fn test_sqlite_export_empty_records() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test_empty.sqlite");
+
+        export_sqlite(&db_path, &[], None).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_sqlite_extension_extraction() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test_ext.sqlite");
+
+        let record = UsnRecord {
+            mft_entry: 100,
+            mft_sequence: 1,
+            parent_mft_entry: 5,
+            parent_mft_sequence: 1,
+            usn: 100,
+            timestamp: DateTime::from_timestamp(1700000000, 0).unwrap(),
+            reason: UsnReason::FILE_CREATE,
+            filename: "noextension".into(),
+            file_attributes: FileAttributes::ARCHIVE,
+            source_info: 0,
+            security_id: 0,
+            major_version: 2,
+        };
+        let resolved = vec![ResolvedRecord {
+            record,
+            full_path: ".\\noextension".into(),
+            parent_path: ".".into(),
+        }];
+
+        export_sqlite(&db_path, &resolved, None).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let ext: String = conn
+            .query_row("SELECT Extension FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(ext, "", "File without extension should have empty Extension");
+    }
 }

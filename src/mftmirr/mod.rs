@@ -117,4 +117,43 @@ mod tests {
         assert!(result.matches[0]); // First entry matches
         assert!(!result.matches[1]); // Rest are missing
     }
+
+    #[test]
+    fn test_short_mft_data() {
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE]; // Only 1 entry
+        let mirr = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        assert!(result.matches[0]); // First entry matches
+        assert!(!result.matches[1]); // MFT too short
+    }
+
+    #[test]
+    fn test_multiple_differences() {
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        let mut mirr = mft.clone();
+        // Modify entry 0
+        mirr[0] = 0xBB;
+        mirr[10] = 0xCC;
+        // Modify entry 2
+        mirr[2 * MFT_ENTRY_SIZE + 5] = 0xDD;
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        assert!(!result.matches[0]);
+        assert!(result.matches[1]);
+        assert!(!result.matches[2]);
+        assert!(result.matches[3]);
+        assert_eq!(result.diff_offsets[0].len(), 2);
+        assert_eq!(result.diff_offsets[2].len(), 1);
+    }
+
+    #[test]
+    fn test_empty_data() {
+        let result = compare_mft_mirror(&[], &[]).unwrap();
+        assert!(!result.is_consistent);
+        // All entries should be marked as not matching (insufficient data)
+        assert!(result.matches.iter().all(|&m| !m));
+    }
 }

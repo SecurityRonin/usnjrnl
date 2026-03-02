@@ -487,4 +487,423 @@ mod tests {
         let data = vec![0u8; 10];
         assert!(parse_usn_record_v2(&data).is_err());
     }
+
+    // ─── V3 parser tests ────────────────────────────────────────────────
+
+    fn build_v3_record(
+        entry: u64,
+        parent_entry: u64,
+        reason: u32,
+        filename: &str,
+    ) -> Vec<u8> {
+        let name_utf16: Vec<u16> = filename.encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2;
+        let record_len = 0x4C + name_bytes_len;
+        let aligned_len = (record_len + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        // Record length
+        buf[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        // Major version = 3
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes());
+        // Minor version = 0
+        buf[6..8].copy_from_slice(&0u16.to_le_bytes());
+        // 128-bit file reference at 0x08
+        let file_ref_128: u128 = entry as u128;
+        buf[0x08..0x18].copy_from_slice(&file_ref_128.to_le_bytes());
+        // 128-bit parent reference at 0x18
+        let parent_ref_128: u128 = parent_entry as u128;
+        buf[0x18..0x28].copy_from_slice(&parent_ref_128.to_le_bytes());
+        // USN
+        buf[0x28..0x30].copy_from_slice(&200i64.to_le_bytes());
+        // Timestamp: 2024-01-15 12:00:00 UTC
+        let ts: i64 = 133500480000000000;
+        buf[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        // Reason
+        buf[0x38..0x3C].copy_from_slice(&reason.to_le_bytes());
+        // Source info
+        buf[0x3C..0x40].copy_from_slice(&0u32.to_le_bytes());
+        // Security ID
+        buf[0x40..0x44].copy_from_slice(&0u32.to_le_bytes());
+        // File attributes (ARCHIVE)
+        buf[0x44..0x48].copy_from_slice(&0x20u32.to_le_bytes());
+        // Filename length
+        buf[0x48..0x4A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        // Filename offset
+        buf[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+        // Filename UTF-16LE
+        for (i, &ch) in name_utf16.iter().enumerate() {
+            let off = 0x4C + i * 2;
+            buf[off..off + 2].copy_from_slice(&ch.to_le_bytes());
+        }
+
+        buf
+    }
+
+    #[test]
+    fn test_parse_v3_record_basic() {
+        let data = build_v3_record(100, 5, 0x100, "v3_test.txt");
+        let record = parse_usn_record_v3(&data).unwrap();
+
+        assert_eq!(record.mft_entry, 100);
+        assert_eq!(record.mft_sequence, 0); // V3 doesn't use seq
+        assert_eq!(record.parent_mft_entry, 5);
+        assert_eq!(record.parent_mft_sequence, 0);
+        assert_eq!(record.filename, "v3_test.txt");
+        assert!(record.reason.contains(UsnReason::FILE_CREATE));
+        assert_eq!(record.major_version, 3);
+    }
+
+    #[test]
+    fn test_parse_v3_record_unicode() {
+        let data = build_v3_record(200, 5, 0x100, "日本語ファイル.txt");
+        let record = parse_usn_record_v3(&data).unwrap();
+        assert_eq!(record.filename, "日本語ファイル.txt");
+        assert_eq!(record.major_version, 3);
+    }
+
+    #[test]
+    fn test_parse_v3_too_short() {
+        let data = vec![0u8; 0x4B]; // Less than USN_V3_MIN_SIZE
+        assert!(parse_usn_record_v3(&data).is_err());
+    }
+
+    #[test]
+    fn test_parse_v3_invalid_record_length_too_small() {
+        let mut data = vec![0u8; 0x60];
+        // record_len smaller than min
+        data[0..4].copy_from_slice(&(0x30u32).to_le_bytes());
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        assert!(parse_usn_record_v3(&data).is_err());
+    }
+
+    #[test]
+    fn test_parse_v3_invalid_record_length_too_large() {
+        let mut data = vec![0u8; 0x60];
+        // record_len larger than max
+        data[0..4].copy_from_slice(&(70000u32).to_le_bytes());
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        assert!(parse_usn_record_v3(&data).is_err());
+    }
+
+    #[test]
+    fn test_parse_v3_zero_filename() {
+        // V3 record with zero-length filename
+        let mut data = vec![0u8; 0x60];
+        let record_len = 0x4Cu32;
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        // 128-bit file reference
+        data[0x08..0x18].copy_from_slice(&100u128.to_le_bytes());
+        data[0x18..0x28].copy_from_slice(&5u128.to_le_bytes());
+        data[0x28..0x30].copy_from_slice(&100i64.to_le_bytes());
+        let ts: i64 = 133500480000000000;
+        data[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        data[0x38..0x3C].copy_from_slice(&0x100u32.to_le_bytes());
+        // filename_length = 0
+        data[0x48..0x4A].copy_from_slice(&0u16.to_le_bytes());
+        data[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+
+        let record = parse_usn_record_v3(&data).unwrap();
+        assert_eq!(record.filename, "");
+    }
+
+    // ─── V2 edge case tests ─────────────────────────────────────────────
+
+    #[test]
+    fn test_parse_v2_invalid_record_length_too_small() {
+        let mut data = vec![0u8; 0x60];
+        // record_len below min
+        data[0..4].copy_from_slice(&(0x30u32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        assert!(parse_usn_record_v2(&data).is_err());
+    }
+
+    #[test]
+    fn test_parse_v2_invalid_record_length_too_large() {
+        let mut data = vec![0u8; 0x60];
+        // record_len exceeds max
+        data[0..4].copy_from_slice(&(70000u32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        assert!(parse_usn_record_v2(&data).is_err());
+    }
+
+    #[test]
+    fn test_parse_v2_record_length_exceeds_data() {
+        let mut data = vec![0u8; 0x40];
+        // record_len says 0x100 but we only have 0x40 bytes
+        data[0..4].copy_from_slice(&(0x100u32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        assert!(parse_usn_record_v2(&data).is_err());
+    }
+
+    #[test]
+    fn test_parse_v2_zero_filename() {
+        let mut data = vec![0u8; 0x40];
+        let record_len = 0x3Cu32;
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        let file_ref = 100u64 | (3u64 << 48);
+        data[0x08..0x10].copy_from_slice(&file_ref.to_le_bytes());
+        let parent_ref = 5u64 | (5u64 << 48);
+        data[0x10..0x18].copy_from_slice(&parent_ref.to_le_bytes());
+        data[0x18..0x20].copy_from_slice(&100i64.to_le_bytes());
+        let ts: i64 = 133500480000000000;
+        data[0x20..0x28].copy_from_slice(&ts.to_le_bytes());
+        data[0x28..0x2C].copy_from_slice(&0x100u32.to_le_bytes());
+        data[0x34..0x38].copy_from_slice(&0x20u32.to_le_bytes());
+        // filename_length = 0
+        data[0x38..0x3A].copy_from_slice(&0u16.to_le_bytes());
+        data[0x3A..0x3C].copy_from_slice(&0x3Cu16.to_le_bytes());
+
+        let record = parse_usn_record_v2(&data).unwrap();
+        assert_eq!(record.filename, "");
+    }
+
+    #[test]
+    fn test_parse_v2_zero_timestamp() {
+        // A record with timestamp = 0 should use epoch fallback
+        let mut data = build_v2_record(100, 1, 5, 5, 0x100, "t.txt");
+        // Set timestamp to 0
+        data[0x20..0x28].copy_from_slice(&0i64.to_le_bytes());
+
+        let record = parse_usn_record_v2(&data).unwrap();
+        assert_eq!(record.timestamp.timestamp(), 0);
+    }
+
+    #[test]
+    fn test_parse_v2_negative_timestamp() {
+        // A record with negative timestamp should use epoch fallback
+        let mut data = build_v2_record(100, 1, 5, 5, 0x100, "t.txt");
+        data[0x20..0x28].copy_from_slice(&(-1i64).to_le_bytes());
+
+        let record = parse_usn_record_v2(&data).unwrap();
+        assert_eq!(record.timestamp.timestamp(), 0);
+    }
+
+    #[test]
+    fn test_parse_v2_pre_epoch_timestamp() {
+        // A timestamp before Unix epoch but valid Windows FILETIME
+        let mut data = build_v2_record(100, 1, 5, 5, 0x100, "old.txt");
+        // A FILETIME value between 1601 and 1970 (positive but < EPOCH_DIFF)
+        let ts: i64 = 100_000_000_000_000_000; // ~1917
+        data[0x20..0x28].copy_from_slice(&ts.to_le_bytes());
+
+        let record = parse_usn_record_v2(&data).unwrap();
+        // Should fall back to epoch 0
+        assert_eq!(record.timestamp.timestamp(), 0);
+    }
+
+    #[test]
+    fn test_parse_v2_filename_out_of_bounds() {
+        // Filename offset + length exceeds data length
+        let mut data = build_v2_record(100, 1, 5, 5, 0x100, "ok.txt");
+        // Set filename_length to something huge
+        data[0x38..0x3A].copy_from_slice(&(5000u16).to_le_bytes());
+
+        let record = parse_usn_record_v2(&data).unwrap();
+        assert_eq!(record.filename, ""); // Should get empty string fallback
+    }
+
+    #[test]
+    fn test_parse_v2_filename_length_one_byte() {
+        // Filename length of 1 is < 2, so should produce empty string
+        let mut data = build_v2_record(100, 1, 5, 5, 0x100, "x.txt");
+        data[0x38..0x3A].copy_from_slice(&1u16.to_le_bytes());
+
+        let record = parse_usn_record_v2(&data).unwrap();
+        assert_eq!(record.filename, "");
+    }
+
+    // ─── Bulk parser edge cases ─────────────────────────────────────────
+
+    #[test]
+    fn test_parse_journal_v3_records() {
+        let r = build_v3_record(100, 5, 0x100, "v3file.txt");
+        let records = parse_usn_journal(&r).unwrap();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].filename, "v3file.txt");
+        assert_eq!(records[0].major_version, 3);
+    }
+
+    #[test]
+    fn test_parse_journal_mixed_v2_v3() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&build_v2_record(100, 1, 5, 5, 0x100, "v2.txt"));
+        data.extend_from_slice(&build_v3_record(200, 5, 0x200, "v3.txt"));
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].major_version, 2);
+        assert_eq!(records[1].major_version, 3);
+    }
+
+    #[test]
+    fn test_parse_journal_v4_record_skipped() {
+        // Build a fake V4 record - it should be skipped
+        let record_len = 0x38u32; // USN_V4_MIN_SIZE
+        let aligned_len = ((record_len as usize) + 7) & !7;
+        let mut data = vec![0u8; aligned_len];
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&4u16.to_le_bytes()); // version 4
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_unknown_version_skipped() {
+        let record_len = 0x40u32;
+        let aligned_len = ((record_len as usize) + 7) & !7;
+        let mut data = vec![0u8; aligned_len];
+        data[0..4].copy_from_slice(&record_len.to_le_bytes());
+        data[4..6].copy_from_slice(&99u16.to_le_bytes()); // unknown version
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_invalid_record_length_scan_forward() {
+        // Invalid record length should cause scanning forward
+        let mut data = vec![0u8; 16];
+        data[0..4].copy_from_slice(&3u32.to_le_bytes()); // too small
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        // Fill rest with zeros (will end loop)
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_record_extends_past_end() {
+        // Record claims to be 0x1000 bytes, but data is only 0x100
+        let mut data = vec![0u8; 0x100];
+        data[0..4].copy_from_slice(&(0x1000u32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_empty_data() {
+        let records = parse_usn_journal(&[]).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_all_zeros() {
+        let data = vec![0u8; 4096];
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_v2_too_small_for_v2_but_valid_len() {
+        // record_len >= V4_MIN but < V2_MIN, version=2 -> skip
+        let mut data = vec![0u8; 0x40];
+        data[0..4].copy_from_slice(&(0x3Au32).to_le_bytes()); // < V2_MIN (0x3C)
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_v3_too_small_for_v3_but_valid_len() {
+        // record_len >= V4_MIN but < V3_MIN, version=3 -> skip
+        let mut data = vec![0u8; 0x50];
+        data[0..4].copy_from_slice(&(0x40u32).to_le_bytes()); // < V3_MIN (0x4C)
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_v3_close_only_skipped() {
+        let r = build_v3_record(100, 5, 0x8000_0000, "closed.txt");
+        let records = parse_usn_journal(&r).unwrap();
+        assert_eq!(records.len(), 0); // CLOSE-only filtered out
+    }
+
+    #[test]
+    fn test_parse_journal_8byte_alignment() {
+        // Verify that records are properly aligned to 8-byte boundaries
+        let r1 = build_v2_record(100, 1, 5, 5, 0x100, "a.txt");
+        assert_eq!(r1.len() % 8, 0); // Should be 8-byte aligned already
+        let r2 = build_v2_record(200, 1, 5, 5, 0x200, "b.txt");
+        let mut data = Vec::new();
+        data.extend_from_slice(&r1);
+        data.extend_from_slice(&r2);
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 2);
+    }
+
+    #[test]
+    fn test_filetime_to_datetime_zero() {
+        assert!(filetime_to_datetime(0).is_none());
+    }
+
+    #[test]
+    fn test_filetime_to_datetime_negative() {
+        assert!(filetime_to_datetime(-100).is_none());
+    }
+
+    #[test]
+    fn test_filetime_to_datetime_pre_unix_epoch() {
+        // FILETIME before Unix epoch but after Windows epoch
+        let pre_unix: i64 = 100_000_000_000_000_000;
+        assert!(filetime_to_datetime(pre_unix).is_none());
+    }
+
+    #[test]
+    fn test_filetime_to_datetime_valid() {
+        let ts: i64 = 133500480000000000;
+        let dt = filetime_to_datetime(ts);
+        assert!(dt.is_some());
+        let dt = dt.unwrap();
+        // Verify it produces a date in January 2024
+        assert_eq!(dt.format("%Y").to_string(), "2024");
+    }
+
+    #[test]
+    fn test_read_u128_le() {
+        let mut data = [0u8; 16];
+        let val: u128 = 0x0102030405060708090A0B0C0D0E0F10;
+        data.copy_from_slice(&val.to_le_bytes());
+        assert_eq!(read_u128_le(&data, 0), val);
+    }
+
+    #[test]
+    fn test_read_u64_le() {
+        let mut data = [0u8; 8];
+        let val: u64 = 0x0102030405060708;
+        data.copy_from_slice(&val.to_le_bytes());
+        assert_eq!(read_u64_le(&data, 0), val);
+    }
+
+    #[test]
+    fn test_read_i64_le() {
+        let mut data = [0u8; 8];
+        let val: i64 = -12345;
+        data.copy_from_slice(&val.to_le_bytes());
+        assert_eq!(read_i64_le(&data, 0), val);
+    }
+
+    #[test]
+    fn test_read_u32_le() {
+        let mut data = [0u8; 4];
+        data.copy_from_slice(&42u32.to_le_bytes());
+        assert_eq!(read_u32_le(&data, 0), 42);
+    }
+
+    #[test]
+    fn test_read_u16_le() {
+        let mut data = [0u8; 2];
+        data.copy_from_slice(&1234u16.to_le_bytes());
+        assert_eq!(read_u16_le(&data, 0), 1234);
+    }
 }

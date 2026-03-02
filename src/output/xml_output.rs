@@ -182,4 +182,58 @@ mod tests {
         assert!(output.contains("</usnjrnl>"));
         assert!(!output.contains("<record>"), "no records for empty input");
     }
+
+    #[test]
+    fn test_xml_file_without_extension() {
+        let resolved = vec![make_record(
+            "noext",
+            ".\\noext",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // "noext" is both the filename and the "extension" from rsplit('.'),
+        // but the filter makes it empty since ext.len() < filename.len() fails
+        assert!(output.contains("<extension>noext</extension>") || output.contains("<extension></extension>"));
+    }
+
+    #[test]
+    fn test_xml_special_characters_in_filename() {
+        let resolved = vec![make_record(
+            "file&<>\"'.txt",
+            ".\\file&<>\"'.txt",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("file&<>\"'.txt"));
+    }
+
+    #[test]
+    fn test_xml_nonzero_source_and_security() {
+        let resolved = vec![make_record(
+            "test.txt",
+            ".\\test.txt",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            42, 99,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        assert!(output.contains("<source_info>42</source_info>"));
+        assert!(output.contains("<security_id>99</security_id>"));
+    }
 }

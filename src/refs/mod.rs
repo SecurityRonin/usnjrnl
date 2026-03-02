@@ -380,4 +380,73 @@ mod tests {
             "Root directory should not be in reconstructed paths"
         );
     }
+
+    #[test]
+    fn test_refs_path_cycle_detection() {
+        // Create a cycle: A->B->A
+        let id_a = RefsFileId::from_u128(10);
+        let id_b = RefsFileId::from_u128(20);
+
+        let rec_a = RefsRecord::new(
+            make_v3_record(10, 20, UsnReason::FILE_CREATE, "dir_a"),
+            id_a,
+            id_b,
+        );
+        let rec_b = RefsRecord::new(
+            make_v3_record(20, 10, UsnReason::FILE_CREATE, "dir_b"),
+            id_b,
+            id_a,
+        );
+
+        let analyzer = RefsAnalyzer::new(vec![rec_a, rec_b]);
+        let paths = analyzer.reconstruct_paths();
+        // Should not hang. Cycle should be broken.
+        // The paths may or may not be empty, but it should not panic.
+        assert!(paths.len() <= 2);
+    }
+
+    #[test]
+    fn test_refs_empty_analyzer() {
+        let analyzer = RefsAnalyzer::new(vec![]);
+        let groups = analyzer.group_by_file_id();
+        assert!(groups.is_empty());
+        let paths = analyzer.reconstruct_paths();
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn test_refs_file_id_equality() {
+        let id1 = RefsFileId::from_u128(42);
+        let id2 = RefsFileId::from_u128(42);
+        let id3 = RefsFileId::from_u128(43);
+        assert_eq!(id1, id2);
+        assert_ne!(id1, id3);
+    }
+
+    #[test]
+    fn test_refs_mixed_v2_and_v3_not_refs() {
+        // If any record is not v3, it's not ReFS
+        let v2_record = UsnRecord {
+            mft_entry: 100,
+            mft_sequence: 0,
+            parent_mft_entry: 5,
+            parent_mft_sequence: 0,
+            usn: 1000,
+            timestamp: DateTime::from_timestamp(1700000000, 0).unwrap(),
+            reason: UsnReason::FILE_CREATE,
+            filename: "v2file.txt".to_string(),
+            file_attributes: FileAttributes::from_bits_retain(0x20),
+            source_info: 0,
+            security_id: 0,
+            major_version: 2, // V2!
+        };
+        let refs_rec = RefsRecord::new(
+            v2_record,
+            RefsFileId::from_u128(0x0000_0000_0000_0001_0000_0000_0000_0064),
+            RefsFileId::from_u128(0x0000_0000_0000_0001_0000_0000_0000_0005),
+        );
+
+        let analyzer = RefsAnalyzer::new(vec![refs_rec]);
+        assert!(!analyzer.is_likely_refs(), "Mixed v2/v3 should not be detected as ReFS");
+    }
 }

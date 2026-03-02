@@ -233,4 +233,175 @@ mod tests {
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
         assert_eq!(records.len(), 3);
     }
+
+    #[test]
+    fn test_streaming_reader_empty_data() {
+        let cursor = Cursor::new(Vec::<u8>::new());
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_streaming_reader_all_zeros() {
+        let data = vec![0u8; 4096];
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_streaming_reader_skips_close_only() {
+        let data = build_v2_record_bytes(100, 1, 5, 5, 0x8000_0000, "closed.txt");
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_streaming_reader_invalid_record_length() {
+        // Record with invalid length (too small) should be skipped
+        let mut data = vec![0u8; 64];
+        data[0..4].copy_from_slice(&3u32.to_le_bytes()); // length < 8
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        // Rest is zeros, reader will skip
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_streaming_reader_invalid_then_valid() {
+        let mut data = vec![0u8; 16]; // some garbage that looks non-zero
+        data[0..4].copy_from_slice(&5u32.to_le_bytes()); // invalid length
+        data[4..6].copy_from_slice(&99u16.to_le_bytes()); // invalid version
+        // Pad to 8-byte boundary for skipping
+        data.resize(16, 0);
+        // Now add zeros then a valid record
+        data.extend_from_slice(&vec![0u8; 64]);
+        data.extend_from_slice(&build_v2_record_bytes(100, 1, 5, 5, 0x100, "valid.txt"));
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].filename, "valid.txt");
+    }
+
+    #[test]
+    fn test_streaming_reader_unknown_version() {
+        // Record with valid length but unknown version
+        let mut data = vec![0u8; 0x40];
+        data[0..4].copy_from_slice(&(0x40u32).to_le_bytes());
+        data[4..6].copy_from_slice(&99u16.to_le_bytes()); // version 99
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    fn build_v3_record_bytes(entry: u64, parent: u64, reason: u32, name: &str) -> Vec<u8> {
+        let name_utf16: Vec<u16> = name.encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2;
+        let record_len = 0x4C + name_bytes_len;
+        let aligned_len = (record_len + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        buf[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes());
+        buf[6..8].copy_from_slice(&0u16.to_le_bytes());
+        buf[0x08..0x18].copy_from_slice(&(entry as u128).to_le_bytes());
+        buf[0x18..0x28].copy_from_slice(&(parent as u128).to_le_bytes());
+        buf[0x28..0x30].copy_from_slice(&200i64.to_le_bytes());
+        let ts: i64 = 133500480000000000;
+        buf[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        buf[0x38..0x3C].copy_from_slice(&reason.to_le_bytes());
+        buf[0x44..0x48].copy_from_slice(&0x20u32.to_le_bytes());
+        buf[0x48..0x4A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        buf[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+        for (i, &ch) in name_utf16.iter().enumerate() {
+            let off = 0x4C + i * 2;
+            buf[off..off + 2].copy_from_slice(&ch.to_le_bytes());
+        }
+        buf
+    }
+
+    #[test]
+    fn test_streaming_reader_v3_record() {
+        let data = build_v3_record_bytes(100, 5, 0x100, "v3file.txt");
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].filename, "v3file.txt");
+        assert_eq!(records[0].major_version, 3);
+    }
+
+    #[test]
+    fn test_streaming_reader_v3_close_only_skipped() {
+        let data = build_v3_record_bytes(100, 5, 0x8000_0000, "closed_v3.txt");
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_streaming_reader_large_zero_gap() {
+        // Large zero region followed by a valid record
+        let mut data = vec![0u8; 128 * 1024]; // 128KB of zeros (larger than buffer)
+        data.extend_from_slice(&build_v2_record_bytes(100, 1, 5, 5, 0x100, "deep.txt"));
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].filename, "deep.txt");
+    }
+
+    #[test]
+    fn test_streaming_reader_record_larger_than_initial_buffer_fill() {
+        // Record at offset 0 where the buffer needs to be filled
+        let record = build_v2_record_bytes(42, 3, 5, 5, 0x100, "buffer_test.txt");
+        let cursor = Cursor::new(record);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].mft_entry, 42);
+        assert_eq!(records[0].mft_sequence, 3);
+    }
+
+    #[test]
+    fn test_streaming_reader_record_too_large() {
+        // A record that claims to be 65537 bytes (> 65536 max) should be skipped
+        let mut data = vec![0u8; 128];
+        data[0..4].copy_from_slice(&(65537u32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_streaming_reader_mixed_v2_v3() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&build_v2_record_bytes(100, 1, 5, 5, 0x100, "v2.txt"));
+        data.extend_from_slice(&build_v3_record_bytes(200, 5, 0x200, "v3.txt"));
+        data.extend_from_slice(&build_v2_record_bytes(300, 1, 5, 5, 0x100, "v2b.txt"));
+
+        let cursor = Cursor::new(data);
+        let reader = UsnJournalReader::new(cursor).unwrap();
+        let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[0].major_version, 2);
+        assert_eq!(records[1].major_version, 3);
+        assert_eq!(records[2].major_version, 2);
+    }
 }

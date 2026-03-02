@@ -994,4 +994,266 @@ mod tests {
             "BASIC_INFO_CHANGE after FILE_CREATE should not be flagged"
         );
     }
+
+    // ─── Additional coverage tests ──────────────────────────────────────
+
+    #[test]
+    fn test_is_sdelete_filename_short() {
+        assert!(!is_sdelete_filename("AB"));
+        assert!(!is_sdelete_filename("A"));
+        assert!(!is_sdelete_filename(""));
+    }
+
+    #[test]
+    fn test_is_sdelete_filename_mixed_chars() {
+        assert!(!is_sdelete_filename("ABCDEF"));
+        assert!(!is_sdelete_filename("aaaaaa")); // lowercase not matched
+    }
+
+    #[test]
+    fn test_is_sdelete_filename_with_extension() {
+        assert!(is_sdelete_filename("AAAA.txt"));
+        assert!(is_sdelete_filename("ZZZZZ.dat"));
+        assert!(is_sdelete_filename("00000.bin"));
+    }
+
+    #[test]
+    fn test_is_common_extension() {
+        assert!(is_common_extension(".txt"));
+        assert!(is_common_extension(".exe"));
+        assert!(is_common_extension(".dll"));
+        assert!(is_common_extension(".pdf"));
+        assert!(!is_common_extension(".xyz_ransom"));
+        assert!(!is_common_extension(".custom"));
+    }
+
+    #[test]
+    fn test_sdelete_only_creates_lower_confidence() {
+        // Only create events, no deletes -> lower confidence
+        let records = vec![
+            make_record(100, "AAAAAAA", UsnReason::FILE_CREATE, ts(0), 1000),
+            make_record(101, "BBBBBBB", UsnReason::FILE_CREATE, ts(1), 1100),
+            make_record(102, "CCCCCCC", UsnReason::FILE_CREATE, ts(2), 1200),
+        ];
+
+        let indicators = detect_secure_deletion(&records);
+        assert!(!indicators.is_empty());
+        assert!(
+            indicators[0].confidence < 0.9,
+            "Create-only should have lower confidence than create+delete"
+        );
+    }
+
+    #[test]
+    fn test_sdelete_events_spread_over_time() {
+        // Events more than 60 seconds apart should be separate groups
+        let records = vec![
+            make_record(100, "AAAAAAA", UsnReason::FILE_CREATE, ts(0), 1000),
+            make_record(101, "AAAAAAA", UsnReason::FILE_DELETE, ts(1), 1100),
+            // Gap > 60 seconds
+            make_record(102, "BBBBBBB", UsnReason::FILE_CREATE, ts(120), 1200),
+            make_record(103, "BBBBBBB", UsnReason::FILE_DELETE, ts(121), 1300),
+        ];
+
+        // Each pair has only 2 events, below the threshold of 3
+        let indicators = detect_secure_deletion(&records);
+        let sdelete_indicators: Vec<_> = indicators
+            .iter()
+            .filter(|i| i.pattern == SecureDeletionPattern::SDelete)
+            .collect();
+        assert!(
+            sdelete_indicators.is_empty(),
+            "Two events per group should not trigger SDelete"
+        );
+    }
+
+    #[test]
+    fn test_bulk_temp_deletion_spread_over_time() {
+        // .tmp deletes more than 30 seconds apart should form separate groups
+        let mut records = Vec::new();
+        for i in 0..5 {
+            records.push(make_record(
+                100 + i,
+                &format!("tmp{:04}.tmp", i),
+                UsnReason::FILE_DELETE,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+        // Gap > 30 seconds
+        for i in 0..5 {
+            records.push(make_record(
+                200 + i,
+                &format!("tmp{:04}.tmp", 100 + i),
+                UsnReason::FILE_DELETE,
+                ts(60 + i as i64),
+                2000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_secure_deletion(&records);
+        let bulk = indicators
+            .iter()
+            .filter(|i| i.pattern == SecureDeletionPattern::BulkTempDeletion)
+            .count();
+        assert_eq!(bulk, 0, "5 deletes per group is below 10 threshold");
+    }
+
+    #[test]
+    fn test_mass_rename_with_common_extension_ignored() {
+        // Mass renames to .txt should NOT trigger ransomware detection
+        let mut records = Vec::new();
+        for i in 0..25 {
+            records.push(make_record(
+                100 + i,
+                &format!("file{}.txt", i),
+                UsnReason::RENAME_NEW_NAME,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_ransomware_patterns(&records);
+        assert!(
+            indicators.is_empty(),
+            "Mass renames to .txt should not trigger ransomware"
+        );
+    }
+
+    #[test]
+    fn test_ransomware_high_count_high_confidence() {
+        // 20+ renames to known extension should have 0.95 confidence
+        let mut records = Vec::new();
+        for i in 0..25 {
+            records.push(make_record(
+                100 + i,
+                &format!("document{}.docx.encrypted", i),
+                UsnReason::RENAME_NEW_NAME,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_ransomware_patterns(&records);
+        assert!(!indicators.is_empty());
+        let encrypted_ind = indicators
+            .iter()
+            .find(|i| i.extension == ".encrypted")
+            .unwrap();
+        assert!(
+            encrypted_ind.confidence >= 0.95,
+            "20+ renames should have 0.95 confidence"
+        );
+    }
+
+    #[test]
+    fn test_ransomware_medium_count_medium_confidence() {
+        // 10-19 renames should have 0.85 confidence
+        let mut records = Vec::new();
+        for i in 0..12 {
+            records.push(make_record(
+                100 + i,
+                &format!("file{}.locked", i),
+                UsnReason::RENAME_NEW_NAME,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_ransomware_patterns(&records);
+        let locked = indicators
+            .iter()
+            .find(|i| i.extension == ".locked")
+            .unwrap();
+        assert!(
+            (locked.confidence - 0.85).abs() < 0.01,
+            "10-19 renames should have 0.85 confidence, got {}",
+            locked.confidence
+        );
+    }
+
+    #[test]
+    fn test_mass_rename_over_long_time_not_ransomware() {
+        // Mass renames to same unknown extension but spread over > 10 minutes
+        let mut records = Vec::new();
+        for i in 0..25 {
+            records.push(make_record(
+                100 + i,
+                &format!("file{}.xyz_spread", i),
+                UsnReason::RENAME_NEW_NAME,
+                ts(i as i64 * 60), // 1 minute apart, total > 10 min
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_ransomware_patterns(&records);
+        let spread = indicators
+            .iter()
+            .filter(|i| i.extension == ".xyz_spread")
+            .count();
+        assert_eq!(
+            spread, 0,
+            "Renames spread over > 10 minutes should not trigger mass-rename"
+        );
+    }
+
+    #[test]
+    fn test_detect_journal_clearing_multiple_gaps() {
+        // Multiple 24+ hour gaps increase confidence
+        let records = vec![
+            make_record(100, "a.txt", UsnReason::FILE_CREATE, ts(0), 100),
+            make_record(101, "b.txt", UsnReason::FILE_CREATE, ts(25 * 3600), 200),
+            make_record(102, "c.txt", UsnReason::FILE_CREATE, ts(50 * 3600), 300),
+            make_record(103, "d.txt", UsnReason::FILE_CREATE, ts(75 * 3600), 400),
+        ];
+
+        let result = detect_journal_clearing(&records);
+        assert_eq!(result.timestamp_gaps.len(), 3);
+        assert!(result.confidence > 0.0);
+    }
+
+    #[test]
+    fn test_timestomp_basic_info_change_with_close() {
+        // BASIC_INFO_CHANGE | CLOSE (not isolated) should have lower confidence
+        let records = vec![
+            make_record(
+                100,
+                "stomped.exe",
+                UsnReason::BASIC_INFO_CHANGE | UsnReason::CLOSE | UsnReason::SECURITY_CHANGE,
+                ts(1000),
+                5000,
+            ),
+        ];
+
+        let indicators = detect_timestomping(&records);
+        if !indicators.is_empty() {
+            // If detected, confidence should be lower (0.5) because reason is not isolated
+            assert!(
+                indicators[0].confidence <= 0.5,
+                "Non-isolated BASIC_INFO_CHANGE should have lower confidence"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ransomware_renames_without_extension() {
+        // Renames with no extension should not cause issues
+        let mut records = Vec::new();
+        for i in 0..25 {
+            records.push(make_record(
+                100 + i,
+                &format!("file{}", i), // No extension
+                UsnReason::RENAME_NEW_NAME,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_ransomware_patterns(&records);
+        // Should not crash, and no indicator for files without extensions
+        assert!(
+            indicators.is_empty(),
+            "Files without extensions should not trigger mass-rename"
+        );
+    }
 }

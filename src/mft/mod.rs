@@ -230,4 +230,251 @@ mod tests {
         assert_eq!(k1, k2);
         assert_ne!(k1, k3);
     }
+
+    #[test]
+    fn test_mft_data_get_by_entry_not_found() {
+        // Empty MftData should return None for any entry lookup
+        let mft_data = MftData {
+            entries: Vec::new(),
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+        assert!(mft_data.get_by_entry(100).is_none());
+    }
+
+    #[test]
+    fn test_mft_data_get_by_key_not_found() {
+        let mft_data = MftData {
+            entries: Vec::new(),
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+        let key = EntryKey::new(100, 3);
+        assert!(mft_data.get_by_key(&key).is_none());
+    }
+
+    fn make_mft_entry(
+        entry_number: u64,
+        sequence_number: u16,
+        filename: &str,
+        parent_entry: u64,
+        parent_sequence: u16,
+        is_dir: bool,
+        is_in_use: bool,
+    ) -> MftEntry {
+        MftEntry {
+            entry_number,
+            sequence_number,
+            filename: filename.to_string(),
+            parent_entry,
+            parent_sequence,
+            is_directory: is_dir,
+            is_in_use,
+            si_created: None,
+            si_modified: None,
+            si_mft_modified: None,
+            si_accessed: None,
+            fn_created: None,
+            fn_modified: None,
+            fn_mft_modified: None,
+            fn_accessed: None,
+            full_path: format!(".\\{}", filename),
+            file_size: 0,
+            has_ads: false,
+        }
+    }
+
+    #[test]
+    fn test_mft_data_get_by_entry_found() {
+        let entry = make_mft_entry(100, 3, "test.txt", 5, 5, false, true);
+        let mut by_entry = HashMap::new();
+        by_entry.insert(100u64, 0usize);
+        let mut by_key = HashMap::new();
+        by_key.insert(EntryKey::new(100, 3), 0usize);
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry,
+            by_key,
+        };
+
+        let found = mft_data.get_by_entry(100);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().filename, "test.txt");
+    }
+
+    #[test]
+    fn test_mft_data_get_by_key_found() {
+        let entry = make_mft_entry(100, 3, "test.txt", 5, 5, false, true);
+        let mut by_entry = HashMap::new();
+        by_entry.insert(100u64, 0usize);
+        let mut by_key = HashMap::new();
+        by_key.insert(EntryKey::new(100, 3), 0usize);
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry,
+            by_key,
+        };
+
+        let key = EntryKey::new(100, 3);
+        let found = mft_data.get_by_key(&key);
+        assert!(found.is_some());
+        assert_eq!(found.unwrap().filename, "test.txt");
+    }
+
+    #[test]
+    fn test_detect_timestomping_si_before_fn() {
+        use chrono::DateTime;
+        let mut entry = make_mft_entry(100, 1, "suspicious.exe", 5, 5, false, true);
+        // SI created is before FN created -> timestomped
+        entry.si_created = Some(DateTime::from_timestamp(1700000000, 0).unwrap());
+        entry.fn_created = Some(DateTime::from_timestamp(1700001000, 0).unwrap());
+
+        let mut by_entry = HashMap::new();
+        by_entry.insert(100u64, 0usize);
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry,
+            by_key: HashMap::new(),
+        };
+
+        let stomped = mft_data.detect_timestomping();
+        assert_eq!(stomped.len(), 1);
+        assert_eq!(stomped[0].filename, "suspicious.exe");
+    }
+
+    #[test]
+    fn test_detect_timestomping_si_modified_before_fn_created() {
+        use chrono::DateTime;
+        let mut entry = make_mft_entry(100, 1, "modified.exe", 5, 5, false, true);
+        // SI created is same as FN, but SI modified is before FN created
+        entry.si_created = Some(DateTime::from_timestamp(1700001000, 0).unwrap());
+        entry.si_modified = Some(DateTime::from_timestamp(1700000000, 0).unwrap());
+        entry.fn_created = Some(DateTime::from_timestamp(1700001000, 0).unwrap());
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+
+        let stomped = mft_data.detect_timestomping();
+        assert_eq!(stomped.len(), 1);
+    }
+
+    #[test]
+    fn test_detect_timestomping_none_when_consistent() {
+        use chrono::DateTime;
+        let mut entry = make_mft_entry(100, 1, "normal.txt", 5, 5, false, true);
+        let ts = DateTime::from_timestamp(1700001000, 0).unwrap();
+        entry.si_created = Some(ts);
+        entry.si_modified = Some(ts);
+        entry.fn_created = Some(ts);
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+
+        let stomped = mft_data.detect_timestomping();
+        assert_eq!(stomped.len(), 0);
+    }
+
+    #[test]
+    fn test_detect_timestomping_no_timestamps() {
+        let entry = make_mft_entry(100, 1, "no_ts.txt", 5, 5, false, true);
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+
+        let stomped = mft_data.detect_timestomping();
+        assert_eq!(stomped.len(), 0);
+    }
+
+    #[test]
+    fn test_seed_rewind() {
+        let entry = make_mft_entry(100, 1, "test.txt", 5, 5, false, true);
+        let mut by_entry = HashMap::new();
+        by_entry.insert(100u64, 0usize);
+        let mut by_key = HashMap::new();
+        by_key.insert(EntryKey::new(100, 1), 0usize);
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry,
+            by_key,
+        };
+
+        let engine = mft_data.seed_rewind();
+        assert_eq!(engine.lookup_len(), 1);
+        let path = engine.resolve_path(&EntryKey::new(100, 1));
+        assert_eq!(path, ".\\test.txt");
+    }
+
+    #[test]
+    fn test_mft_data_multiple_entries() {
+        let e1 = make_mft_entry(100, 1, "file1.txt", 5, 5, false, true);
+        let e2 = make_mft_entry(200, 2, "file2.txt", 100, 1, false, true);
+        let e3 = make_mft_entry(300, 1, "dir1", 5, 5, true, true);
+
+        let mut by_entry = HashMap::new();
+        by_entry.insert(100u64, 0usize);
+        by_entry.insert(200u64, 1usize);
+        by_entry.insert(300u64, 2usize);
+
+        let mut by_key = HashMap::new();
+        by_key.insert(EntryKey::new(100, 1), 0usize);
+        by_key.insert(EntryKey::new(200, 2), 1usize);
+        by_key.insert(EntryKey::new(300, 1), 2usize);
+
+        let mft_data = MftData {
+            entries: vec![e1, e2, e3],
+            by_entry,
+            by_key,
+        };
+
+        assert_eq!(mft_data.entries.len(), 3);
+        assert_eq!(mft_data.get_by_entry(200).unwrap().filename, "file2.txt");
+        assert_eq!(mft_data.get_by_key(&EntryKey::new(300, 1)).unwrap().filename, "dir1");
+        assert!(mft_data.get_by_key(&EntryKey::new(300, 1)).unwrap().is_directory);
+    }
+
+    #[test]
+    fn test_detect_timestomping_si_modified_none() {
+        use chrono::DateTime;
+        let mut entry = make_mft_entry(100, 1, "check.exe", 5, 5, false, true);
+        // SI created == FN created, SI modified is None
+        let ts = DateTime::from_timestamp(1700001000, 0).unwrap();
+        entry.si_created = Some(ts);
+        entry.si_modified = None;
+        entry.fn_created = Some(ts);
+
+        let mft_data = MftData {
+            entries: vec![entry],
+            by_entry: HashMap::new(),
+            by_key: HashMap::new(),
+        };
+
+        let stomped = mft_data.detect_timestomping();
+        assert_eq!(stomped.len(), 0);
+    }
+
+    #[test]
+    fn test_mft_entry_has_ads_field() {
+        let mut entry = make_mft_entry(100, 1, "ads.txt", 5, 5, false, true);
+        entry.has_ads = true;
+        assert!(entry.has_ads);
+    }
+
+    #[test]
+    fn test_mft_entry_file_size() {
+        let mut entry = make_mft_entry(100, 1, "big.bin", 5, 5, false, true);
+        entry.file_size = 1_048_576;
+        assert_eq!(entry.file_size, 1_048_576);
+    }
 }

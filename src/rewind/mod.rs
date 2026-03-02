@@ -448,4 +448,98 @@ mod tests {
         let path = engine.resolve_path(&EntryKey::new(300, 1));
         assert_eq!(path, ".\\Users\\admin\\Desktop");
     }
+
+    #[test]
+    fn test_rewind_engine_default() {
+        let engine = RewindEngine::default();
+        assert_eq!(engine.lookup_len(), 0);
+    }
+
+    #[test]
+    fn test_rewind_engine_insert() {
+        let mut engine = RewindEngine::new();
+        engine.insert(
+            EntryKey::new(100, 1),
+            EntryInfo {
+                name: "inserted.txt".to_string(),
+                parent: EntryKey::root(),
+            },
+        );
+        assert_eq!(engine.lookup_len(), 1);
+        let path = engine.resolve_path(&EntryKey::new(100, 1));
+        assert_eq!(path, ".\\inserted.txt");
+    }
+
+    #[test]
+    fn test_resolve_path_circular_reference() {
+        // Create circular parent references: A -> B -> A
+        let mut engine = RewindEngine::new();
+        engine.insert(
+            EntryKey::new(100, 1),
+            EntryInfo {
+                name: "A".to_string(),
+                parent: EntryKey::new(200, 1),
+            },
+        );
+        engine.insert(
+            EntryKey::new(200, 1),
+            EntryInfo {
+                name: "B".to_string(),
+                parent: EntryKey::new(100, 1),
+            },
+        );
+
+        let path = engine.resolve_path(&EntryKey::new(100, 1));
+        // Should hit depth limit and return UNRESOLVED
+        assert!(
+            path.contains("UNRESOLVED"),
+            "Circular reference should hit depth limit"
+        );
+    }
+
+    #[test]
+    fn test_entry_key_not_root() {
+        let key = EntryKey::new(100, 1);
+        assert!(!key.is_root());
+    }
+
+    #[test]
+    fn test_rewind_empty_records() {
+        let mut engine = RewindEngine::new();
+        let resolved = engine.rewind(&[]);
+        assert!(resolved.is_empty());
+    }
+
+    #[test]
+    fn test_rewind_data_extend_and_truncation() {
+        let mut engine = RewindEngine::from_mft(vec![
+            (50, 1, "data".into(), 5, 5),
+        ]);
+
+        let records = vec![
+            make_record(100, 1, 50, 1, UsnReason::FILE_CREATE, "log.txt", 10),
+            make_record(100, 1, 50, 1, UsnReason::DATA_EXTEND, "log.txt", 20),
+            make_record(100, 1, 50, 1, UsnReason::DATA_TRUNCATION, "log.txt", 30),
+        ];
+
+        let resolved = engine.rewind(&records);
+        assert_eq!(resolved.len(), 3);
+        assert_eq!(resolved[0].full_path, ".\\data\\log.txt");
+        assert_eq!(resolved[1].full_path, ".\\data\\log.txt");
+        assert_eq!(resolved[2].full_path, ".\\data\\log.txt");
+    }
+
+    #[test]
+    fn test_resolve_path_from_standalone() {
+        // Test the resolve_path_from function directly via rewind behavior
+        let mut engine = RewindEngine::new();
+        let records = vec![
+            make_record(10, 1, 5, 5, UsnReason::FILE_CREATE, "root_file.txt", 10),
+        ];
+
+        let resolved = engine.rewind(&records);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].parent_path, ".");
+        assert_eq!(resolved[0].full_path, ".\\root_file.txt");
+    }
 }

@@ -218,4 +218,137 @@ mod tests {
         };
         assert!(!detect_journal_clearing(&summary));
     }
+
+    #[test]
+    fn test_detect_journal_clearing_empty_restart_areas() {
+        let summary = LogFileSummary {
+            restart_areas: vec![],
+            record_page_count: 0,
+            has_gaps: false,
+            highest_lsn: 0,
+        };
+        assert!(detect_journal_clearing(&summary));
+    }
+
+    #[test]
+    fn test_detect_journal_clearing_one_restart_area() {
+        // 1 restart area (not 2) but no gaps - not detected as clearing
+        let summary = LogFileSummary {
+            restart_areas: vec![
+                RestartArea { offset: 0, current_lsn: 1000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
+            ],
+            record_page_count: 50,
+            has_gaps: false,
+            highest_lsn: 5000,
+        };
+        assert!(!detect_journal_clearing(&summary));
+    }
+
+    #[test]
+    fn test_detect_journal_clearing_three_restart_areas() {
+        // 3 restart areas (not 2) but no gaps
+        let summary = LogFileSummary {
+            restart_areas: vec![
+                RestartArea { offset: 0, current_lsn: 1000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
+                RestartArea { offset: 4096, current_lsn: 2000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
+                RestartArea { offset: 8192, current_lsn: 3000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
+            ],
+            record_page_count: 50,
+            has_gaps: false,
+            highest_lsn: 5000,
+        };
+        assert!(!detect_journal_clearing(&summary));
+    }
+
+    #[test]
+    fn test_parse_logfile_empty() {
+        let summary = parse_logfile(&[]).unwrap();
+        assert_eq!(summary.restart_areas.len(), 0);
+        assert_eq!(summary.record_page_count, 0);
+        assert!(!summary.has_gaps);
+        assert_eq!(summary.highest_lsn, 0);
+    }
+
+    #[test]
+    fn test_parse_logfile_only_rcrd_pages() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&make_rcrd_page(1000));
+        data.extend_from_slice(&make_rcrd_page(2000));
+        data.extend_from_slice(&make_rcrd_page(3000));
+
+        let summary = parse_logfile(&data).unwrap();
+        assert_eq!(summary.restart_areas.len(), 0);
+        assert_eq!(summary.record_page_count, 3);
+        assert_eq!(summary.highest_lsn, 3000);
+    }
+
+    #[test]
+    fn test_parse_logfile_gap_detection() {
+        // RSTR, RSTR, RCRD, RCRD, non-RCRD/non-zero page, RCRD
+        // Gap should be detected at the non-RCRD page
+        let mut data = Vec::new();
+        data.extend_from_slice(&make_rstr_page(1000));
+        data.extend_from_slice(&make_rstr_page(2000));
+        data.extend_from_slice(&make_rcrd_page(3000));
+
+        // Create a non-zero, non-RCRD, non-RSTR page (looks like corruption)
+        let mut garbage_page = vec![0xDEu8; LOG_PAGE_SIZE];
+        garbage_page[0..4].copy_from_slice(b"JUNK");
+        data.extend_from_slice(&garbage_page);
+
+        data.extend_from_slice(&make_rcrd_page(5000));
+
+        let summary = parse_logfile(&data).unwrap();
+        assert!(summary.has_gaps, "Should detect gap at non-RCRD page after RCRD pages");
+    }
+
+    #[test]
+    fn test_parse_logfile_no_gap_for_zeroed_page() {
+        // Zeroed pages after RCRD pages should NOT be treated as gaps
+        let mut data = Vec::new();
+        data.extend_from_slice(&make_rstr_page(1000));
+        data.extend_from_slice(&make_rstr_page(2000));
+        data.extend_from_slice(&make_rcrd_page(3000));
+        data.extend_from_slice(&vec![0u8; LOG_PAGE_SIZE]); // zeroed page
+
+        let summary = parse_logfile(&data).unwrap();
+        assert!(!summary.has_gaps, "Zeroed pages should not be flagged as gaps");
+    }
+
+    #[test]
+    fn test_parse_logfile_restart_area_lsn_tracking() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&make_rstr_page(5000));
+        data.extend_from_slice(&make_rstr_page(3000));
+        data.extend_from_slice(&make_rcrd_page(4000));
+
+        let summary = parse_logfile(&data).unwrap();
+        assert_eq!(summary.highest_lsn, 5000);
+        assert_eq!(summary.restart_areas.len(), 2);
+        assert_eq!(summary.restart_areas[0].current_lsn, 5000);
+        assert_eq!(summary.restart_areas[1].current_lsn, 3000);
+    }
+
+    #[test]
+    fn test_parse_logfile_short_rstr_page() {
+        // A page with RSTR signature but too small for full header
+        let mut data = vec![0u8; LOG_PAGE_SIZE];
+        data[0..4].copy_from_slice(RSTR_SIGNATURE);
+        // Only write signature, not enough data for header fields at 0x08..0x28
+        // But we set the full page so offset + 0x28 <= data.len() is true
+        // The actual data at those offsets will be zeros, which is still valid
+
+        let summary = parse_logfile(&data).unwrap();
+        assert_eq!(summary.restart_areas.len(), 1);
+        assert_eq!(summary.restart_areas[0].current_lsn, 0);
+    }
+
+    #[test]
+    fn test_parse_logfile_data_smaller_than_page() {
+        // Data that's not a full page
+        let data = vec![0xAAu8; 100];
+        let summary = parse_logfile(&data).unwrap();
+        assert_eq!(summary.restart_areas.len(), 0);
+        assert_eq!(summary.record_page_count, 0);
+    }
 }

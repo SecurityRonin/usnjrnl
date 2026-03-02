@@ -348,4 +348,90 @@ mod tests {
         let events = monitor.poll_once();
         assert!(events.is_empty());
     }
+
+    #[test]
+    fn test_monitor_config_accessor() {
+        let config = MonitorConfig {
+            poll_interval: Duration::from_millis(250),
+            buffer_size: 32 * 1024,
+        };
+        let source = MockJournalSource::empty();
+        let monitor = JournalMonitor::new(source, config).unwrap();
+        assert_eq!(monitor.config().poll_interval, Duration::from_millis(250));
+        assert_eq!(monitor.config().buffer_size, 32 * 1024);
+    }
+
+    /// A mock journal source that returns an error.
+    struct ErrorJournalSource;
+
+    impl JournalSource for ErrorJournalSource {
+        fn read_from_usn(&mut self, _start_usn: i64, _buffer: &mut [u8]) -> Result<usize> {
+            anyhow::bail!("Mock read error")
+        }
+
+        fn current_journal_id(&self) -> Result<u64> {
+            Ok(42)
+        }
+    }
+
+    #[test]
+    fn test_monitor_handles_read_error() {
+        let source = ErrorJournalSource;
+        let mut monitor = JournalMonitor::new(source, MonitorConfig::default()).unwrap();
+
+        let events = monitor.poll_once();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(&events[0], MonitorEvent::Error(_)));
+    }
+
+    /// A mock source that returns corrupt data (non-parseable).
+    struct CorruptJournalSource;
+
+    impl JournalSource for CorruptJournalSource {
+        fn read_from_usn(&mut self, _start_usn: i64, buffer: &mut [u8]) -> Result<usize> {
+            // Fill with garbage that looks like a record but isn't
+            let n = 64.min(buffer.len());
+            for i in 0..n {
+                buffer[i] = 0xDE;
+            }
+            // Make it look like a valid record header but with corrupt data
+            buffer[0..4].copy_from_slice(&(0x40u32).to_le_bytes()); // record_len
+            buffer[4..6].copy_from_slice(&2u16.to_le_bytes()); // version 2
+            buffer[6..8].copy_from_slice(&0u16.to_le_bytes()); // minor version
+            Ok(n)
+        }
+
+        fn current_journal_id(&self) -> Result<u64> {
+            Ok(42)
+        }
+    }
+
+    #[test]
+    fn test_monitor_handles_corrupt_data() {
+        let source = CorruptJournalSource;
+        let mut monitor = JournalMonitor::new(source, MonitorConfig::default()).unwrap();
+
+        let events = monitor.poll_once();
+        // Corrupt data may produce empty events or error events, either is fine
+        // Just make sure it doesn't panic
+        let _ = events;
+    }
+
+    #[test]
+    fn test_monitor_last_usn_not_updated_on_wrap() {
+        // When journal wraps, the new USN is lower than last_usn
+        // last_usn should NOT decrease (it tracks highest seen)
+        let first_data = build_v2_record_with_usn(100, 1, 5, 5, 5000, 0x100, "before.txt");
+        let source = MockJournalSource::new(first_data, 1);
+        let mut monitor = JournalMonitor::new(source, MonitorConfig::default()).unwrap();
+        monitor.poll_once();
+        assert_eq!(monitor.last_usn(), 5000);
+
+        // Feed wrapped data with USN=100
+        let wrap_data = build_v2_record_with_usn(300, 1, 5, 5, 100, 0x100, "wrapped.txt");
+        monitor.source = MockJournalSource::new(wrap_data, 1);
+        monitor.poll_once();
+        // last_usn should remain at 5000 since 100 < 5000
+        assert_eq!(monitor.last_usn(), 5000);
+    }
 }

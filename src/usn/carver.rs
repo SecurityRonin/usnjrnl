@@ -518,4 +518,173 @@ mod tests {
         assert!(r.reason.contains(super::super::reason::UsnReason::FILE_CREATE));
         assert!(r.reason.contains(super::super::reason::UsnReason::CLOSE));
     }
+
+    #[test]
+    fn test_carve_record_with_wrong_filename_offset() {
+        // Build a valid record but change the filename_offset to not 0x3C
+        let mut data = build_v2_record(42, 1, 5, 5, 0x100, "test.txt");
+        // Change filename_offset from 0x3C to 0x40 (invalid for V2)
+        data[0x3A..0x3C].copy_from_slice(&0x40u16.to_le_bytes());
+
+        let (records, stats) = carve_usn_records(&data);
+        assert_eq!(records.len(), 0, "Wrong filename offset should be rejected");
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_record_with_zero_filename_length() {
+        let mut data = build_v2_record(42, 1, 5, 5, 0x100, "test.txt");
+        // Set filename_length to 0 (invalid for carver)
+        data[0x38..0x3A].copy_from_slice(&0u16.to_le_bytes());
+
+        let (records, stats) = carve_usn_records(&data);
+        assert_eq!(records.len(), 0, "Zero filename length should be rejected");
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_record_with_odd_filename_length() {
+        let mut data = build_v2_record(42, 1, 5, 5, 0x100, "test.txt");
+        // Set filename_length to 5 (odd, invalid for UTF-16)
+        data[0x38..0x3A].copy_from_slice(&5u16.to_le_bytes());
+
+        let (records, stats) = carve_usn_records(&data);
+        assert_eq!(records.len(), 0, "Odd filename length should be rejected");
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_record_filename_exceeds_record() {
+        let mut data = build_v2_record(42, 1, 5, 5, 0x100, "test.txt");
+        // Set filename_length to something that extends past record length
+        data[0x38..0x3A].copy_from_slice(&500u16.to_le_bytes());
+
+        let (records, stats) = carve_usn_records(&data);
+        assert_eq!(records.len(), 0, "Filename exceeding record should be rejected");
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_v3_record() {
+        // Build a V3 record with valid timestamp
+        let name_utf16: Vec<u16> = "v3carved.txt".encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2;
+        let record_len = 0x4C + name_bytes_len;
+        let aligned_len = (record_len + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        buf[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes()); // V3
+        buf[6..8].copy_from_slice(&0u16.to_le_bytes());
+        buf[0x08..0x18].copy_from_slice(&100u128.to_le_bytes());
+        buf[0x18..0x28].copy_from_slice(&5u128.to_le_bytes());
+        buf[0x28..0x30].copy_from_slice(&200i64.to_le_bytes());
+        let ts: i64 = 133_500_480_000_000_000; // 2024-01-15 (valid range)
+        buf[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        buf[0x38..0x3C].copy_from_slice(&0x100u32.to_le_bytes());
+        buf[0x44..0x48].copy_from_slice(&0x20u32.to_le_bytes());
+        buf[0x48..0x4A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        buf[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+        for (i, &ch) in name_utf16.iter().enumerate() {
+            let off = 0x4C + i * 2;
+            buf[off..off + 2].copy_from_slice(&ch.to_le_bytes());
+        }
+
+        let (records, stats) = carve_usn_records(&buf);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].record.filename, "v3carved.txt");
+        assert_eq!(records[0].record.major_version, 3);
+        assert_eq!(stats.records_carved, 1);
+    }
+
+    #[test]
+    fn test_carve_v3_wrong_filename_offset() {
+        // V3 record with filename_offset != 0x4C
+        let name_utf16: Vec<u16> = "test.txt".encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2;
+        let record_len = 0x4C + name_bytes_len;
+        let aligned_len = (record_len + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        buf[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let ts: i64 = 133_500_480_000_000_000;
+        buf[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        buf[0x48..0x4A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        buf[0x4A..0x4C].copy_from_slice(&0x50u16.to_le_bytes()); // Wrong offset
+
+        let (records, stats) = carve_usn_records(&buf);
+        assert_eq!(records.len(), 0);
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_v3_invalid_timestamp() {
+        let name_utf16: Vec<u16> = "old.txt".encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2;
+        let record_len = 0x4C + name_bytes_len;
+        let aligned_len = (record_len + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        buf[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let ts_old: i64 = 119_600_064_000_000_000; // ~1990, before 2000
+        buf[0x30..0x38].copy_from_slice(&ts_old.to_le_bytes());
+        buf[0x48..0x4A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        buf[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+
+        let (records, stats) = carve_usn_records(&buf);
+        assert_eq!(records.len(), 0);
+        assert!(stats.rejected_timestamp > 0);
+    }
+
+    #[test]
+    fn test_carve_v3_zero_filename() {
+        let record_len = 0x4Cu32;
+        let aligned_len = ((record_len as usize) + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        buf[0..4].copy_from_slice(&record_len.to_le_bytes());
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let ts: i64 = 133_500_480_000_000_000;
+        buf[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        buf[0x48..0x4A].copy_from_slice(&0u16.to_le_bytes()); // zero filename
+        buf[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+
+        let (records, stats) = carve_usn_records(&buf);
+        assert_eq!(records.len(), 0);
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_is_valid_timestamp() {
+        assert!(is_valid_timestamp(FILETIME_2000));
+        assert!(is_valid_timestamp(FILETIME_2030));
+        assert!(is_valid_timestamp(133_500_480_000_000_000)); // 2024
+        assert!(!is_valid_timestamp(FILETIME_2000 - 1));
+        assert!(!is_valid_timestamp(FILETIME_2030 + 1));
+        assert!(!is_valid_timestamp(0));
+        assert!(!is_valid_timestamp(-1));
+    }
+
+    #[test]
+    fn test_carve_skips_version_0_and_1() {
+        // Records with version 0 or 1 should not be carved
+        let mut data = vec![0u8; 128];
+        data[0..4].copy_from_slice(&(0x40u32).to_le_bytes());
+        data[4..6].copy_from_slice(&1u16.to_le_bytes()); // version 1
+
+        let (records, _) = carve_usn_records(&data);
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_carving_stats_default() {
+        let stats = CarvingStats::default();
+        assert_eq!(stats.bytes_scanned, 0);
+        assert_eq!(stats.candidates_examined, 0);
+        assert_eq!(stats.records_carved, 0);
+        assert_eq!(stats.rejected_timestamp, 0);
+        assert_eq!(stats.rejected_structure, 0);
+    }
 }

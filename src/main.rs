@@ -47,6 +47,18 @@ struct Cli {
     #[arg(long)]
     sqlite: Option<PathBuf>,
 
+    /// Output Sleuthkit body file (pipe-delimited, for mactime/log2timeline)
+    #[arg(long)]
+    body: Option<PathBuf>,
+
+    /// Output TLN (5-field pipe-delimited timeline) file
+    #[arg(long)]
+    tln: Option<PathBuf>,
+
+    /// Output XML file
+    #[arg(long)]
+    xml: Option<PathBuf>,
+
     /// Detect timestomping (requires --mft)
     #[arg(long)]
     detect_timestomping: bool,
@@ -236,7 +248,12 @@ fn main() -> Result<()> {
 
     // ─── Output ──────────────────────────────────────────────────────────────
 
-    let has_output = cli.csv.is_some() || cli.jsonl.is_some() || cli.sqlite.is_some();
+    let has_output = cli.csv.is_some()
+        || cli.jsonl.is_some()
+        || cli.sqlite.is_some()
+        || cli.body.is_some()
+        || cli.tln.is_some()
+        || cli.xml.is_some();
 
     if let Some(ref csv_path) = cli.csv {
         eprintln!("[*] Writing CSV to {}", csv_path.display());
@@ -261,12 +278,87 @@ fn main() -> Result<()> {
         eprintln!("[+] SQLite export complete");
     }
 
+    if let Some(ref body_path) = cli.body {
+        eprintln!("[*] Writing Sleuthkit body file to {}", body_path.display());
+        let file = std::fs::File::create(body_path)?;
+        let mut writer = BufWriter::new(file);
+        usnjrnl::output::body_output::export_body(&resolved, &mut writer)?;
+        eprintln!("[+] Body file export complete");
+    }
+
+    if let Some(ref tln_path) = cli.tln {
+        eprintln!("[*] Writing TLN to {}", tln_path.display());
+        let file = std::fs::File::create(tln_path)?;
+        let mut writer = BufWriter::new(file);
+        usnjrnl::output::tln_output::export_tln(&resolved, &mut writer)?;
+        eprintln!("[+] TLN export complete");
+    }
+
+    if let Some(ref xml_path) = cli.xml {
+        eprintln!("[*] Writing XML to {}", xml_path.display());
+        let file = std::fs::File::create(xml_path)?;
+        let mut writer = BufWriter::new(file);
+        usnjrnl::output::xml_output::export_xml(&resolved, &mut writer)?;
+        eprintln!("[+] XML export complete");
+    }
+
     if !has_output {
-        eprintln!("\n[*] No output format specified. Use --csv, --jsonl, or --sqlite.");
+        eprintln!("\n[*] No output format specified. Use --csv, --jsonl, --sqlite, --body, --tln, or --xml.");
         eprintln!("[*] Example: usnjrnl -j $J -m $MFT --csv output.csv");
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn test_cli_accepts_body_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--body", "out.body"]).unwrap();
+        assert_eq!(cli.body, Some(PathBuf::from("out.body")));
+    }
+
+    #[test]
+    fn test_cli_accepts_tln_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--tln", "out.tln"]).unwrap();
+        assert_eq!(cli.tln, Some(PathBuf::from("out.tln")));
+    }
+
+    #[test]
+    fn test_cli_accepts_xml_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--xml", "out.xml"]).unwrap();
+        assert_eq!(cli.xml, Some(PathBuf::from("out.xml")));
+    }
+
+    #[test]
+    fn test_cli_all_output_formats_simultaneously() {
+        let cli = Cli::try_parse_from([
+            "usnjrnl", "-j", "test.bin",
+            "--csv", "a.csv",
+            "--jsonl", "a.jsonl",
+            "--sqlite", "a.db",
+            "--body", "a.body",
+            "--tln", "a.tln",
+            "--xml", "a.xml",
+        ]).unwrap();
+        assert!(cli.csv.is_some());
+        assert!(cli.jsonl.is_some());
+        assert!(cli.sqlite.is_some());
+        assert!(cli.body.is_some());
+        assert!(cli.tln.is_some());
+        assert!(cli.xml.is_some());
+    }
+
+    #[test]
+    fn test_cli_no_output_formats_is_valid() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin"]).unwrap();
+        assert!(cli.body.is_none());
+        assert!(cli.tln.is_none());
+        assert!(cli.xml.is_none());
+    }
 }
 
 fn print_reason_stats(records: &[usn::UsnRecord]) {
