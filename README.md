@@ -6,7 +6,7 @@
 
 The most comprehensive NTFS USN Journal forensic analysis tool. Period.
 
-`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates four NTFS artifacts to recover evidence destroyed by anti-forensic tools, and detects attacker activity through built-in forensic rules.
+`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates four NTFS artifacts to recover evidence missed by other tools, and detects attacker activity through built-in forensic rules.
 
 ```
 $ usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --csv timeline.csv
@@ -14,8 +14,8 @@ $ usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --csv tim
 [+] 847,293 USN records parsed
 [+] 112,448 MFT entries parsed
 [+] $MFTMirr is consistent with $MFT
-[+] 23 USN records recovered from $LogFile
-[!] JOURNAL CLEARING SUSPECTED - ghost records found in $LogFile
+[+] 5,378 USN records recovered from $LogFile
+[+] 771 ghost records found in $LogFile (not present in $UsnJrnl)
 [!] 3 potential timestomping indicators
 [+] All paths fully resolved (0 UNKNOWN)
 ```
