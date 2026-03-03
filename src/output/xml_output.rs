@@ -338,4 +338,68 @@ mod tests {
         let output = String::from_utf8(buf).unwrap();
         assert!(output.contains("<extension></extension>"));
     }
+
+    #[test]
+    fn test_xml_all_fields_written() {
+        // Ensure every XML field line is exercised by checking exact output structure
+        let resolved = vec![make_record(
+            "data.bin",
+            ".\\evidence\\data.bin",
+            ".\\evidence",
+            42, 7, 10, 2, 99999,
+            1700000000,
+            UsnReason::DATA_OVERWRITE,
+            5, 12,
+        )];
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+
+        // Verify every field tag is present (covers lines 34, 39, 44, 49, 54, 61, 68, 73)
+        assert!(output.contains("<sequence_number>7</sequence_number>"));
+        assert!(output.contains("<parent_entry_number>10</parent_entry_number>"));
+        assert!(output.contains("<parent_sequence_number>2</parent_sequence_number>"));
+        assert!(output.contains("<parent_path>.\\evidence</parent_path>"));
+        assert!(output.contains("<full_path>.\\evidence\\data.bin</full_path>"));
+        assert!(output.contains("<file_attributes>"));
+        assert!(output.contains("<security_id>12</security_id>"));
+        assert!(output.contains("<major_version>2</major_version>"));
+        assert!(output.contains("<extension>bin</extension>"));
+    }
+
+    /// A writer that fails after writing a specified number of bytes.
+    struct FailWriter {
+        remaining: usize,
+    }
+
+    impl Write for FailWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"));
+            }
+            let n = buf.len().min(self.remaining);
+            self.remaining -= n;
+            Ok(n)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_xml_write_error_propagated() {
+        let resolved = vec![make_record(
+            "test.exe",
+            ".\\test.exe",
+            ".",
+            100, 1, 5, 1, 100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+            0, 0,
+        )];
+        // Allow just enough bytes for the XML header but fail mid-record
+        let mut writer = FailWriter { remaining: 50 };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(result.is_err(), "Should propagate write error");
+    }
 }

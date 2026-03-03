@@ -424,6 +424,33 @@ mod tests {
     }
 
     #[test]
+    fn test_refs_reconstruct_paths_root_id_skipped() {
+        // Test line 152: file_id that is in root_ids should be skipped
+        // in path reconstruction.
+        // Create a scenario where a file's ID is also a parent_id of another
+        // record that has no entry in lookup (making it a root_id).
+        // Then create a record whose file_id IS a root_id.
+        let root_id = RefsFileId::from_u128(5);
+
+        let root_record = RefsRecord::new(
+            make_v3_record(5, 999, UsnReason::FILE_CREATE, "root_dir"),
+            root_id,
+            RefsFileId::from_u128(999),
+        );
+
+        // Lines 152 and 172 are effectively unreachable in the current logic:
+        // - Line 152: root_ids = {parent_ids} - {lookup.keys()}, so a file_id
+        //   in lookup.keys() can never also be in root_ids.
+        // - Line 172: the loop always checks the parent on line 167 before
+        //   advancing current, so current is always in lookup.
+        // This test exercises the path reconstruction as deeply as possible.
+
+        let analyzer = RefsAnalyzer::new(vec![root_record.clone()]);
+        let paths = analyzer.reconstruct_paths();
+        assert_eq!(paths.get(&root_id).map(|s| s.as_str()), Some("root_dir"));
+    }
+
+    #[test]
     fn test_refs_mixed_v2_and_v3_not_refs() {
         // If any record is not v3, it's not ReFS
         let v2_record = UsnRecord {

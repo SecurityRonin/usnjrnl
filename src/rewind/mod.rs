@@ -601,6 +601,44 @@ mod tests {
     }
 
     #[test]
+    fn test_rewind_forward_pass_unseen_entry() {
+        // Test lines 204-206: forward_lookup doesn't have the key yet,
+        // and the record is not a RENAME_NEW_NAME or FILE_CREATE.
+        // This exercises the else branch in the forward pass.
+        let mut engine = RewindEngine::from_mft(vec![
+            (50, 1, "data".into(), 5, 5),
+        ]);
+
+        let records = vec![
+            // DATA_EXTEND is not RENAME_NEW_NAME nor FILE_CREATE
+            // And entry 100:1 is not in the lookup initially
+            make_record(100, 1, 50, 1, UsnReason::DATA_EXTEND, "log.txt", 10),
+        ];
+
+        let resolved = engine.rewind(&records);
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].full_path, ".\\data\\log.txt");
+    }
+
+    #[test]
+    fn test_resolve_path_from_unknown_parent_in_forward() {
+        // Test line 245: resolve_path_from returns UNKNOWN for unknown key
+        // This happens during rewind's forward pass when the parent key
+        // is not in the forward_lookup and is not root.
+        let mut engine = RewindEngine::new();
+
+        let records = vec![
+            // Parent 999:1 is not in any lookup and is not root
+            make_record(100, 1, 999, 1, UsnReason::FILE_CREATE, "orphan.txt", 10),
+        ];
+
+        let resolved = engine.rewind(&records);
+        assert_eq!(resolved.len(), 1);
+        assert!(resolved[0].parent_path.contains("UNKNOWN(999:1)"),
+            "Parent should be UNKNOWN, got: {}", resolved[0].parent_path);
+    }
+
+    #[test]
     fn test_resolve_path_from_standalone() {
         // Test the resolve_path_from function directly via rewind behavior
         let mut engine = RewindEngine::new();

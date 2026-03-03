@@ -344,6 +344,24 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_logfile_page_offset_boundary() {
+        // Line 61: page_offset + 4 > data.len() break condition
+        // This is tricky because page_count = data.len() / LOG_PAGE_SIZE,
+        // so page_offset = page_idx * LOG_PAGE_SIZE is always <= data.len() - LOG_PAGE_SIZE.
+        // For page_offset + 4 > data.len(), we'd need data.len() < page_offset + 4.
+        // Since page_offset < data.len() (because page_idx < page_count and
+        // page_count = data.len() / LOG_PAGE_SIZE), page_offset is at most
+        // data.len() - LOG_PAGE_SIZE. And LOG_PAGE_SIZE (4096) >> 4.
+        // So line 61 is effectively unreachable with the current loop bounds.
+        // Still, let's add a test for the edge case of exactly one page.
+        let data = make_rcrd_page(5000);
+        assert_eq!(data.len(), LOG_PAGE_SIZE);
+        let summary = parse_logfile(&data).unwrap();
+        assert_eq!(summary.record_page_count, 1);
+        assert_eq!(summary.highest_lsn, 5000);
+    }
+
+    #[test]
     fn test_parse_logfile_data_smaller_than_page() {
         // Data that's not a full page
         let data = vec![0xAAu8; 100];

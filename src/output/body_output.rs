@@ -109,4 +109,60 @@ mod tests {
         let output = String::from_utf8(buf).unwrap();
         assert!(output.is_empty(), "empty input should produce empty output");
     }
+
+    /// A writer that fails after writing a specified number of bytes.
+    struct FailWriter {
+        remaining: usize,
+    }
+
+    impl std::io::Write for FailWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"));
+            }
+            let n = buf.len().min(self.remaining);
+            self.remaining -= n;
+            Ok(n)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_body_write_error_propagated() {
+        let resolved = vec![make_record(
+            "test.exe",
+            ".\\temp\\test.exe",
+            ".\\temp",
+            100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+        )];
+        let mut writer = FailWriter { remaining: 5 };
+        let result = export_body(&resolved, &mut writer);
+        assert!(result.is_err(), "Should propagate write error");
+    }
+
+    #[test]
+    fn test_body_verifies_all_timestamp_fields() {
+        // Ensure the writeln! line 19 is exercised with different timestamps
+        let resolved = vec![make_record(
+            "data.bin",
+            ".\\root\\data.bin",
+            ".\\root",
+            999,
+            1234567890,
+            UsnReason::DATA_EXTEND | UsnReason::CLOSE,
+        )];
+        let mut buf = Vec::new();
+        export_body(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Verify all 4 timestamp fields in the bodyfile line
+        let fields: Vec<&str> = output.trim().split('|').collect();
+        assert_eq!(fields[7], "1234567890");
+        assert_eq!(fields[8], "1234567890");
+        assert_eq!(fields[9], "1234567890");
+        assert_eq!(fields[10], "1234567890");
+    }
 }

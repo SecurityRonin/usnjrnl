@@ -728,6 +728,41 @@ mod tests {
     }
 
     #[test]
+    fn test_try_parse_usn_at_slice_shorter_than_8() {
+        // Line 101: slice.len() < 8 after initial size check passes
+        // This happens when offset + USN_V2_MIN_SIZE <= data.len() but
+        // the slice from offset onward has < 8 bytes somehow.
+        // Actually, if offset + USN_V2_MIN_SIZE <= data.len(), then
+        // slice = &data[offset..] has len >= USN_V2_MIN_SIZE (60) which is >= 8.
+        // So line 101 is unreachable. Test the boundary anyway.
+        let data = vec![0u8; USN_V2_MIN_SIZE];
+        // This should pass the first check (offset + USN_V2_MIN_SIZE <= data.len())
+        // and the slice will be exactly USN_V2_MIN_SIZE bytes (>= 8)
+        let result = try_parse_usn_at(&data, 0);
+        assert!(result.is_none()); // All zeros, invalid record
+    }
+
+    #[test]
+    fn test_extract_rcrd_page_huge_client_data_length() {
+        // Line 252: record_offset > data_area.len() break
+        // Build an RCRD page with a log record that has a huge client_data_length
+        // causing record_offset to jump past the data area
+        let mut page = vec![0u8; LOG_PAGE_SIZE];
+        page[0..4].copy_from_slice(RCRD_SIGNATURE);
+        page[0x18..0x20].copy_from_slice(&50000u64.to_le_bytes());
+
+        let data_offset = RCRD_DATA_OFFSET;
+        // Non-zero lsn so the loop enters
+        page[data_offset..data_offset + 8].copy_from_slice(&42000u64.to_le_bytes());
+        // Huge client_data_length
+        page[data_offset + 0x18..data_offset + 0x1C].copy_from_slice(&0xFFFFFFF0u32.to_le_bytes());
+
+        let results = extract_from_rcrd_page(&page, 0);
+        // Should not panic; may find records in slack
+        let _ = results;
+    }
+
+    #[test]
     fn test_extract_from_rcrd_page_short_page_for_lsn() {
         // RCRD page where len < 0x20 (can't read page_lsn)
         // This is handled by the extract_from_rcrd_page function

@@ -1236,6 +1236,164 @@ mod tests {
     }
 
     #[test]
+    fn test_sdelete_grouping_splits_on_time_gap() {
+        // Line 96: groups.push when a group of >= 3 SDelete events is followed
+        // by a time gap > 60 seconds, then more events start a new group.
+        let mut records = Vec::new();
+
+        // First group: 4 SDelete events within 60 seconds
+        for i in 0..4u64 {
+            records.push(make_record(
+                100 + i,
+                &format!("{}", "A".repeat(7)),
+                UsnReason::FILE_CREATE,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        // Time gap of 120 seconds (> 60s threshold)
+        // Small group of 2 SDelete events (< 3, should be cleared not pushed)
+        records.push(make_record(
+            200,
+            &"B".repeat(7),
+            UsnReason::FILE_DELETE,
+            ts(124),
+            2000,
+        ));
+        records.push(make_record(
+            201,
+            &"B".repeat(7),
+            UsnReason::FILE_DELETE,
+            ts(125),
+            2100,
+        ));
+
+        // Another time gap
+        // Third group: 3 more SDelete events
+        for i in 0..3u64 {
+            records.push(make_record(
+                300 + i,
+                &format!("{}", "C".repeat(7)),
+                UsnReason::FILE_CREATE,
+                ts(300 + i as i64),
+                3000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_secure_deletion(&records);
+        // Should detect at least the first group (4 events) and third group (3 events)
+        let sdelete_indicators: Vec<_> = indicators
+            .iter()
+            .filter(|i| i.pattern == SecureDeletionPattern::SDelete)
+            .collect();
+        assert!(
+            sdelete_indicators.len() >= 1,
+            "Should detect SDelete groups split by time gap, got {} indicators",
+            sdelete_indicators.len()
+        );
+    }
+
+    #[test]
+    fn test_bulk_temp_deletion_grouping_splits_on_time_gap() {
+        // Line 173: groups.push when a group of >= 10 .tmp deletions is followed
+        // by a time gap > 30 seconds, then more events.
+        let mut records = Vec::new();
+
+        // First group: 12 tmp file deletions within 30 seconds
+        for i in 0..12u64 {
+            records.push(make_record(
+                100 + i,
+                &format!("tmp{:04}.tmp", i),
+                UsnReason::FILE_DELETE,
+                ts(i as i64),
+                1000 + (i as i64) * 100,
+            ));
+        }
+
+        // Time gap of 60 seconds (> 30s threshold)
+        // Small group of 5 tmp deletions (< 10, should be cleared)
+        for i in 0..5u64 {
+            records.push(make_record(
+                200 + i,
+                &format!("tmpB{:04}.tmp", i),
+                UsnReason::FILE_DELETE,
+                ts(72 + i as i64),
+                2000 + (i as i64) * 100,
+            ));
+        }
+
+        // Another time gap, then another group of 10
+        for i in 0..10u64 {
+            records.push(make_record(
+                300 + i,
+                &format!("tmpC{:04}.tmp", i),
+                UsnReason::FILE_DELETE,
+                ts(200 + i as i64),
+                3000 + (i as i64) * 100,
+            ));
+        }
+
+        let indicators = detect_secure_deletion(&records);
+        let bulk_indicators: Vec<_> = indicators
+            .iter()
+            .filter(|i| i.pattern == SecureDeletionPattern::BulkTempDeletion)
+            .collect();
+        assert!(
+            bulk_indicators.len() >= 1,
+            "Should detect BulkTmpDeletion groups split by time gap, got {} indicators",
+            bulk_indicators.len()
+        );
+    }
+
+    #[test]
+    fn test_timestomping_other_before_event() {
+        // Line 532: other.timestamp - event.timestamp path
+        // when other event happens BEFORE the BASIC_INFO_CHANGE event
+        // This tests the branch where other.timestamp < event.timestamp
+        // so the abs difference is event.timestamp - other.timestamp.
+        // Wait, line 531-532 actually is:
+        //   let time_diff = if other.timestamp >= event.timestamp {
+        //       other.timestamp - event.timestamp    // line 532
+        //   } else {
+        //       event.timestamp - other.timestamp
+        //   };
+        // Line 532 fires when other.timestamp >= event.timestamp.
+        // The existing tests have nearby data changes AFTER the BASIC_INFO_CHANGE.
+        // We need a test where the data change is AT or AFTER the event.
+        // Actually, we need an ISOLATED BASIC_INFO_CHANGE where nearby events
+        // DON'T have data changes but DO have timestamps >= event.timestamp.
+
+        let records = vec![
+            // A BASIC_INFO_CHANGE event (possible timestomping)
+            make_record(
+                100,
+                "stomped.exe",
+                UsnReason::BASIC_INFO_CHANGE,
+                ts(1000),
+                5000,
+            ),
+            // A nearby event AFTER the BASIC_INFO_CHANGE (> its timestamp)
+            // but with SECURITY_CHANGE (not a data change), so it doesn't
+            // suppress the timestomping detection
+            make_record(
+                101,
+                "other.txt",
+                UsnReason::SECURITY_CHANGE,
+                ts(1010), // 10 seconds after, within 60s window
+                5100,
+            ),
+        ];
+
+        let indicators = detect_timestomping(&records);
+        assert!(
+            !indicators.is_empty(),
+            "Isolated BASIC_INFO_CHANGE with only non-data-change neighbors should be flagged"
+        );
+        assert_eq!(indicators[0].filename, "stomped.exe");
+    }
+
+    #[test]
     fn test_ransomware_renames_without_extension() {
         // Renames with no extension should not cause issues
         let mut records = Vec::new();

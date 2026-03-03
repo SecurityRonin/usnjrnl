@@ -734,6 +734,70 @@ mod tests {
     }
 
     #[test]
+    fn test_try_carve_v2_record_len_below_min() {
+        // Directly call try_carve_v2 with record_len < USN_V2_MIN_SIZE
+        // This covers lines 139-140
+        let mut stats = CarvingStats::default();
+        let data = vec![0u8; 0x30]; // 48 bytes, less than USN_V2_MIN_SIZE (60)
+        let result = try_carve_v2(&data, 0, 0x30, &mut stats);
+        assert!(result.is_none());
+        assert_eq!(stats.rejected_structure, 1);
+    }
+
+    #[test]
+    fn test_try_carve_v3_record_len_below_min() {
+        // Directly call try_carve_v3 with record_len < USN_V3_MIN_SIZE
+        // This covers lines 197-198
+        let mut stats = CarvingStats::default();
+        let data = vec![0u8; 0x40]; // 64 bytes, less than USN_V3_MIN_SIZE (76)
+        let result = try_carve_v3(&data, 0, 0x40, &mut stats);
+        assert!(result.is_none());
+        assert_eq!(stats.rejected_structure, 1);
+    }
+
+    #[test]
+    fn test_try_carve_v3_filename_exceeds_record() {
+        // V3 record where filename_offset + filename_length > record_len
+        // Covers lines 211-212
+        let valid_ts: i64 = 133_500_480_000_000_000;
+        let mut stats = CarvingStats::default();
+
+        let record_len = 0x50usize; // just barely over V3_MIN
+        let mut data = vec![0u8; record_len];
+        data[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        data[0x30..0x38].copy_from_slice(&valid_ts.to_le_bytes());
+        // filename_length = 100, which extends past record_len
+        data[0x48..0x4A].copy_from_slice(&100u16.to_le_bytes());
+        data[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+
+        let result = try_carve_v3(&data, 0, record_len, &mut stats);
+        assert!(result.is_none());
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_try_carve_v3_odd_filename_length() {
+        // V3 record where filename_length is odd (not valid UTF-16)
+        // Covers line 215-217 (filename_length == 0 || filename_length % 2 != 0)
+        let valid_ts: i64 = 133_500_480_000_000_000;
+        let mut stats = CarvingStats::default();
+
+        let record_len = 0x60usize;
+        let mut data = vec![0u8; record_len];
+        data[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        data[0x30..0x38].copy_from_slice(&valid_ts.to_le_bytes());
+        // filename_length = 3 (odd)
+        data[0x48..0x4A].copy_from_slice(&3u16.to_le_bytes());
+        data[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+
+        let result = try_carve_v3(&data, 0, record_len, &mut stats);
+        assert!(result.is_none());
+        assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
     fn test_carve_v2_record_with_mismatched_internal_length() {
         // Embed a record in larger data where the record's own length field
         // is set to > USN_MAX_RECORD_SIZE, triggering parse_usn_record_v2 to bail.

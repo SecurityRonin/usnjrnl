@@ -721,6 +721,62 @@ mod tests {
 
     // ─── Test 15: Timeline preserves LSN for LogFile records ─────────────
 
+    // ─── Test 16: Multiple FILE_CREATE for same entry picks earliest ─────
+
+    #[test]
+    fn test_timestamp_conflict_multiple_creates_picks_earliest() {
+        // Lines 242-243: and_modify branch in find_timestamp_conflicts
+        // When the same MFT entry has multiple FILE_CREATE events,
+        // the earliest timestamp should be stored.
+        let usn_records = vec![
+            usn(100, 1, 50, 1000, 1700000300, "file.exe", UsnReason::FILE_CREATE),
+            usn(100, 1, 50, 2000, 1700000100, "file.exe", UsnReason::FILE_CREATE), // earlier
+            usn(100, 1, 50, 3000, 1700000200, "file.exe", UsnReason::FILE_CREATE),
+        ];
+
+        // MFT says SI_Created is way before the earliest USN create -> conflict
+        let mut entry = mft_entry(100, 1, 50, "file.exe", false);
+        entry.si_created = Some(DateTime::from_timestamp(1699999000, 0).unwrap());
+
+        let engine = CorrelationEngine::new();
+        let conflicts = engine.find_timestamp_conflicts(&usn_records, &[entry]);
+
+        assert_eq!(conflicts.len(), 1);
+        // The USN timestamp used should be the earliest (1700000100)
+        assert_eq!(conflicts[0].usn_timestamp.timestamp(), 1700000100);
+    }
+
+    // ─── Test 17: File activity summary first_seen/last_seen update ──────
+
+    #[test]
+    fn test_activity_summary_first_seen_last_seen_update() {
+        // Line 336: first_seen update when r.timestamp < s.first_seen
+        // Also tests last_seen update and reason accumulation
+        let usn_records = vec![
+            // First record seen: ts=200
+            usn(100, 1, 50, 1000, 1700000200, "data.txt", UsnReason::FILE_CREATE),
+            // Earlier timestamp: ts=100 -> should update first_seen
+            usn(100, 1, 50, 2000, 1700000100, "data.txt", UsnReason::DATA_EXTEND),
+            // Latest timestamp: ts=300 -> should update last_seen
+            usn(100, 1, 50, 3000, 1700000300, "data_renamed.txt", UsnReason::RENAME_NEW_NAME),
+        ];
+
+        let engine = CorrelationEngine::new();
+        let summaries = engine.summarize_file_activity(&usn_records);
+
+        assert_eq!(summaries.len(), 1);
+        let s = &summaries[0];
+        assert_eq!(s.mft_entry, 100);
+        assert_eq!(s.event_count, 3);
+        assert_eq!(s.first_seen.timestamp(), 1700000100);
+        assert_eq!(s.last_seen.timestamp(), 1700000300);
+        assert_eq!(s.filename, "data_renamed.txt"); // latest filename used
+        // All reasons accumulated
+        assert!(s.reasons.contains(UsnReason::FILE_CREATE));
+        assert!(s.reasons.contains(UsnReason::DATA_EXTEND));
+        assert!(s.reasons.contains(UsnReason::RENAME_NEW_NAME));
+    }
+
     #[test]
     fn test_timeline_preserves_lsn() {
         let logfile_records = vec![

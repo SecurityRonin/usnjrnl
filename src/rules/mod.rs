@@ -542,6 +542,35 @@ mod tests {
     // ── Built-in rules ──────────────────────────────────────────────────
 
     #[test]
+    fn test_glob_matches_trailing_stars() {
+        // Test line 96: the while loop that skips trailing '*' in pattern
+        // after text has been fully consumed
+        assert!(glob_matches("test***", "test"));
+        assert!(glob_matches("***", ""));
+        assert!(glob_matches("a*b*", "ab"));
+        assert!(!glob_matches("a*b*c", "ab"));
+    }
+
+    #[test]
+    fn test_rule_regex_compile_failure() {
+        // Test line 122: regex pattern that fails to compile returns false
+        let rule = Rule {
+            name: "bad_regex".into(),
+            description: "Invalid regex".into(),
+            severity: Severity::Low,
+            filename_match: Some(FilenameMatch::Regex("[invalid regex".into())),
+            exclude_pattern: None,
+            any_reasons: None,
+            all_reasons: None,
+        };
+        let ruleset = RuleSet::from_rules(vec![rule]);
+
+        let rec = make_record("anything.txt", UsnReason::FILE_CREATE);
+        // Should not panic, and should not match
+        assert_eq!(ruleset.evaluate(&rec).len(), 0);
+    }
+
+    #[test]
     fn test_builtin_suspicious_executables() {
         let ruleset = RuleSet::with_builtins();
 

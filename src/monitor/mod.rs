@@ -417,6 +417,45 @@ mod tests {
         let _ = events;
     }
 
+    /// A mock source that returns data that will cause parse_usn_journal
+    /// to return an error. Since parse_usn_journal basically never returns Err
+    /// (it returns Ok with empty vec for corrupt data), we need to trick it.
+    /// Actually, parse_usn_journal always returns Ok. Lines 111-113 are
+    /// unreachable in practice because parse_usn_journal never returns Err.
+    /// Let me still add a test that exercises as close to that path as possible.
+    struct AlmostCorruptJournalSource;
+
+    impl JournalSource for AlmostCorruptJournalSource {
+        fn read_from_usn(&mut self, _start_usn: i64, buffer: &mut [u8]) -> Result<usize> {
+            // Return data that parse_usn_journal handles gracefully (no error)
+            // but produces no records
+            let n = 64.min(buffer.len());
+            for i in 0..n {
+                buffer[i] = 0xFF;
+            }
+            Ok(n)
+        }
+
+        fn current_journal_id(&self) -> Result<u64> {
+            Ok(42)
+        }
+    }
+
+    #[test]
+    fn test_monitor_handles_all_garbage_data() {
+        // Tests that poll_once handles data that produces no records
+        let source = AlmostCorruptJournalSource;
+        let mut monitor = JournalMonitor::new(source, MonitorConfig::default()).unwrap();
+
+        let events = monitor.poll_once();
+        // No records parsed from garbage, so no NewRecord events
+        let new_records: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, MonitorEvent::NewRecord(_)))
+            .collect();
+        assert_eq!(new_records.len(), 0);
+    }
+
     #[test]
     fn test_monitor_last_usn_not_updated_on_wrap() {
         // When journal wraps, the new USN is lower than last_usn
