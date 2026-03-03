@@ -1,11 +1,15 @@
 # usnjrnl-forensic
 
+[![Crates.io](https://img.shields.io/crates/v/usnjrnl-forensic.svg)](https://crates.io/crates/usnjrnl-forensic)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-341-green.svg)](https://github.com/SecurityRonin/usnjrnl-forensic)
+
 The most comprehensive NTFS USN Journal forensic analysis tool. Period.
 
-`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates three NTFS artifacts to recover evidence destroyed by anti-forensic tools, and detects attacker activity through built-in forensic rules.
+`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates four NTFS artifacts to recover evidence destroyed by anti-forensic tools, and detects attacker activity through built-in forensic rules.
 
 ```
-$ usnjrnl-forensic -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --csv timeline.csv
+$ usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --csv timeline.csv
 
 [+] 847,293 USN records parsed
 [+] 112,448 MFT entries parsed
@@ -18,11 +22,46 @@ $ usnjrnl-forensic -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --csv
 
 ## Install
 
+### As a CLI tool
+
 ```bash
-cargo install --git https://github.com/SecurityRonin/usnjrnl-forensic
+cargo install usnjrnl-forensic
 ```
 
-Or build from source:
+This gives you the `usnjrnl-forensic` binary. Runs on Windows, macOS, and Linux. No runtime dependencies.
+
+### As a library
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+usnjrnl-forensic = "0.1"
+```
+
+Then use it in your code:
+
+```rust
+use usnjrnl_forensic::usn::{parse_usn_journal, UsnRecord, UsnReason};
+use usnjrnl_forensic::rewind::RewindEngine;
+use usnjrnl_forensic::mft::MftData;
+
+// Parse USN journal records
+let data = std::fs::read("$J")?;
+let records = parse_usn_journal(&data);
+
+// Resolve full paths using MFT + Rewind
+let mft_data = MftData::parse(&mft_bytes)?;
+let mut engine = RewindEngine::new();
+engine.seed_from_mft(&mft_data);
+let resolved = engine.resolve_all(records);
+```
+
+Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `rules`, `refs`, `monitor`, `output`.
+
+A reference implementation of the full CLI is included in the crate's `src/main.rs`.
+
+### Build from source
 
 ```bash
 git clone https://github.com/SecurityRonin/usnjrnl-forensic
@@ -30,25 +69,39 @@ cd usnjrnl-forensic
 cargo build --release
 ```
 
-Runs on Windows, macOS, and Linux. No runtime dependencies.
+## Usage
 
-## Quick Start
-
-Parse a USN journal with full path reconstruction:
+### Basic: parse $UsnJrnl with MFT path resolution
 
 ```bash
-# Basic: parse $UsnJrnl:$J with MFT correlation
-usnjrnl-forensic -j \$J -m \$MFT --csv output.csv
-
-# Full QuadLink analysis: correlate all four artifacts
-usnjrnl-forensic -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --sqlite analysis.db
-
-# Detect timestomping
-usnjrnl-forensic -j \$J -m \$MFT --detect-timestomping
-
-# All output formats at once
-usnjrnl-forensic -j \$J -m \$MFT --csv out.csv --jsonl out.jsonl --sqlite out.db --body out.body --tln out.tln --xml out.xml
+usnjrnl-forensic -j $J -m $MFT --csv output.csv
 ```
+
+### Full QuadLink analysis: correlate all four artifacts
+
+```bash
+usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --sqlite analysis.db
+```
+
+### Detect timestomping
+
+```bash
+usnjrnl-forensic -j $J -m $MFT --detect-timestomping
+```
+
+### All output formats at once
+
+```bash
+usnjrnl-forensic -j $J -m $MFT --csv out.csv --jsonl out.jsonl --sqlite out.db --body out.body --tln out.tln --xml out.xml
+```
+
+### Journal-only mode (no MFT)
+
+```bash
+usnjrnl-forensic -j $J --csv output.csv
+```
+
+Paths will be partial (parent MFT entry numbers only). Useful when $MFT is unavailable.
 
 ## Why This Tool Exists
 
