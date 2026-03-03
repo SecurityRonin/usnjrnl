@@ -313,7 +313,7 @@ impl CorrelationEngine {
         TriForceReport {
             timeline_event_count: timeline.len(),
             ghost_record_count: ghosts.len(),
-            journal_clearing_suspected: coverage.logfile_extends_before_usn || !ghosts.is_empty(),
+            journal_clearing_suspected: coverage.logfile_extends_before_usn,
             timestamp_conflict_count: conflicts.len(),
             entry_reuse_count: reuses.len(),
             coverage,

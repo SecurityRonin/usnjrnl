@@ -223,13 +223,18 @@ fn main() -> Result<()> {
         eprintln!("    MFT entry reuses detected: {}", report.entry_reuse_count);
         eprintln!("    Timestamp conflicts: {}", report.timestamp_conflict_count);
 
-        if report.journal_clearing_suspected {
-            eprintln!("[!] JOURNAL CLEARING SUSPECTED - ghost records found in $LogFile");
-        }
-
         if report.ghost_record_count > 0 {
             let ghosts = correlation.find_ghost_records(&records, &logfile_usn_records);
-            eprintln!("[!] Ghost records (evidence of cleared journal entries):");
+
+            eprintln!("[+] {} ghost records found in $LogFile (not present in $UsnJrnl)", ghosts.len());
+            eprintln!("    Ghost records appear when $LogFile retains USN records that $UsnJrnl");
+            eprintln!("    has cycled past (normal wrapping) or that were deliberately cleared.");
+            if report.journal_clearing_suspected {
+                eprintln!("[!] NOTE: $LogFile contains records OLDER than the oldest $UsnJrnl entry.");
+                eprintln!("    This is consistent with journal wrapping or intentional journal clearing.");
+                eprintln!("    Review ghost record timestamps and context to determine which.");
+            }
+
             for ghost in ghosts.iter().take(20) {
                 eprintln!(
                     "    LSN={} USN={} {} [{}] {}",

@@ -205,14 +205,21 @@ After Rewind:   .\Users\admin\AppData\Local\Temp\malware.exe
 
 This builds on the [TriForce](https://www.hecfblog.com/2013/01/ntfs-triforce-deeper-look-inside.html) technique (David Cowen, 2013), which pioneered three-artifact correlation of $MFT + $LogFile + $UsnJrnl. `usnjrnl-forensic` implements the full TriForce approach and adds $MFTMirr as a fourth artifact: a byte-level comparison between $MFT and its mirror that detects tampering with critical system metadata entries ($MFT, $MFTMirr, $LogFile, $Volume) — a consistency check no other tool performs.
 
-When an attacker clears the USN journal, the $LogFile still contains copies of recent USN records in its RCRD pages. `usnjrnl-forensic` extracts these embedded records, cross-references them against the journal, and flags the difference as "ghost records" — proof of activity the attacker tried to erase.
+The $LogFile contains copies of recent USN records embedded in its RCRD pages. `usnjrnl-forensic` extracts these records, cross-references them against the journal, and flags any that exist only in $LogFile as "ghost records." Ghost records appear for two reasons:
+
+1. **Normal journal wrapping**: The $UsnJrnl has a fixed size. As new records are written, old ones are overwritten. The $LogFile has a different rotation cycle and often retains USN records that the journal has already cycled past.
+2. **Intentional journal clearing**: An attacker runs `fsutil usn deletejournal` or similar. The $LogFile still holds copies of the destroyed records.
+
+Both cases produce ghost records. The investigator must review timestamps and context to determine which scenario applies. When ghost records contain offensive tool filenames or cluster around suspicious timeframes, clearing is more likely.
 
 ```
-[+] 23 USN records recovered from $LogFile
-[!] JOURNAL CLEARING SUSPECTED - ghost records found in $LogFile
-[!] Ghost records (evidence of cleared journal entries):
-    LSN=48201 USN=1024 2024-01-15T03:42:11Z [FILE_CREATE] mimikatz.exe
-    LSN=48205 USN=1088 2024-01-15T03:42:12Z [FILE_DELETE|CLOSE] mimikatz.exe
+[+] 5378 USN records recovered from $LogFile
+[+] 771 ghost records found in $LogFile (not present in $UsnJrnl)
+    Ghost records appear when $LogFile retains USN records that $UsnJrnl
+    has cycled past (normal wrapping) or that were deliberately cleared.
+[!] NOTE: $LogFile contains records OLDER than the oldest $UsnJrnl entry.
+    This is consistent with journal wrapping or intentional journal clearing.
+    Review ghost record timestamps and context to determine which.
 
 [+] $MFTMirr is consistent with $MFT
 ```
