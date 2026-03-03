@@ -1,14 +1,14 @@
 [package]
-name = "usnjrnl"
+name = "usnjrnl-forensic"
 version = "0.1.0"
 edition = "2021"
 description = "NTFS USN Journal parser with full path reconstruction via journal rewind"
 license = "MIT"
-repository = "https://github.com/SecurityRonin/usnjrnl"
+repository = "https://github.com/SecurityRonin/usnjrnl-forensic"
 authors = ["Albert Hui"]
 
 [[bin]]
-name = "usnjrnl"
+name = "usnjrnl-forensic"
 path = "src/main.rs"
 
 [dependencies]

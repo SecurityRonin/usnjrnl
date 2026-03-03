@@ -1,11 +1,11 @@
-# usnjrnl
+# usnjrnl-forensic
 
 The most comprehensive NTFS USN Journal forensic analysis tool. Period.
 
-`usnjrnl` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates three NTFS artifacts to recover evidence destroyed by anti-forensic tools, and detects attacker activity through built-in forensic rules.
+`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates three NTFS artifacts to recover evidence destroyed by anti-forensic tools, and detects attacker activity through built-in forensic rules.
 
 ```
-$ usnjrnl -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --csv timeline.csv
+$ usnjrnl-forensic -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --csv timeline.csv
 
 [+] 847,293 USN records parsed
 [+] 112,448 MFT entries parsed
@@ -19,14 +19,14 @@ $ usnjrnl -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --csv timeline
 ## Install
 
 ```bash
-cargo install --git https://github.com/SecurityRonin/usnjrnl
+cargo install --git https://github.com/SecurityRonin/usnjrnl-forensic
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/SecurityRonin/usnjrnl
-cd usnjrnl
+git clone https://github.com/SecurityRonin/usnjrnl-forensic
+cd usnjrnl-forensic
 cargo build --release
 ```
 
@@ -38,31 +38,31 @@ Parse a USN journal with full path reconstruction:
 
 ```bash
 # Basic: parse $UsnJrnl:$J with MFT correlation
-usnjrnl -j \$J -m \$MFT --csv output.csv
+usnjrnl-forensic -j \$J -m \$MFT --csv output.csv
 
 # Full QuadLink analysis: correlate all four artifacts
-usnjrnl -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --sqlite analysis.db
+usnjrnl-forensic -j \$J -m \$MFT --mftmirr \$MFTMirr --logfile \$LogFile --sqlite analysis.db
 
 # Detect timestomping
-usnjrnl -j \$J -m \$MFT --detect-timestomping
+usnjrnl-forensic -j \$J -m \$MFT --detect-timestomping
 
 # All output formats at once
-usnjrnl -j \$J -m \$MFT --csv out.csv --jsonl out.jsonl --sqlite out.db --body out.body --tln out.tln --xml out.xml
+usnjrnl-forensic -j \$J -m \$MFT --csv out.csv --jsonl out.jsonl --sqlite out.db --body out.body --tln out.tln --xml out.xml
 ```
 
 ## Why This Tool Exists
 
 Every USN journal parser on the market has blind spots. MFTECmd produces "UNKNOWN" parent paths when MFT entries get reused. ntfs-linker requires C++ compilation and has no maintained builds. NTFS Log Tracker runs only on Windows. No single tool combines all the techniques documented in academic research and DFIR blog posts.
 
-`usnjrnl` closes every gap. It implements the CyberCX Rewind algorithm for 100% path resolution, four-artifact QuadLink correlation (extending David Cowen's TriForce with $MFTMirr integrity verification), and adds forensic detection capabilities that no existing tool provides.
+`usnjrnl-forensic` closes every gap. It implements the CyberCX Rewind algorithm for 100% path resolution, four-artifact QuadLink correlation (extending David Cowen's TriForce with $MFTMirr integrity verification), and adds forensic detection capabilities that no existing tool provides.
 
 ## Feature Comparison
 
-How `usnjrnl` compares against every notable USN journal tool, past and present.
+How `usnjrnl-forensic` compares against every notable USN journal tool, past and present.
 
 ### Parsing & Filesystem Support
 
-| Feature | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| Feature | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | USN V2 parsing | Yes | Yes | Yes | Yes | Yes | Yes | Via MFTECmd |
 | USN V3 parsing | Yes | Yes | No | No | No | Yes | No |
@@ -71,7 +71,7 @@ How `usnjrnl` compares against every notable USN journal tool, past and present.
 
 ### Path Resolution & Correlation
 
-| Feature | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| Feature | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | **Artifacts analyzed** | **4** | **1** | **3** | **3** | **3** | **3** | **1** |
 | MFT path resolution | Yes | Yes | Yes | Yes | Yes | Yes | Via MFTECmd |
@@ -81,11 +81,11 @@ How `usnjrnl` compares against every notable USN journal tool, past and present.
 | Ghost record recovery | Yes | No | No | No | No | No | No |
 | $MFTMirr integrity check | Yes | No | No | No | No | No | No |
 
-> `usnjrnl` is the only tool that analyzes all four NTFS artifacts ($UsnJrnl + $MFT + $LogFile + $MFTMirr). We call this **QuadLink** correlation. It builds on David Cowen's TriForce (2013), which correlates three artifacts, and adds $MFTMirr byte-level integrity verification to detect tampering with critical system metadata.
+> `usnjrnl-forensic` is the only tool that analyzes all four NTFS artifacts ($UsnJrnl + $MFT + $LogFile + $MFTMirr). We call this **QuadLink** correlation. It builds on David Cowen's TriForce (2013), which correlates three artifacts, and adds $MFTMirr byte-level integrity verification to detect tampering with critical system metadata.
 
 ### Forensic Detection
 
-| Feature | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| Feature | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | Timestomping detection | Yes | No | No | Basic | Basic | No | No |
 | Anti-forensics detection | Yes | No | No | No | Basic | No | No |
@@ -95,14 +95,14 @@ How `usnjrnl` compares against every notable USN journal tool, past and present.
 
 ### Performance & Monitoring
 
-| Feature | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| Feature | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | Parallel processing | Yes | No | No | No | No | No | No |
 | Real-time monitoring | Yes | No | No | No | No | No | No |
 
 ### Output Formats
 
-| Feature | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| Feature | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | CSV | Yes | Yes | No | No | Yes | Yes | No |
 | JSON/JSONL | Yes | Yes | No | No | No | Yes | No |
@@ -113,7 +113,7 @@ How `usnjrnl` compares against every notable USN journal tool, past and present.
 
 ### Platform & Implementation
 
-| | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | Cross-platform | Yes | Yes | Windows | Linux | Windows | Yes | Yes |
 | Language | Rust | C# (.NET) | C++ | C++ | C# | Python | Python |
@@ -122,7 +122,7 @@ How `usnjrnl` compares against every notable USN journal tool, past and present.
 
 ### Summary
 
-| | usnjrnl | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
+| | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
 | **Feature count** | **23/23** | **6/23** | **4/23** | **5/23** | **6/23** | **7/23** | **3/23** |
 
@@ -143,16 +143,16 @@ After Rewind:   .\Users\admin\AppData\Local\Temp\malware.exe
 
 ### QuadLink Correlation
 
-`usnjrnl` correlates four NTFS artifacts — more than any other tool:
+`usnjrnl-forensic` correlates four NTFS artifacts — more than any other tool:
 
 1. **$UsnJrnl** records file creates, deletes, renames, and data changes
 2. **$MFT** stores the current file system state with timestamps
 3. **$LogFile** contains transaction logs that embed USN records
 4. **$MFTMirr** mirrors the first four critical MFT entries for integrity verification
 
-This builds on the [TriForce](https://www.hecfblog.com/2013/01/ntfs-triforce-deeper-look-inside.html) technique (David Cowen, 2013), which pioneered three-artifact correlation of $MFT + $LogFile + $UsnJrnl. `usnjrnl` implements the full TriForce approach and adds $MFTMirr as a fourth artifact: a byte-level comparison between $MFT and its mirror that detects tampering with critical system metadata entries ($MFT, $MFTMirr, $LogFile, $Volume) — a consistency check no other tool performs.
+This builds on the [TriForce](https://www.hecfblog.com/2013/01/ntfs-triforce-deeper-look-inside.html) technique (David Cowen, 2013), which pioneered three-artifact correlation of $MFT + $LogFile + $UsnJrnl. `usnjrnl-forensic` implements the full TriForce approach and adds $MFTMirr as a fourth artifact: a byte-level comparison between $MFT and its mirror that detects tampering with critical system metadata entries ($MFT, $MFTMirr, $LogFile, $Volume) — a consistency check no other tool performs.
 
-When an attacker clears the USN journal, the $LogFile still contains copies of recent USN records in its RCRD pages. `usnjrnl` extracts these embedded records, cross-references them against the journal, and flags the difference as "ghost records" — proof of activity the attacker tried to erase.
+When an attacker clears the USN journal, the $LogFile still contains copies of recent USN records in its RCRD pages. `usnjrnl-forensic` extracts these embedded records, cross-references them against the journal, and flags the difference as "ghost records" — proof of activity the attacker tried to erase.
 
 ```
 [+] 23 USN records recovered from $LogFile
@@ -188,8 +188,8 @@ Built-in detectors identify four categories of suspicious activity:
 Define your own detection rules matching on filenames, extensions, reason flags, or combinations:
 
 ```rust
-use usnjrnl::rules::{Rule, RuleSet, Severity, FilenameMatch};
-use usnjrnl::usn::UsnReason;
+use usnjrnl_forensic::rules::{Rule, RuleSet, Severity, FilenameMatch};
+use usnjrnl_forensic::usn::UsnReason;
 
 let mut rules = RuleSet::with_builtins(); // 5 pre-loaded forensic rules
 
@@ -215,18 +215,18 @@ Built-in rules detect:
 
 ### ReFS Support
 
-ReFS volumes use 128-bit file reference numbers instead of NTFS's 48+16 bit format. `usnjrnl` preserves the full 128-bit identifiers, detects ReFS volumes automatically from V3 record patterns, and reconstructs paths using journal-only rewind (ReFS has no traditional MFT to seed from).
+ReFS volumes use 128-bit file reference numbers instead of NTFS's 48+16 bit format. `usnjrnl-forensic` preserves the full 128-bit identifiers, detects ReFS volumes automatically from V3 record patterns, and reconstructs paths using journal-only rewind (ReFS has no traditional MFT to seed from).
 
 ### Parallel Processing
 
-For large journals (500MB+), `usnjrnl` splits the data into chunks and parses them across all CPU cores using rayon. Results merge in USN offset order for deterministic output.
+For large journals (500MB+), `usnjrnl-forensic` splits the data into chunks and parses them across all CPU cores using rayon. Results merge in USN offset order for deterministic output.
 
 ### Real-Time Monitoring
 
 The monitoring module provides a `JournalSource` trait for polling live USN journals on Windows. It tracks the last-read USN position, detects journal wraps, and emits structured events for each new record.
 
 ```rust
-use usnjrnl::monitor::{JournalMonitor, MonitorConfig, MonitorEvent};
+use usnjrnl_forensic::monitor::{JournalMonitor, MonitorConfig, MonitorEvent};
 
 // Your JournalSource implementation reads from FSCTL_READ_USN_JOURNAL
 let monitor = JournalMonitor::new(source, MonitorConfig::default())?;
