@@ -362,6 +362,22 @@ cargo test
 - [Microsoft USN_RECORD_V4](https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ns-winioctl-usn_record_v4)
 - [Forensic Analysis of ReFS Journaling](https://dfrws.org/wp-content/uploads/2021/01/2021_APAC_paper-forensic_analysis_of_refs_journaling.pdf) (DFRWS APAC 2021)
 
+## Acknowledgements
+
+This tool stands on the shoulders of giants.
+
+The Rewind algorithm was described by [Yogesh Khatri](https://www.linkedin.com/in/ydkhatri/) at [CyberCX](https://cybercx.com.au/) in April 2024. His insight was simple and elegant: walk the journal backwards, tracking every parent-child relationship as you go. No more UNKNOWNs. His blog post and Python proof-of-concept are here: [cybercx.com.au/blog/ntfs-usnjrnl-rewind](https://cybercx.com.au/blog/ntfs-usnjrnl-rewind/)
+
+The TriForce correlation technique comes from [David Cowen](https://www.linkedin.com/in/dcowen/) (2013), who showed that $MFT + $LogFile + $UsnJrnl together reveal far more than any single artifact alone. [hecfblog.com/2013/01/ntfs-triforce-deeper-look-inside.html](https://www.hecfblog.com/2013/01/ntfs-triforce-deeper-look-inside.html)
+
+The $LogFile USN extraction approach draws from the work at [Stroz Friedberg](https://www.strozfriedberg.com/), a LevelBlue company, with [ntfs-linker](https://github.com/strozfriedberg/ntfs-linker).
+
+[Eric Zimmerman](https://www.linkedin.com/in/eric-zimmerman-6965b22/)'s [MFTECmd](https://github.com/EricZimmerman/MFTECmd) set the standard for NTFS artifact parsing that the entire DFIR community builds on.
+
+`usnjrnl-forensic` takes these ideas, implements them in Rust for speed and correctness, and adds what was missing: $MFTMirr integrity verification, ghost record recovery, anti-forensics detection, and a rule engine.
+
+None of this exists without the researchers who came first.
+
 ## Author
 
 **Albert Hui** ([@h4x0r](https://github.com/h4x0r)) of [@SecurityRonin](https://github.com/SecurityRonin)
