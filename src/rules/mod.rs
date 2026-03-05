@@ -153,6 +153,12 @@ impl Rule {
 
 // ─── RuleSet ────────────────────────────────────────────────────────────────
 
+impl Default for RuleSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuleSet {
     /// Create an empty rule set.
     pub fn new() -> Self {
@@ -223,7 +229,9 @@ impl RuleSet {
             let pattern = format!(r"^({alts})\..+$", alts = alts.join("|"));
             rs.add_rule(Rule {
                 name: "secure_delete_pattern".into(),
-                description: "SDelete-style secure deletion pattern detected (repeated character filename)".into(),
+                description:
+                    "SDelete-style secure deletion pattern detected (repeated character filename)"
+                        .into(),
                 severity: Severity::High,
                 filename_match: Some(FilenameMatch::Regex(pattern)),
                 exclude_pattern: None,
@@ -267,8 +275,8 @@ impl RuleSet {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, Utc};
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
+    use chrono::DateTime;
 
     /// Helper: build a minimal UsnRecord for testing.
     fn make_record(filename: &str, reason: UsnReason) -> UsnRecord {
@@ -574,17 +582,30 @@ mod tests {
     fn test_builtin_suspicious_executables() {
         let ruleset = RuleSet::with_builtins();
 
-        for name in &["psexec.exe", "PsExec64.exe", "mimikatz.exe", "procdump.exe", "lazagne.exe"] {
+        for name in &[
+            "psexec.exe",
+            "PsExec64.exe",
+            "mimikatz.exe",
+            "procdump.exe",
+            "lazagne.exe",
+        ] {
             let rec = make_record(name, UsnReason::FILE_CREATE);
             let matches = ruleset.evaluate(&rec);
-            let hit = matches.iter().any(|m| m.rule_name == "suspicious_executables");
-            assert!(hit, "Expected suspicious_executables to match '{}'", name);
+            let hit = matches
+                .iter()
+                .any(|m| m.rule_name == "suspicious_executables");
+            assert!(hit, "Expected suspicious_executables to match '{name}'");
         }
 
         let safe = make_record("notepad.exe", UsnReason::FILE_CREATE);
         let matches = ruleset.evaluate(&safe);
-        let hit = matches.iter().any(|m| m.rule_name == "suspicious_executables");
-        assert!(!hit, "notepad.exe should NOT trigger suspicious_executables");
+        let hit = matches
+            .iter()
+            .any(|m| m.rule_name == "suspicious_executables");
+        assert!(
+            !hit,
+            "notepad.exe should NOT trigger suspicious_executables"
+        );
     }
 
     #[test]
@@ -602,13 +623,17 @@ mod tests {
         ] {
             let rec = make_record(name, UsnReason::RENAME_NEW_NAME);
             let matches = ruleset.evaluate(&rec);
-            let hit = matches.iter().any(|m| m.rule_name == "ransomware_extensions");
-            assert!(hit, "Expected ransomware_extensions to match '{}'", name);
+            let hit = matches
+                .iter()
+                .any(|m| m.rule_name == "ransomware_extensions");
+            assert!(hit, "Expected ransomware_extensions to match '{name}'");
         }
 
         let safe = make_record("report.pdf", UsnReason::RENAME_NEW_NAME);
         let matches = ruleset.evaluate(&safe);
-        let hit = matches.iter().any(|m| m.rule_name == "ransomware_extensions");
+        let hit = matches
+            .iter()
+            .any(|m| m.rule_name == "ransomware_extensions");
         assert!(!hit, "report.pdf should NOT trigger ransomware_extensions");
     }
 
@@ -619,13 +644,27 @@ mod tests {
         for name in &["AAAAAAAAAAAA.txt", "BBBBBBBB.dat", "ZZZZZZZZZZ.bin"] {
             let rec = make_record(name, UsnReason::RENAME_NEW_NAME);
             let matches = ruleset.evaluate(&rec);
-            let hit = matches.iter().any(|m| m.rule_name == "secure_delete_pattern");
-            assert!(hit, "Expected secure_delete_pattern to match '{}'", name);
+            let hit = matches
+                .iter()
+                .any(|m| m.rule_name == "secure_delete_pattern");
+            assert!(hit, "Expected secure_delete_pattern to match '{name}'");
         }
 
         let safe = make_record("ABCDEF.txt", UsnReason::RENAME_NEW_NAME);
         let matches = ruleset.evaluate(&safe);
-        let hit = matches.iter().any(|m| m.rule_name == "secure_delete_pattern");
+        let hit = matches
+            .iter()
+            .any(|m| m.rule_name == "secure_delete_pattern");
         assert!(!hit, "ABCDEF.txt should NOT trigger secure_delete_pattern");
+    }
+
+    #[test]
+    fn test_ruleset_default() {
+        // Cover lines 157-158: Default impl for RuleSet.
+        let ruleset = RuleSet::default();
+        // Default-constructed ruleset should be empty and match nothing.
+        let record = make_record("test.txt", UsnReason::FILE_CREATE);
+        let matches = ruleset.evaluate(&record);
+        assert!(matches.is_empty());
     }
 }

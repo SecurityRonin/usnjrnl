@@ -1,8 +1,8 @@
 use anyhow::Result;
 use rusqlite::Connection;
 
-use crate::rewind::ResolvedRecord;
 use crate::mft::MftEntry;
+use crate::rewind::ResolvedRecord;
 
 /// Export resolved USN records and MFT data to an SQLite database.
 ///
@@ -52,7 +52,8 @@ pub fn export_sqlite(
             .unwrap_or("");
 
         stmt.execute(rusqlite::params![
-            r.timestamp.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
+            r.timestamp
+                .to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
             r.usn,
             r.mft_entry as i64,
             r.mft_sequence as i64,
@@ -147,8 +148,8 @@ pub fn export_sqlite(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::{UsnRecord, UsnReason, FileAttributes};
     use crate::rewind::ResolvedRecord;
+    use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
 
     #[test]
@@ -181,12 +182,16 @@ mod tests {
         // Verify data was written
         let conn = Connection::open(&db_path).unwrap();
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 1);
 
         let filename: String = conn
-            .query_row("SELECT FileName FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .query_row("SELECT FileName FROM USNJRNL_FullPaths", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(filename, "test.exe");
     }
@@ -266,7 +271,9 @@ mod tests {
         // Verify USN data
         let conn = Connection::open(&db_path).unwrap();
         let usn_count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(usn_count, 1);
 
@@ -295,11 +302,9 @@ mod tests {
         assert_eq!(mft_is_dir, 1);
 
         let mft_has_ads: i64 = conn
-            .query_row(
-                "SELECT HasAds FROM MFT WHERE EntryNumber = 50",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT HasAds FROM MFT WHERE EntryNumber = 50", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(mft_has_ads, 1);
     }
@@ -313,7 +318,9 @@ mod tests {
 
         let conn = Connection::open(&db_path).unwrap();
         let count: i64 = conn
-            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM USNJRNL_FullPaths", [], |row| {
+                row.get(0)
+            })
             .unwrap();
         assert_eq!(count, 0);
     }
@@ -347,8 +354,13 @@ mod tests {
 
         let conn = Connection::open(&db_path).unwrap();
         let ext: String = conn
-            .query_row("SELECT Extension FROM USNJRNL_FullPaths", [], |row| row.get(0))
+            .query_row("SELECT Extension FROM USNJRNL_FullPaths", [], |row| {
+                row.get(0)
+            })
             .unwrap();
-        assert_eq!(ext, "", "File without extension should have empty Extension");
+        assert_eq!(
+            ext, "",
+            "File without extension should have empty Extension"
+        );
     }
 }

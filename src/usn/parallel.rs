@@ -35,7 +35,7 @@ fn is_valid_record_start(data: &[u8], offset: usize) -> bool {
         data[offset + 3],
     ]) as usize;
 
-    if record_len < USN_V2_MIN_SIZE || record_len > USN_MAX_RECORD_SIZE {
+    if !(USN_V2_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len) {
         return false;
     }
 
@@ -138,8 +138,8 @@ pub fn parse_usn_journal_parallel(data: &[u8]) -> Result<Vec<UsnRecord>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::record::parse_usn_journal;
     use crate::usn::reason::UsnReason;
+    use crate::usn::record::parse_usn_journal;
 
     /// Build a valid V2 USN record with the given parameters.
     /// Mirrors the test helper from record.rs.
@@ -202,12 +202,12 @@ mod tests {
         for i in 0..count {
             let rec = build_v2_record(
                 (i + 1) as u64,   // mft entry
-                1,                 // seq
-                5,                 // parent entry
-                1,                 // parent seq
-                (i * 100) as i64,  // usn offset - sequential
-                0x100,             // reason: FILE_CREATE
-                &format!("file_{:04}.txt", i),
+                1,                // seq
+                5,                // parent entry
+                1,                // parent seq
+                (i * 100) as i64, // usn offset - sequential
+                0x100,            // reason: FILE_CREATE
+                &format!("file_{i:04}.txt"),
             );
             data.extend_from_slice(&rec);
         }
@@ -233,13 +233,22 @@ mod tests {
 
         // Same content in same order
         for (i, (s, p)) in sequential.iter().zip(parallel.iter()).enumerate() {
-            assert_eq!(s.mft_entry, p.mft_entry, "mft_entry mismatch at index {}", i);
-            assert_eq!(s.mft_sequence, p.mft_sequence, "mft_sequence mismatch at index {}", i);
-            assert_eq!(s.parent_mft_entry, p.parent_mft_entry, "parent_mft_entry mismatch at index {}", i);
-            assert_eq!(s.usn, p.usn, "usn mismatch at index {}", i);
-            assert_eq!(s.filename, p.filename, "filename mismatch at index {}", i);
-            assert_eq!(s.reason, p.reason, "reason mismatch at index {}", i);
-            assert_eq!(s.major_version, p.major_version, "major_version mismatch at index {}", i);
+            assert_eq!(s.mft_entry, p.mft_entry, "mft_entry mismatch at index {i}");
+            assert_eq!(
+                s.mft_sequence, p.mft_sequence,
+                "mft_sequence mismatch at index {i}"
+            );
+            assert_eq!(
+                s.parent_mft_entry, p.parent_mft_entry,
+                "parent_mft_entry mismatch at index {i}"
+            );
+            assert_eq!(s.usn, p.usn, "usn mismatch at index {i}");
+            assert_eq!(s.filename, p.filename, "filename mismatch at index {i}");
+            assert_eq!(s.reason, p.reason, "reason mismatch at index {i}");
+            assert_eq!(
+                s.major_version, p.major_version,
+                "major_version mismatch at index {i}"
+            );
         }
     }
 
@@ -253,12 +262,12 @@ mod tests {
     #[test]
     fn test_parallel_parse_single_record() {
         let data = build_v2_record(
-            42,       // mft entry
-            3,        // seq
-            10,       // parent entry
-            1,        // parent seq
-            1000,     // usn offset
-            0x100,    // reason: FILE_CREATE
+            42,    // mft entry
+            3,     // seq
+            10,    // parent entry
+            1,     // parent seq
+            1000,  // usn offset
+            0x100, // reason: FILE_CREATE
             "single.txt",
         );
 
@@ -310,11 +319,12 @@ mod tests {
     }
 
     #[test]
-    fn test_parallel_parse_skips_close_only_records() {
+    fn test_parallel_parse_includes_close_only_records() {
         // CLOSE reason = 0x8000_0000
         let data = build_v2_record(1, 1, 5, 1, 100, 0x8000_0000, "closed.txt");
         let records = parse_usn_journal_parallel(&data).unwrap();
-        assert!(records.is_empty(), "Close-only records should be skipped");
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].reason, UsnReason::CLOSE);
     }
 
     #[test]
@@ -344,8 +354,8 @@ mod tests {
 
         // Verify ordering matches
         for (i, (s, p)) in sequential.iter().zip(parallel.iter()).enumerate() {
-            assert_eq!(s.filename, p.filename, "filename mismatch at index {}", i);
-            assert_eq!(s.usn, p.usn, "usn mismatch at index {}", i);
+            assert_eq!(s.filename, p.filename, "filename mismatch at index {i}");
+            assert_eq!(s.usn, p.usn, "usn mismatch at index {i}");
         }
     }
 
@@ -362,7 +372,10 @@ mod tests {
             }
         }
         let result = find_first_record_boundary(&data, 0);
-        assert!(result.is_none(), "Should return None for data with no valid records");
+        assert!(
+            result.is_none(),
+            "Should return None for data with no valid records"
+        );
     }
 
     #[test]
@@ -378,7 +391,10 @@ mod tests {
         // Data shorter than 8 bytes
         let data = vec![0xAA; 4];
         let result = find_first_record_boundary(&data, 0);
-        assert!(result.is_none(), "Should return None for data shorter than 8 bytes");
+        assert!(
+            result.is_none(),
+            "Should return None for data shorter than 8 bytes"
+        );
     }
 
     #[test]
@@ -475,8 +491,13 @@ mod tests {
         let records_for_first_chunk = 10;
         for i in 0..records_for_first_chunk {
             data.extend_from_slice(&build_v2_record(
-                (i + 1) as u64, 1, 5, 1, (i * 100) as i64, 0x100,
-                &format!("file_{:04}.txt", i),
+                (i + 1) as u64,
+                1,
+                5,
+                1,
+                (i * 100) as i64,
+                0x100,
+                &format!("file_{i:04}.txt"),
             ));
         }
 
@@ -497,7 +518,10 @@ mod tests {
 
         let result = parse_usn_journal_parallel(&data).unwrap();
         // Should find all records from the first chunk
-        assert_eq!(result.len(), records_for_first_chunk,
-            "Should find records from first chunk even when second chunk has no valid boundaries");
+        assert_eq!(
+            result.len(),
+            records_for_first_chunk,
+            "Should find records from first chunk even when second chunk has no valid boundaries"
+        );
     }
 }

@@ -1,7 +1,6 @@
 /// TLN (5-field pipe-delimited timeline) format output.
 ///
 /// Format: `timestamp|source|host|user|description`
-
 use std::io::Write;
 
 use anyhow::Result;
@@ -74,14 +73,29 @@ mod tests {
         assert_eq!(fields[1], "USN", "source");
         assert_eq!(fields[2], "", "host is empty");
         assert_eq!(fields[3], "", "user is empty");
-        assert_eq!(fields[4], "USN: FILE_CREATE .\\temp\\test.exe", "description");
+        assert_eq!(
+            fields[4], "USN: FILE_CREATE .\\temp\\test.exe",
+            "description"
+        );
     }
 
     #[test]
     fn test_tln_multiple_records() {
         let resolved = vec![
-            make_record("a.txt", ".\\docs\\a.txt", ".\\docs", 1700000000, UsnReason::FILE_CREATE),
-            make_record("b.log", ".\\logs\\b.log", ".\\logs", 1700001000, UsnReason::DATA_EXTEND),
+            make_record(
+                "a.txt",
+                ".\\docs\\a.txt",
+                ".\\docs",
+                1700000000,
+                UsnReason::FILE_CREATE,
+            ),
+            make_record(
+                "b.log",
+                ".\\logs\\b.log",
+                ".\\logs",
+                1700001000,
+                UsnReason::DATA_EXTEND,
+            ),
         ];
         let mut buf = Vec::new();
         export_tln(&resolved, &mut buf).unwrap();
@@ -109,7 +123,7 @@ mod tests {
     impl std::io::Write for FailWriter {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             if self.remaining == 0 {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"));
+                return Err(std::io::Error::other("write failed"));
             }
             let n = buf.len().min(self.remaining);
             self.remaining -= n;
@@ -132,6 +146,23 @@ mod tests {
         let mut writer = FailWriter { remaining: 5 };
         let result = export_tln(&resolved, &mut writer);
         assert!(result.is_err(), "Should propagate write error");
+    }
+
+    #[test]
+    fn test_tln_write_error_immediate_fail() {
+        // Writer that fails on the very first write attempt, ensuring the
+        // writeln! formatting line (line 18) is covered when write_fmt fails
+        // immediately without accepting any bytes.
+        let resolved = vec![make_record(
+            "test.exe",
+            ".\\temp\\test.exe",
+            ".\\temp",
+            1700000000,
+            UsnReason::FILE_CREATE,
+        )];
+        let mut writer = FailWriter { remaining: 0 };
+        let result = export_tln(&resolved, &mut writer);
+        assert!(result.is_err(), "Should fail immediately on first write");
     }
 
     #[test]

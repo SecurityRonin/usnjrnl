@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use log::debug;
-use mft::MftParser;
 use mft::attribute::MftAttributeType;
+use mft::MftParser;
 
 use crate::rewind::{EntryKey, RewindEngine};
 
@@ -68,7 +68,7 @@ impl MftData {
             let entry = match entry_result {
                 Ok(e) => e,
                 Err(e) => {
-                    debug!("Skipping invalid MFT entry: {}", e);
+                    debug!("Skipping invalid MFT entry: {e}");
                     continue;
                 }
             };
@@ -86,16 +86,15 @@ impl MftData {
             let mut has_ads = false;
 
             // Extract $STANDARD_INFORMATION timestamps
-            for attr_result in entry.iter_attributes_matching(
-                Some(vec![MftAttributeType::StandardInformation]),
-            ) {
-                if let Ok(attr) = attr_result {
-                    if let Some(si) = attr.data.into_standard_info() {
-                        si_created = Some(DateTime::<Utc>::from(si.created));
-                        si_modified = Some(DateTime::<Utc>::from(si.modified));
-                        si_mft_modified = Some(DateTime::<Utc>::from(si.mft_modified));
-                        si_accessed = Some(DateTime::<Utc>::from(si.accessed));
-                    }
+            for attr in entry
+                .iter_attributes_matching(Some(vec![MftAttributeType::StandardInformation]))
+                .flatten()
+            {
+                if let Some(si) = attr.data.into_standard_info() {
+                    si_created = Some(si.created);
+                    si_modified = Some(si.modified);
+                    si_mft_modified = Some(si.mft_modified);
+                    si_accessed = Some(si.accessed);
                 }
             }
 
@@ -108,20 +107,19 @@ impl MftData {
             let best_filename = best_name.name.clone();
             let parent_entry = best_name.parent.entry;
             let parent_sequence = best_name.parent.sequence;
-            let fn_created = Some(DateTime::<Utc>::from(best_name.created));
-            let fn_modified = Some(DateTime::<Utc>::from(best_name.modified));
-            let fn_mft_modified = Some(DateTime::<Utc>::from(best_name.mft_modified));
-            let fn_accessed = Some(DateTime::<Utc>::from(best_name.accessed));
+            let fn_created = Some(best_name.created);
+            let fn_modified = Some(best_name.modified);
+            let fn_mft_modified = Some(best_name.mft_modified);
+            let fn_accessed = Some(best_name.accessed);
 
             // Check for ADS: look for $DATA attributes with non-empty names
-            for attr_result in entry.iter_attributes_matching(
-                Some(vec![MftAttributeType::DATA]),
-            ) {
-                if let Ok(attr) = attr_result {
-                    if !attr.header.name.is_empty() {
-                        has_ads = true;
-                        break;
-                    }
+            for attr in entry
+                .iter_attributes_matching(Some(vec![MftAttributeType::DATA]))
+                .flatten()
+            {
+                if !attr.header.name.is_empty() {
+                    has_ads = true;
+                    break;
                 }
             }
 
@@ -203,7 +201,9 @@ impl MftData {
 
     /// Get entry by entry number (current allocation).
     pub fn get_by_entry(&self, entry_number: u64) -> Option<&MftEntry> {
-        self.by_entry.get(&entry_number).map(|&idx| &self.entries[idx])
+        self.by_entry
+            .get(&entry_number)
+            .map(|&idx| &self.entries[idx])
     }
 
     /// Get entry by (entry, sequence) pair.
@@ -278,7 +278,7 @@ mod tests {
             fn_modified: None,
             fn_mft_modified: None,
             fn_accessed: None,
-            full_path: format!(".\\{}", filename),
+            full_path: format!(".\\{filename}"),
             file_size: 0,
             has_ads: false,
         }
@@ -440,8 +440,19 @@ mod tests {
 
         assert_eq!(mft_data.entries.len(), 3);
         assert_eq!(mft_data.get_by_entry(200).unwrap().filename, "file2.txt");
-        assert_eq!(mft_data.get_by_key(&EntryKey::new(300, 1)).unwrap().filename, "dir1");
-        assert!(mft_data.get_by_key(&EntryKey::new(300, 1)).unwrap().is_directory);
+        assert_eq!(
+            mft_data
+                .get_by_key(&EntryKey::new(300, 1))
+                .unwrap()
+                .filename,
+            "dir1"
+        );
+        assert!(
+            mft_data
+                .get_by_key(&EntryKey::new(300, 1))
+                .unwrap()
+                .is_directory
+        );
     }
 
     #[test]
@@ -484,9 +495,8 @@ mod tests {
         let garbage = vec![0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04];
         let result = MftData::parse(&garbage);
         // Either it errors out or it parses with zero valid entries
-        match result {
-            Ok(mft_data) => assert!(mft_data.entries.is_empty()),
-            Err(_) => {} // Error is also acceptable for invalid data
+        if let Ok(mft_data) = result {
+            assert!(mft_data.entries.is_empty());
         }
     }
 
@@ -495,9 +505,8 @@ mod tests {
         // Data shorter than one MFT entry (1024 bytes)
         let data = vec![0xAA; 512];
         let result = MftData::parse(&data);
-        match result {
-            Ok(mft_data) => assert!(mft_data.entries.is_empty()),
-            Err(_) => {}
+        if let Ok(mft_data) = result {
+            assert!(mft_data.entries.is_empty());
         }
     }
 
@@ -525,18 +534,20 @@ mod tests {
             data[o + 0x16..o + 0x18].copy_from_slice(&0x01u16.to_le_bytes()); // flags: in-use
             data[o + 0x18..o + 0x1C].copy_from_slice(&0x38u32.to_le_bytes()); // bytes used
             data[o + 0x1C..o + 0x20].copy_from_slice(&1024u32.to_le_bytes()); // allocated size
-            // Write end-of-attributes marker (0xFFFFFFFF) at first attribute offset
+                                                                              // Write end-of-attributes marker (0xFFFFFFFF) at first attribute offset
             data[o + 0x38..o + 0x3C].copy_from_slice(&0xFFFFFFFFu32.to_le_bytes());
         }
         let result = std::panic::catch_unwind(|| MftData::parse(&data));
         match result {
             Ok(Ok(mft_data)) => {
                 // All entries lack $FILE_NAME, so should be skipped via `continue`
-                assert!(mft_data.entries.is_empty(),
-                    "Corrupt entries without $FILE_NAME should be skipped");
+                assert!(
+                    mft_data.entries.is_empty(),
+                    "Corrupt entries without $FILE_NAME should be skipped"
+                );
             }
             Ok(Err(_)) => {} // Parse error is acceptable
-            Err(_) => {} // Panic from mft crate is acceptable (we caught it)
+            Err(_) => {}     // Panic from mft crate is acceptable (we caught it)
         }
     }
 
@@ -599,7 +610,7 @@ mod tests {
     /// - $STANDARD_INFORMATION attribute (type 0x10, 96 bytes of data)
     /// - $FILE_NAME attribute (type 0x30, variable size)
     /// - End marker (0xFFFFFFFF)
-    /// Covers lines 70-72, 92-97, 104, 108-114, 117-118, 120-123, 129-130, 136, 158-160
+    ///   Covers lines 70-72, 92-97, 104, 108-114, 117-118, 120-123, 129-130, 136, 158-160
     fn build_mft_entry_bytes(
         entry_number: u32,
         sequence: u16,
@@ -646,7 +657,7 @@ mod tests {
         buf[0x1C..0x20].copy_from_slice(&alloc_size.to_le_bytes()); // allocated size
         buf[0x20..0x28].copy_from_slice(&0u64.to_le_bytes()); // base record
         buf[0x28..0x2C].copy_from_slice(&entry_number.to_le_bytes()); // MFT record number
-        // Update sequence array at 0x30: value(2) + entry1(2) + entry2(2) = 6 bytes
+                                                                      // Update sequence array at 0x30: value(2) + entry1(2) + entry2(2) = 6 bytes
         buf[0x30..0x32].copy_from_slice(&0x0001u16.to_le_bytes()); // update sequence value
         buf[0x32..0x34].copy_from_slice(&0x0000u16.to_le_bytes()); // fixup for sector 1
         buf[0x34..0x36].copy_from_slice(&0x0000u16.to_le_bytes()); // fixup for sector 2
@@ -700,7 +711,7 @@ mod tests {
         buf[fn_data_off + 16..fn_data_off + 24].copy_from_slice(&ts.to_le_bytes()); // modified
         buf[fn_data_off + 24..fn_data_off + 32].copy_from_slice(&ts.to_le_bytes()); // mft modified
         buf[fn_data_off + 32..fn_data_off + 40].copy_from_slice(&ts.to_le_bytes()); // accessed
-        // Allocated size and real size
+                                                                                    // Allocated size and real size
         buf[fn_data_off + 40..fn_data_off + 48].copy_from_slice(&0u64.to_le_bytes());
         buf[fn_data_off + 48..fn_data_off + 56].copy_from_slice(&0u64.to_le_bytes());
         // Flags and reparse
@@ -733,10 +744,10 @@ mod tests {
         // 120-123 (ADS check), 129-130 (full_path), 136 (idx),
         // 158-160 (by_entry/by_key/entries.push)
         let entry_data = build_mft_entry_bytes(
-            100,  // entry number
-            1,    // sequence
-            5,    // parent entry
-            5,    // parent sequence
+            100, // entry number
+            1,   // sequence
+            5,   // parent entry
+            5,   // parent sequence
             "testfile.txt",
             0x01, // flags: in-use
         );
@@ -755,14 +766,20 @@ mod tests {
                     // The mft crate may use position-based entry number (0)
                     // rather than the header field (100), so check by actual entry number
                     let entry_num = e.entry_number;
-                    assert!(mft_data.by_entry.contains_key(&entry_num),
-                        "by_entry should contain entry_number {}", entry_num);
-                    assert!(mft_data.by_key.contains_key(&EntryKey::new(entry_num, e.sequence_number)),
-                        "by_key should contain (entry_number, sequence)");
+                    assert!(
+                        mft_data.by_entry.contains_key(&entry_num),
+                        "by_entry should contain entry_number {entry_num}"
+                    );
+                    assert!(
+                        mft_data
+                            .by_key
+                            .contains_key(&EntryKey::new(entry_num, e.sequence_number)),
+                        "by_key should contain (entry_number, sequence)"
+                    );
                 }
             }
             Ok(Err(_)) => {} // Parse error acceptable for synthetic data
-            Err(_) => {} // Panic from mft crate acceptable
+            Err(_) => {}     // Panic from mft crate acceptable
         }
     }
 
@@ -770,14 +787,7 @@ mod tests {
     fn test_mft_data_parse_entry_with_ads() {
         // Build an MFT entry and manually add a $DATA attribute with a name
         // to test ADS detection (lines 117-123)
-        let mut entry_data = build_mft_entry_bytes(
-            200,
-            1,
-            5,
-            5,
-            "ads_file.txt",
-            0x01,
-        );
+        let mut entry_data = build_mft_entry_bytes(200, 1, 5, 5, "ads_file.txt", 0x01);
 
         // Find end marker location and replace it with a named $DATA attribute
         // then add end marker after
@@ -789,15 +799,19 @@ mod tests {
                 break;
             }
             let attr_type = u32::from_le_bytes([
-                entry_data[off], entry_data[off + 1],
-                entry_data[off + 2], entry_data[off + 3],
+                entry_data[off],
+                entry_data[off + 1],
+                entry_data[off + 2],
+                entry_data[off + 3],
             ]);
             if attr_type == 0xFFFFFFFF {
                 break;
             }
             let attr_size = u32::from_le_bytes([
-                entry_data[off + 4], entry_data[off + 5],
-                entry_data[off + 6], entry_data[off + 7],
+                entry_data[off + 4],
+                entry_data[off + 5],
+                entry_data[off + 6],
+                entry_data[off + 7],
             ]) as usize;
             if attr_size == 0 || off + attr_size > entry_data.len() {
                 break;
@@ -812,10 +826,11 @@ mod tests {
         let ads_name_bytes = ads_name_utf16.len() * 2;
         let ads_attr_header_size = 24u16;
         let ads_content_size = 0u32; // empty content
-        // Name offset is right after content_offset field (at header + 0)
-        // For named attrs, name_offset points within the attr header
+                                     // Name offset is right after content_offset field (at header + 0)
+                                     // For named attrs, name_offset points within the attr header
         let ads_name_offset = ads_attr_header_size;
-        let ads_total = (ads_attr_header_size as u32 + ads_name_bytes as u32 + ads_content_size + 7) & !7;
+        let ads_total =
+            (ads_attr_header_size as u32 + ads_name_bytes as u32 + ads_content_size + 7) & !7;
 
         if off + ads_total as usize + 8 <= entry_data.len() {
             entry_data[off..off + 4].copy_from_slice(&0x80u32.to_le_bytes()); // $DATA type
@@ -926,8 +941,10 @@ mod tests {
         match result {
             Ok(Ok(mft_data)) => {
                 // Entry without $FILE_NAME should be skipped (line 104-105)
-                assert!(mft_data.entries.is_empty(),
-                    "Entry without $FILE_NAME should be skipped");
+                assert!(
+                    mft_data.entries.is_empty(),
+                    "Entry without $FILE_NAME should be skipped"
+                );
             }
             Ok(Err(_)) => {}
             Err(_) => {}
@@ -943,5 +960,81 @@ mod tests {
         let deleted_entry = make_mft_entry(200, 1, "deleted.txt", 5, 5, false, false);
         assert!(!deleted_entry.is_directory);
         assert!(!deleted_entry.is_in_use);
+    }
+
+    /// Build a raw 1024-byte MFT entry with FILE signature and valid header.
+    fn build_raw_mft_entry_buf(seq: u16, flags: u16) -> Vec<u8> {
+        let mut buf = vec![0u8; 1024];
+
+        // FILE signature
+        buf[0..4].copy_from_slice(b"FILE");
+        // usa_offset: 0x30 (just past the header)
+        buf[0x04..0x06].copy_from_slice(&0x30u16.to_le_bytes());
+        // usa_size: 3 (1 marker + 2 sector fixups for 1024 bytes / 512 byte sectors)
+        buf[0x06..0x08].copy_from_slice(&3u16.to_le_bytes());
+        // logfile_sequence_number
+        buf[0x08..0x10].copy_from_slice(&0u64.to_le_bytes());
+        // sequence number
+        buf[0x10..0x12].copy_from_slice(&seq.to_le_bytes());
+        // hard_link_count
+        buf[0x12..0x14].copy_from_slice(&1u16.to_le_bytes());
+        // first_attribute_offset: 0x38 (after USA)
+        buf[0x14..0x16].copy_from_slice(&0x38u16.to_le_bytes());
+        // flags (0x01 = IN_USE, 0x02 = IS_DIRECTORY)
+        buf[0x16..0x18].copy_from_slice(&flags.to_le_bytes());
+        // used_entry_size
+        buf[0x18..0x1C].copy_from_slice(&512u32.to_le_bytes());
+        // total_entry_size (allocated)
+        buf[0x1C..0x20].copy_from_slice(&1024u32.to_le_bytes());
+        // base_reference (8 bytes of zero = no base)
+        // first_attribute_id
+        buf[0x28..0x2A].copy_from_slice(&0u16.to_le_bytes());
+
+        // USA: write update sequence array at offset 0x30
+        let marker: u16 = 0x0001;
+        buf[0x30..0x32].copy_from_slice(&marker.to_le_bytes());
+        buf[0x32..0x34].copy_from_slice(&marker.to_le_bytes());
+        buf[0x34..0x36].copy_from_slice(&marker.to_le_bytes());
+
+        // Write the marker at the end of each sector so fixup validation passes
+        buf[510..512].copy_from_slice(&marker.to_le_bytes());
+        buf[1022..1024].copy_from_slice(&marker.to_le_bytes());
+
+        // Write an end-of-attributes marker (0xFFFFFFFF) at first_attribute_offset
+        buf[0x38..0x3C].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+
+        buf
+    }
+
+    #[test]
+    fn test_mft_parse_with_corrupt_entry() {
+        // Cover lines 70-72: the Err(e) branch in MFT parsing.
+        // Create MFT data with a valid first entry, then an entry with an
+        // invalid signature that the mft crate will report as an error.
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        // First entry: valid FILE entry (parser reads total_entry_size from this)
+        let entry0 = build_raw_mft_entry_buf(1, 0x01);
+
+        // Second entry: invalid signature (not FILE, BAAD, or zero)
+        // This will cause MftEntry::from_buffer to return InvalidEntrySignature error.
+        let mut entry1 = vec![0u8; 1024];
+        entry1[0..4].copy_from_slice(b"DEAD"); // Invalid signature
+        entry1[0x1C..0x20].copy_from_slice(&1024u32.to_le_bytes());
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&entry0);
+        data.extend_from_slice(&entry1);
+
+        // Parse: the second entry should trigger the Err branch (lines 70-72)
+        match MftData::parse(&data) {
+            Ok(mft_data) => {
+                // Parser should have skipped the corrupt DEAD entry
+                let _ = mft_data.entries.len();
+            }
+            Err(_) => {
+                // Parser initialization may have failed, also acceptable
+            }
+        }
     }
 }

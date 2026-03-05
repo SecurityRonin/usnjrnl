@@ -122,7 +122,7 @@ pub fn parse_logfile(data: &[u8]) -> Result<LogFileSummary> {
                 let is_zeroed = data[page_offset..page_offset + 4] == [0, 0, 0, 0];
                 if !is_zeroed {
                     has_gaps = true;
-                    debug!("Gap detected at page {} (offset 0x{:x})", page_idx, page_offset);
+                    debug!("Gap detected at page {page_idx} (offset 0x{page_offset:x})");
                 }
             }
             last_page_had_rcrd = false;
@@ -209,8 +209,20 @@ mod tests {
     fn test_normal_logfile_no_clearing() {
         let summary = LogFileSummary {
             restart_areas: vec![
-                RestartArea { offset: 0, current_lsn: 1000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
-                RestartArea { offset: 4096, current_lsn: 2000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
+                RestartArea {
+                    offset: 0,
+                    current_lsn: 1000,
+                    log_clients: 1,
+                    system_page_size: 4096,
+                    log_page_size: 4096,
+                },
+                RestartArea {
+                    offset: 4096,
+                    current_lsn: 2000,
+                    log_clients: 1,
+                    system_page_size: 4096,
+                    log_page_size: 4096,
+                },
             ],
             record_page_count: 100,
             has_gaps: false,
@@ -234,9 +246,13 @@ mod tests {
     fn test_detect_journal_clearing_one_restart_area() {
         // 1 restart area (not 2) but no gaps - not detected as clearing
         let summary = LogFileSummary {
-            restart_areas: vec![
-                RestartArea { offset: 0, current_lsn: 1000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
-            ],
+            restart_areas: vec![RestartArea {
+                offset: 0,
+                current_lsn: 1000,
+                log_clients: 1,
+                system_page_size: 4096,
+                log_page_size: 4096,
+            }],
             record_page_count: 50,
             has_gaps: false,
             highest_lsn: 5000,
@@ -249,9 +265,27 @@ mod tests {
         // 3 restart areas (not 2) but no gaps
         let summary = LogFileSummary {
             restart_areas: vec![
-                RestartArea { offset: 0, current_lsn: 1000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
-                RestartArea { offset: 4096, current_lsn: 2000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
-                RestartArea { offset: 8192, current_lsn: 3000, log_clients: 1, system_page_size: 4096, log_page_size: 4096 },
+                RestartArea {
+                    offset: 0,
+                    current_lsn: 1000,
+                    log_clients: 1,
+                    system_page_size: 4096,
+                    log_page_size: 4096,
+                },
+                RestartArea {
+                    offset: 4096,
+                    current_lsn: 2000,
+                    log_clients: 1,
+                    system_page_size: 4096,
+                    log_page_size: 4096,
+                },
+                RestartArea {
+                    offset: 8192,
+                    current_lsn: 3000,
+                    log_clients: 1,
+                    system_page_size: 4096,
+                    log_page_size: 4096,
+                },
             ],
             record_page_count: 50,
             has_gaps: false,
@@ -299,7 +333,10 @@ mod tests {
         data.extend_from_slice(&make_rcrd_page(5000));
 
         let summary = parse_logfile(&data).unwrap();
-        assert!(summary.has_gaps, "Should detect gap at non-RCRD page after RCRD pages");
+        assert!(
+            summary.has_gaps,
+            "Should detect gap at non-RCRD page after RCRD pages"
+        );
     }
 
     #[test]
@@ -312,7 +349,10 @@ mod tests {
         data.extend_from_slice(&vec![0u8; LOG_PAGE_SIZE]); // zeroed page
 
         let summary = parse_logfile(&data).unwrap();
-        assert!(!summary.has_gaps, "Zeroed pages should not be flagged as gaps");
+        assert!(
+            !summary.has_gaps,
+            "Zeroed pages should not be flagged as gaps"
+        );
     }
 
     #[test]

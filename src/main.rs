@@ -77,11 +77,14 @@ fn main() -> Result<()> {
     eprintln!("[*] Reading $UsnJrnl:$J from {}", cli.journal.display());
     let usn_data = std::fs::read(&cli.journal)
         .with_context(|| format!("Failed to read journal: {}", cli.journal.display()))?;
-    eprintln!("[*] Journal size: {} bytes ({:.1} MB)", usn_data.len(), usn_data.len() as f64 / 1_048_576.0);
+    eprintln!(
+        "[*] Journal size: {} bytes ({:.1} MB)",
+        usn_data.len(),
+        usn_data.len() as f64 / 1_048_576.0
+    );
 
     eprintln!("[*] Parsing USN records...");
-    let records = usn::parse_usn_journal(&usn_data)
-        .context("Failed to parse USN journal")?;
+    let records = usn::parse_usn_journal(&usn_data).context("Failed to parse USN journal")?;
     eprintln!("[+] {} USN records parsed", records.len());
 
     // Print reason breakdown
@@ -95,7 +98,11 @@ fn main() -> Result<()> {
         eprintln!("[*] Reading $MFT from {}", mft_path.display());
         let raw = std::fs::read(mft_path)
             .with_context(|| format!("Failed to read MFT: {}", mft_path.display()))?;
-        eprintln!("[*] MFT size: {} bytes ({:.1} MB)", raw.len(), raw.len() as f64 / 1_048_576.0);
+        eprintln!(
+            "[*] MFT size: {} bytes ({:.1} MB)",
+            raw.len(),
+            raw.len() as f64 / 1_048_576.0
+        );
 
         eprintln!("[*] Parsing $MFT...");
         let mft = MftData::parse(&raw).context("Failed to parse $MFT")?;
@@ -107,14 +114,14 @@ fn main() -> Result<()> {
             if suspicious.is_empty() {
                 eprintln!("[+] No timestomping indicators detected");
             } else {
-                eprintln!("[!] {} potential timestomping indicators:", suspicious.len());
+                eprintln!(
+                    "[!] {} potential timestomping indicators:",
+                    suspicious.len()
+                );
                 for entry in suspicious.iter().take(20) {
                     eprintln!(
                         "    Entry {} ({}): SI_Created={:?} < FN_Created={:?}",
-                        entry.entry_number,
-                        entry.full_path,
-                        entry.si_created,
-                        entry.fn_created
+                        entry.entry_number, entry.full_path, entry.si_created, entry.fn_created
                     );
                 }
                 if suspicious.len() > 20 {
@@ -176,8 +183,12 @@ fn main() -> Result<()> {
 
         // Extract embedded USN records from $LogFile RCRD pages
         eprintln!("[*] Extracting USN records embedded in $LogFile...");
-        let extracted = usnjrnl_forensic::logfile::usn_extractor::extract_usn_from_logfile(&log_raw);
-        eprintln!("[+] {} USN records recovered from $LogFile", extracted.len());
+        let extracted =
+            usnjrnl_forensic::logfile::usn_extractor::extract_usn_from_logfile(&log_raw);
+        eprintln!(
+            "[+] {} USN records recovered from $LogFile",
+            extracted.len()
+        );
         extracted
     } else {
         Vec::new()
@@ -187,7 +198,10 @@ fn main() -> Result<()> {
 
     eprintln!("[*] Running journal rewind for full path reconstruction...");
     let mut engine = if let Some(ref mft) = mft_data {
-        eprintln!("[*] Seeding rewind engine with {} MFT entries", mft.entries.len());
+        eprintln!(
+            "[*] Seeding rewind engine with {} MFT entries",
+            mft.entries.len()
+        );
         mft.seed_rewind()
     } else {
         eprintln!("[*] No MFT provided - paths will be reconstructed from journal only");
@@ -198,7 +212,10 @@ fn main() -> Result<()> {
     eprintln!("[+] {} records resolved with full paths", resolved.len());
 
     // Count unknown paths
-    let unknown_count = resolved.iter().filter(|r| r.parent_path.contains("UNKNOWN")).count();
+    let unknown_count = resolved
+        .iter()
+        .filter(|r| r.parent_path.contains("UNKNOWN"))
+        .count();
     if unknown_count > 0 {
         eprintln!(
             "[!] {} records with unresolvable parent paths ({:.1}%)",
@@ -214,24 +231,46 @@ fn main() -> Result<()> {
     if !logfile_usn_records.is_empty() || mft_data.is_some() {
         eprintln!("[*] Running TriForce correlation (MFT + LogFile + UsnJrnl)...");
         let correlation = usnjrnl_forensic::correlation::CorrelationEngine::new();
-        let mft_entries_slice = mft_data.as_ref().map(|m| m.entries.as_slice()).unwrap_or(&[]);
+        let mft_entries_slice = mft_data
+            .as_ref()
+            .map(|m| m.entries.as_slice())
+            .unwrap_or(&[]);
         let report = correlation.generate_report(&records, &logfile_usn_records, mft_entries_slice);
 
         eprintln!("[+] TriForce Report:");
-        eprintln!("    Unified timeline events: {}", report.timeline_event_count);
-        eprintln!("    Ghost records (LogFile-only): {}", report.ghost_record_count);
-        eprintln!("    MFT entry reuses detected: {}", report.entry_reuse_count);
-        eprintln!("    Timestamp conflicts: {}", report.timestamp_conflict_count);
+        eprintln!(
+            "    Unified timeline events: {}",
+            report.timeline_event_count
+        );
+        eprintln!(
+            "    Ghost records (LogFile-only): {}",
+            report.ghost_record_count
+        );
+        eprintln!(
+            "    MFT entry reuses detected: {}",
+            report.entry_reuse_count
+        );
+        eprintln!(
+            "    Timestamp conflicts: {}",
+            report.timestamp_conflict_count
+        );
 
         if report.ghost_record_count > 0 {
             let ghosts = correlation.find_ghost_records(&records, &logfile_usn_records);
 
-            eprintln!("[+] {} ghost records found in $LogFile (not present in $UsnJrnl)", ghosts.len());
+            eprintln!(
+                "[+] {} ghost records found in $LogFile (not present in $UsnJrnl)",
+                ghosts.len()
+            );
             eprintln!("    Ghost records appear when $LogFile retains USN records that $UsnJrnl");
             eprintln!("    has cycled past (normal wrapping) or that were deliberately cleared.");
             if report.journal_clearing_suspected {
-                eprintln!("[!] NOTE: $LogFile contains records OLDER than the oldest $UsnJrnl entry.");
-                eprintln!("    This is consistent with journal wrapping or intentional journal clearing.");
+                eprintln!(
+                    "[!] NOTE: $LogFile contains records OLDER than the oldest $UsnJrnl entry."
+                );
+                eprintln!(
+                    "    This is consistent with journal wrapping or intentional journal clearing."
+                );
                 eprintln!("    Review ghost record timestamps and context to determine which.");
             }
 
@@ -240,7 +279,10 @@ fn main() -> Result<()> {
                     "    LSN={} USN={} {} [{}] {}",
                     ghost.lsn,
                     ghost.record.usn,
-                    ghost.record.timestamp.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+                    ghost
+                        .record
+                        .timestamp
+                        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
                     ghost.record.reason,
                     ghost.record.filename,
                 );
@@ -279,7 +321,11 @@ fn main() -> Result<()> {
     if let Some(ref sqlite_path) = cli.sqlite {
         eprintln!("[*] Writing SQLite to {}", sqlite_path.display());
         let mft_entries = mft_data.as_ref().map(|m| m.entries.as_slice());
-        usnjrnl_forensic::output::sqlite_output::export_sqlite(sqlite_path, &resolved, mft_entries)?;
+        usnjrnl_forensic::output::sqlite_output::export_sqlite(
+            sqlite_path,
+            &resolved,
+            mft_entries,
+        )?;
         eprintln!("[+] SQLite export complete");
     }
 
@@ -313,57 +359,6 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::Parser;
-
-    #[test]
-    fn test_cli_accepts_body_flag() {
-        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--body", "out.body"]).unwrap();
-        assert_eq!(cli.body, Some(PathBuf::from("out.body")));
-    }
-
-    #[test]
-    fn test_cli_accepts_tln_flag() {
-        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--tln", "out.tln"]).unwrap();
-        assert_eq!(cli.tln, Some(PathBuf::from("out.tln")));
-    }
-
-    #[test]
-    fn test_cli_accepts_xml_flag() {
-        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--xml", "out.xml"]).unwrap();
-        assert_eq!(cli.xml, Some(PathBuf::from("out.xml")));
-    }
-
-    #[test]
-    fn test_cli_all_output_formats_simultaneously() {
-        let cli = Cli::try_parse_from([
-            "usnjrnl", "-j", "test.bin",
-            "--csv", "a.csv",
-            "--jsonl", "a.jsonl",
-            "--sqlite", "a.db",
-            "--body", "a.body",
-            "--tln", "a.tln",
-            "--xml", "a.xml",
-        ]).unwrap();
-        assert!(cli.csv.is_some());
-        assert!(cli.jsonl.is_some());
-        assert!(cli.sqlite.is_some());
-        assert!(cli.body.is_some());
-        assert!(cli.tln.is_some());
-        assert!(cli.xml.is_some());
-    }
-
-    #[test]
-    fn test_cli_no_output_formats_is_valid() {
-        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin"]).unwrap();
-        assert!(cli.body.is_none());
-        assert!(cli.tln.is_none());
-        assert!(cli.xml.is_none());
-    }
 }
 
 fn print_reason_stats(records: &[usn::UsnRecord]) {
@@ -403,11 +398,58 @@ fn print_reason_stats(records: &[usn::UsnRecord]) {
         }
     }
 
-    eprintln!("[*] Record versions: V2={}, V3={}", v2_count, v3_count);
+    eprintln!("[*] Record versions: V2={v2_count}, V3={v3_count}");
     eprintln!("[*] Reason breakdown:");
     let mut sorted: Vec<_> = reason_counts.into_iter().collect();
     sorted.sort_by(|a, b| b.1.cmp(&a.1));
     for (reason, count) in sorted {
-        eprintln!("    {}: {}", reason, count);
+        eprintln!("    {reason}: {count}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn test_cli_accepts_body_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--body", "out.body"]).unwrap();
+        assert_eq!(cli.body, Some(PathBuf::from("out.body")));
+    }
+
+    #[test]
+    fn test_cli_accepts_tln_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--tln", "out.tln"]).unwrap();
+        assert_eq!(cli.tln, Some(PathBuf::from("out.tln")));
+    }
+
+    #[test]
+    fn test_cli_accepts_xml_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--xml", "out.xml"]).unwrap();
+        assert_eq!(cli.xml, Some(PathBuf::from("out.xml")));
+    }
+
+    #[test]
+    fn test_cli_all_output_formats_simultaneously() {
+        let cli = Cli::try_parse_from([
+            "usnjrnl", "-j", "test.bin", "--csv", "a.csv", "--jsonl", "a.jsonl", "--sqlite",
+            "a.db", "--body", "a.body", "--tln", "a.tln", "--xml", "a.xml",
+        ])
+        .unwrap();
+        assert!(cli.csv.is_some());
+        assert!(cli.jsonl.is_some());
+        assert!(cli.sqlite.is_some());
+        assert!(cli.body.is_some());
+        assert!(cli.tln.is_some());
+        assert!(cli.xml.is_some());
+    }
+
+    #[test]
+    fn test_cli_no_output_formats_is_valid() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin"]).unwrap();
+        assert!(cli.body.is_none());
+        assert!(cli.tln.is_none());
+        assert!(cli.xml.is_none());
     }
 }

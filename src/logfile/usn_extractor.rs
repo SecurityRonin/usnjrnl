@@ -7,7 +7,7 @@
 //!
 //! Inspired by ntfs-linker's TriForce approach.
 
-use crate::usn::{UsnRecord, parse_usn_record_v2};
+use crate::usn::{parse_usn_record_v2, UsnRecord};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ fn try_parse_usn_at(data: &[u8], offset: usize) -> Option<UsnRecord> {
     let record_len = u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]]) as usize;
 
     // Sanity checks on record length
-    if record_len < USN_V2_MIN_SIZE || record_len > USN_MAX_RECORD_SIZE {
+    if !(USN_V2_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len) {
         return None;
     }
     if record_len > slice.len() {
@@ -149,10 +149,7 @@ fn scan_for_usn_records(data: &[u8]) -> Vec<(usize, UsnRecord)> {
 
 /// Extract log record redo/undo data areas from an RCRD page and scan them
 /// for embedded USN records.
-fn extract_from_rcrd_page(
-    page_data: &[u8],
-    page_offset: usize,
-) -> Vec<LogFileUsnRecord> {
+fn extract_from_rcrd_page(page_data: &[u8], page_offset: usize) -> Vec<LogFileUsnRecord> {
     let mut results = Vec::new();
 
     if page_data.len() < RCRD_DATA_OFFSET {
@@ -390,13 +387,11 @@ mod tests {
 
         // redo_offset at 0x34 (relative to 0x30 in log record) - point right after the header fields
         let redo_offset: u16 = 0x10; // 0x30 + 0x10 = 0x40 from start of log record
-        page[data_offset + 0x34..data_offset + 0x36]
-            .copy_from_slice(&redo_offset.to_le_bytes());
+        page[data_offset + 0x34..data_offset + 0x36].copy_from_slice(&redo_offset.to_le_bytes());
 
         // redo_length at 0x36
         let redo_length = usn_data.len() as u16;
-        page[data_offset + 0x36..data_offset + 0x38]
-            .copy_from_slice(&redo_length.to_le_bytes());
+        page[data_offset + 0x36..data_offset + 0x38].copy_from_slice(&redo_length.to_le_bytes());
 
         // Place the USN data at the redo location
         // redo data starts at: data_offset + 0x30 + redo_offset = data_offset + 0x40
@@ -422,7 +417,7 @@ mod tests {
 
         // Place USN data in slack area near end of page
         let slack_pos = LOG_PAGE_SIZE - usn_data.len() - 8; // some padding
-        // Make sure position is 8-byte aligned
+                                                            // Make sure position is 8-byte aligned
         let slack_pos = slack_pos & !7;
         if slack_pos >= RCRD_DATA_OFFSET && slack_pos + usn_data.len() <= page.len() {
             page[slack_pos..slack_pos + usn_data.len()].copy_from_slice(usn_data);
@@ -469,7 +464,9 @@ mod tests {
         let results = extract_usn_from_logfile(&page);
         assert!(!results.is_empty(), "Should find USN record in page slack");
 
-        let found = results.iter().find(|r| r.source == LogFileRecordSource::PageSlack);
+        let found = results
+            .iter()
+            .find(|r| r.source == LogFileRecordSource::PageSlack);
         assert!(found.is_some(), "Should identify source as PageSlack");
         let found = found.unwrap();
         assert_eq!(found.record.mft_entry, 200);
@@ -490,7 +487,11 @@ mod tests {
         logfile_data.extend_from_slice(&page2);
 
         let results = extract_usn_from_logfile(&logfile_data);
-        assert!(results.len() >= 2, "Should find records from both pages, got {}", results.len());
+        assert!(
+            results.len() >= 2,
+            "Should find records from both pages, got {}",
+            results.len()
+        );
 
         let filenames: Vec<&str> = results.iter().map(|r| r.record.filename.as_str()).collect();
         assert!(filenames.contains(&"file1.txt"));
@@ -513,7 +514,10 @@ mod tests {
         assert_eq!(found.record.filename, "secure.pdf");
         assert_eq!(found.record.major_version, 2);
         // Reason 0x800 = SECURITY_CHANGE
-        assert!(found.record.reason.contains(crate::usn::UsnReason::SECURITY_CHANGE));
+        assert!(found
+            .record
+            .reason
+            .contains(crate::usn::UsnReason::SECURITY_CHANGE));
     }
 
     #[test]
@@ -601,7 +605,10 @@ mod tests {
     fn test_logfile_record_source_equality() {
         assert_eq!(LogFileRecordSource::RedoData, LogFileRecordSource::RedoData);
         assert_ne!(LogFileRecordSource::RedoData, LogFileRecordSource::UndoData);
-        assert_ne!(LogFileRecordSource::UndoData, LogFileRecordSource::PageSlack);
+        assert_ne!(
+            LogFileRecordSource::UndoData,
+            LogFileRecordSource::PageSlack
+        );
     }
 
     /// Build an RCRD page with USN data in the undo area.
@@ -624,12 +631,10 @@ mod tests {
         // redo_offset = 0, redo_length = 0 (no redo data)
         // undo_offset at 0x38 (relative to 0x30)
         let undo_offset: u16 = 0x10;
-        page[data_offset + 0x38..data_offset + 0x3A]
-            .copy_from_slice(&undo_offset.to_le_bytes());
+        page[data_offset + 0x38..data_offset + 0x3A].copy_from_slice(&undo_offset.to_le_bytes());
 
         let undo_length = usn_data.len() as u16;
-        page[data_offset + 0x3A..data_offset + 0x3C]
-            .copy_from_slice(&undo_length.to_le_bytes());
+        page[data_offset + 0x3A..data_offset + 0x3C].copy_from_slice(&undo_length.to_le_bytes());
 
         let undo_start = data_offset + 0x30 + undo_offset as usize;
         if undo_start + usn_data.len() <= page.len() {
@@ -647,7 +652,9 @@ mod tests {
         let results = extract_usn_from_logfile(&page);
         assert!(!results.is_empty(), "Should find USN record in undo data");
 
-        let found = results.iter().find(|r| r.source == LogFileRecordSource::UndoData);
+        let found = results
+            .iter()
+            .find(|r| r.source == LogFileRecordSource::UndoData);
         assert!(found.is_some(), "Should identify source as UndoData");
         let found = found.unwrap();
         assert_eq!(found.record.mft_entry, 300);
@@ -683,7 +690,12 @@ mod tests {
 
         let results = extract_usn_from_logfile(&page);
         // Should not crash; may or may not find records in slack
-        assert!(results.is_empty() || results.iter().all(|r| r.source == LogFileRecordSource::PageSlack));
+        assert!(
+            results.is_empty()
+                || results
+                    .iter()
+                    .all(|r| r.source == LogFileRecordSource::PageSlack)
+        );
     }
 
     #[test]

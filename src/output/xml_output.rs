@@ -1,5 +1,4 @@
 /// XML output format for USN Journal records.
-
 use std::io::Write;
 
 use anyhow::Result;
@@ -24,7 +23,8 @@ pub fn export_xml<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
         writeln!(
             writer,
             "    <timestamp>{}</timestamp>",
-            r.timestamp.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true)
+            r.timestamp
+                .to_rfc3339_opts(chrono::SecondsFormat::Nanos, true)
         )?;
         writeln!(writer, "    <usn>{}</usn>", r.usn)?;
         writeln!(writer, "    <entry_number>{}</entry_number>", r.mft_entry)?;
@@ -48,13 +48,9 @@ pub fn export_xml<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
             "    <parent_path>{}</parent_path>",
             resolved.parent_path
         )?;
-        writeln!(
-            writer,
-            "    <full_path>{}</full_path>",
-            resolved.full_path
-        )?;
+        writeln!(writer, "    <full_path>{}</full_path>", resolved.full_path)?;
         writeln!(writer, "    <filename>{}</filename>", r.filename)?;
-        writeln!(writer, "    <extension>{}</extension>", extension)?;
+        writeln!(writer, "    <extension>{extension}</extension>")?;
         writeln!(
             writer,
             "    <file_attributes>{}</file_attributes>",
@@ -62,11 +58,7 @@ pub fn export_xml<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
         )?;
         writeln!(writer, "    <reasons>{}</reasons>", r.reason)?;
         writeln!(writer, "    <source_info>{}</source_info>", r.source_info)?;
-        writeln!(
-            writer,
-            "    <security_id>{}</security_id>",
-            r.security_id
-        )?;
+        writeln!(writer, "    <security_id>{}</security_id>", r.security_id)?;
         writeln!(
             writer,
             "    <major_version>{}</major_version>",
@@ -85,10 +77,10 @@ mod tests {
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
 
-    fn make_record(
-        filename: &str,
-        full_path: &str,
-        parent_path: &str,
+    struct RecordBuilder {
+        filename: String,
+        full_path: String,
+        parent_path: String,
         mft_entry: u64,
         mft_sequence: u16,
         parent_mft_entry: u64,
@@ -98,38 +90,94 @@ mod tests {
         reason: UsnReason,
         source_info: u32,
         security_id: u32,
-    ) -> ResolvedRecord {
-        ResolvedRecord {
-            record: UsnRecord {
-                mft_entry,
-                mft_sequence,
-                parent_mft_entry,
-                parent_mft_sequence,
-                usn,
-                timestamp: DateTime::from_timestamp(timestamp_secs, 0).unwrap(),
-                reason,
+    }
+
+    impl RecordBuilder {
+        fn new(filename: &str, full_path: &str, parent_path: &str) -> Self {
+            Self {
                 filename: filename.into(),
-                file_attributes: FileAttributes::ARCHIVE,
-                source_info,
-                security_id,
-                major_version: 2,
-            },
-            full_path: full_path.into(),
-            parent_path: parent_path.into(),
+                full_path: full_path.into(),
+                parent_path: parent_path.into(),
+                mft_entry: 100,
+                mft_sequence: 1,
+                parent_mft_entry: 5,
+                parent_mft_sequence: 1,
+                usn: 100,
+                timestamp_secs: 1700000000,
+                reason: UsnReason::FILE_CREATE,
+                source_info: 0,
+                security_id: 0,
+            }
+        }
+
+        fn mft(mut self, entry: u64, seq: u16) -> Self {
+            self.mft_entry = entry;
+            self.mft_sequence = seq;
+            self
+        }
+
+        fn parent(mut self, entry: u64, seq: u16) -> Self {
+            self.parent_mft_entry = entry;
+            self.parent_mft_sequence = seq;
+            self
+        }
+
+        fn usn_val(mut self, usn: i64) -> Self {
+            self.usn = usn;
+            self
+        }
+
+        fn timestamp(mut self, ts: i64) -> Self {
+            self.timestamp_secs = ts;
+            self
+        }
+
+        fn reason(mut self, reason: UsnReason) -> Self {
+            self.reason = reason;
+            self
+        }
+
+        fn source_info(mut self, si: u32) -> Self {
+            self.source_info = si;
+            self
+        }
+
+        fn security_id(mut self, sid: u32) -> Self {
+            self.security_id = sid;
+            self
+        }
+
+        fn build(self) -> ResolvedRecord {
+            ResolvedRecord {
+                record: UsnRecord {
+                    mft_entry: self.mft_entry,
+                    mft_sequence: self.mft_sequence,
+                    parent_mft_entry: self.parent_mft_entry,
+                    parent_mft_sequence: self.parent_mft_sequence,
+                    usn: self.usn,
+                    timestamp: DateTime::from_timestamp(self.timestamp_secs, 0).unwrap(),
+                    reason: self.reason,
+                    filename: self.filename,
+                    file_attributes: FileAttributes::ARCHIVE,
+                    source_info: self.source_info,
+                    security_id: self.security_id,
+                    major_version: 2,
+                },
+                full_path: self.full_path,
+                parent_path: self.parent_path,
+            }
         }
     }
 
     #[test]
     fn test_xml_single_record() {
-        let resolved = vec![make_record(
-            "test.exe",
-            ".\\temp\\test.exe",
-            ".\\temp",
-            100, 3, 50, 1, 12345,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![
+            RecordBuilder::new("test.exe", ".\\temp\\test.exe", ".\\temp")
+                .mft(100, 3)
+                .parent(50, 1)
+                .usn_val(12345)
+                .build(),
+        ];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -158,8 +206,17 @@ mod tests {
     #[test]
     fn test_xml_multiple_records() {
         let resolved = vec![
-            make_record("a.txt", ".\\docs\\a.txt", ".\\docs", 10, 1, 5, 1, 100, 1700000000, UsnReason::FILE_CREATE, 0, 0),
-            make_record("b.log", ".\\logs\\b.log", ".\\logs", 20, 2, 6, 1, 200, 1700001000, UsnReason::DATA_EXTEND, 0, 0),
+            RecordBuilder::new("a.txt", ".\\docs\\a.txt", ".\\docs")
+                .mft(10, 1)
+                .parent(5, 1)
+                .build(),
+            RecordBuilder::new("b.log", ".\\logs\\b.log", ".\\logs")
+                .mft(20, 2)
+                .parent(6, 1)
+                .usn_val(200)
+                .timestamp(1700001000)
+                .reason(UsnReason::DATA_EXTEND)
+                .build(),
         ];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
@@ -185,34 +242,21 @@ mod tests {
 
     #[test]
     fn test_xml_file_without_extension() {
-        let resolved = vec![make_record(
-            "noext",
-            ".\\noext",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new("noext", ".\\noext", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
         // "noext" is both the filename and the "extension" from rsplit('.'),
         // but the filter makes it empty since ext.len() < filename.len() fails
-        assert!(output.contains("<extension>noext</extension>") || output.contains("<extension></extension>"));
+        assert!(
+            output.contains("<extension>noext</extension>")
+                || output.contains("<extension></extension>")
+        );
     }
 
     #[test]
     fn test_xml_special_characters_in_filename() {
-        let resolved = vec![make_record(
-            "file&<>\"'.txt",
-            ".\\file&<>\"'.txt",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new("file&<>\"'.txt", ".\\file&<>\"'.txt", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -221,15 +265,10 @@ mod tests {
 
     #[test]
     fn test_xml_nonzero_source_and_security() {
-        let resolved = vec![make_record(
-            "test.txt",
-            ".\\test.txt",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            42, 99,
-        )];
+        let resolved = vec![RecordBuilder::new("test.txt", ".\\test.txt", ".")
+            .source_info(42)
+            .security_id(99)
+            .build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -242,15 +281,7 @@ mod tests {
         // .bashrc has no "real" extension - rsplit('.') gives ["bashrc", ""]
         // .next() returns "bashrc", and "bashrc".len() (6) < ".bashrc".len() (7) is true
         // so extension should be "bashrc"
-        let resolved = vec![make_record(
-            ".bashrc",
-            ".\\.bashrc",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new(".bashrc", ".\\.bashrc", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -263,15 +294,7 @@ mod tests {
         // "Makefile" has no dot, so rsplit('.') gives ["Makefile"]
         // .next() returns "Makefile", "Makefile".len() (8) < "Makefile".len() (8) is false
         // so filter removes it and extension is ""
-        let resolved = vec![make_record(
-            "Makefile",
-            ".\\Makefile",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new("Makefile", ".\\Makefile", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -282,15 +305,7 @@ mod tests {
     #[test]
     fn test_xml_double_extension() {
         // "archive.tar.gz" should extract "gz" as the extension
-        let resolved = vec![make_record(
-            "archive.tar.gz",
-            ".\\archive.tar.gz",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new("archive.tar.gz", ".\\archive.tar.gz", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -302,15 +317,7 @@ mod tests {
         // A filename that is just "." - edge case
         // rsplit('.') gives ["", ""], .next() returns ""
         // "".len() (0) < ".".len() (1) is true, but extension is ""
-        let resolved = vec![make_record(
-            ".",
-            ".\\.",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new(".", ".\\.", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -324,15 +331,7 @@ mod tests {
         // "file." has a trailing dot - rsplit('.') gives ["", "file"]
         // .next() returns "", "".len() (0) < "file.".len() (5) is true
         // so extension = ""
-        let resolved = vec![make_record(
-            "file.",
-            ".\\file.",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new("file.", ".\\file.", ".").build()];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -342,15 +341,16 @@ mod tests {
     #[test]
     fn test_xml_all_fields_written() {
         // Ensure every XML field line is exercised by checking exact output structure
-        let resolved = vec![make_record(
-            "data.bin",
-            ".\\evidence\\data.bin",
-            ".\\evidence",
-            42, 7, 10, 2, 99999,
-            1700000000,
-            UsnReason::DATA_OVERWRITE,
-            5, 12,
-        )];
+        let resolved = vec![
+            RecordBuilder::new("data.bin", ".\\evidence\\data.bin", ".\\evidence")
+                .mft(42, 7)
+                .parent(10, 2)
+                .usn_val(99999)
+                .reason(UsnReason::DATA_OVERWRITE)
+                .source_info(5)
+                .security_id(12)
+                .build(),
+        ];
         let mut buf = Vec::new();
         export_xml(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
@@ -375,7 +375,7 @@ mod tests {
     impl Write for FailWriter {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             if self.remaining == 0 {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"));
+                return Err(std::io::Error::other("write failed"));
             }
             let n = buf.len().min(self.remaining);
             self.remaining -= n;
@@ -388,18 +388,128 @@ mod tests {
 
     #[test]
     fn test_xml_write_error_propagated() {
-        let resolved = vec![make_record(
-            "test.exe",
-            ".\\test.exe",
-            ".",
-            100, 1, 5, 1, 100,
-            1700000000,
-            UsnReason::FILE_CREATE,
-            0, 0,
-        )];
+        let resolved = vec![RecordBuilder::new("test.exe", ".\\test.exe", ".").build()];
         // Allow just enough bytes for the XML header but fail mid-record
         let mut writer = FailWriter { remaining: 50 };
         let result = export_xml(&resolved, &mut writer);
         assert!(result.is_err(), "Should propagate write error");
+    }
+
+    /// Returns the byte position just after the given tag line ends in the XML output.
+    /// This lets us create a FailWriter that allows all bytes up to and including
+    /// a certain XML element, then fails on the next writeln! call.
+    fn byte_offset_after(output: &str, tag: &str) -> usize {
+        let pos = output.find(tag).expect("tag not found in output");
+        // Find the end of the line containing this tag
+        output[pos..].find('\n').unwrap() + pos + 1
+    }
+
+    fn make_test_record() -> Vec<ResolvedRecord> {
+        vec![
+            RecordBuilder::new("test.exe", ".\\temp\\test.exe", ".\\temp")
+                .mft(100, 3)
+                .parent(50, 1)
+                .usn_val(12345)
+                .reason(UsnReason::FILE_CREATE)
+                .source_info(5)
+                .security_id(12)
+                .build(),
+        ]
+    }
+
+    #[test]
+    fn test_xml_fail_at_sequence_number_line34() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after entry_number line, so sequence_number writeln (line 34) errors
+        let offset = byte_offset_after(&output, "<entry_number>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(
+            result.is_err(),
+            "Should fail at sequence_number writeln (line 34)"
+        );
+    }
+
+    #[test]
+    fn test_xml_fail_at_parent_entry_number_line39() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after sequence_number line, so parent_entry_number writeln (line 39) errors
+        let offset = byte_offset_after(&output, "<sequence_number>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(
+            result.is_err(),
+            "Should fail at parent_entry_number writeln (line 39)"
+        );
+    }
+
+    #[test]
+    fn test_xml_fail_at_parent_sequence_number_line44() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after parent_entry_number line, so parent_sequence_number writeln (line 44) errors
+        let offset = byte_offset_after(&output, "<parent_entry_number>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(
+            result.is_err(),
+            "Should fail at parent_sequence_number writeln (line 44)"
+        );
+    }
+
+    #[test]
+    fn test_xml_fail_at_parent_path_line49() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after parent_sequence_number line, so parent_path writeln (line 49) errors
+        let offset = byte_offset_after(&output, "<parent_sequence_number>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(
+            result.is_err(),
+            "Should fail at parent_path writeln (line 49)"
+        );
+    }
+
+    #[test]
+    fn test_xml_fail_at_file_attributes_line57() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after extension line, so file_attributes writeln (line 57) errors
+        let offset = byte_offset_after(&output, "<extension>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(
+            result.is_err(),
+            "Should fail at file_attributes writeln (line 57)"
+        );
+    }
+
+    #[test]
+    fn test_xml_fail_at_major_version_line65() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after security_id line, so major_version writeln (line 65) errors
+        let offset = byte_offset_after(&output, "<security_id>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(
+            result.is_err(),
+            "Should fail at major_version writeln (line 65)"
+        );
     }
 }

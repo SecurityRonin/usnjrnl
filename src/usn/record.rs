@@ -2,8 +2,8 @@ use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use log::debug;
 
-use super::reason::UsnReason;
 use super::attributes::FileAttributes;
+use super::reason::UsnReason;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -119,15 +119,23 @@ fn filetime_to_datetime(filetime: i64) -> Option<DateTime<Utc>> {
 /// Parse a single USN_RECORD_V2 at the given offset in `data`.
 pub fn parse_usn_record_v2(data: &[u8]) -> Result<UsnRecord> {
     if data.len() < USN_V2_MIN_SIZE {
-        bail!("Data too short for USN_RECORD_V2: {} < {}", data.len(), USN_V2_MIN_SIZE);
+        bail!(
+            "Data too short for USN_RECORD_V2: {} < {}",
+            data.len(),
+            USN_V2_MIN_SIZE
+        );
     }
 
     let record_len = read_u32_le(data, 0x00) as usize;
-    if record_len < USN_V2_MIN_SIZE || record_len > USN_MAX_RECORD_SIZE {
-        bail!("Invalid V2 record length: {}", record_len);
+    if !(USN_V2_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len) {
+        bail!("Invalid V2 record length: {record_len}");
     }
     if record_len > data.len() {
-        bail!("V2 record length {} exceeds available data {}", record_len, data.len());
+        bail!(
+            "V2 record length {} exceeds available data {}",
+            record_len,
+            data.len()
+        );
     }
 
     // File reference: 6 bytes entry + 2 bytes sequence
@@ -185,12 +193,16 @@ pub fn parse_usn_record_v2(data: &[u8]) -> Result<UsnRecord> {
 /// V3 uses 128-bit file references (ReFS).
 pub fn parse_usn_record_v3(data: &[u8]) -> Result<UsnRecord> {
     if data.len() < USN_V3_MIN_SIZE {
-        bail!("Data too short for USN_RECORD_V3: {} < {}", data.len(), USN_V3_MIN_SIZE);
+        bail!(
+            "Data too short for USN_RECORD_V3: {} < {}",
+            data.len(),
+            USN_V3_MIN_SIZE
+        );
     }
 
     let record_len = read_u32_le(data, 0x00) as usize;
-    if record_len < USN_V3_MIN_SIZE || record_len > USN_MAX_RECORD_SIZE {
-        bail!("Invalid V3 record length: {}", record_len);
+    if !(USN_V3_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len) {
+        bail!("Invalid V3 record length: {record_len}");
     }
 
     // 128-bit file reference at offset 0x08
@@ -277,14 +289,14 @@ pub fn parse_usn_journal(data: &[u8]) -> Result<Vec<UsnRecord>> {
         let record_len = read_u32_le(data, offset) as usize;
 
         // Validate record length
-        if record_len < USN_V4_MIN_SIZE || record_len > USN_MAX_RECORD_SIZE {
-            debug!("Invalid record length {} at offset 0x{:x}, scanning forward", record_len, offset);
+        if !(USN_V4_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len) {
+            debug!("Invalid record length {record_len} at offset 0x{offset:x}, scanning forward");
             offset += 8;
             continue;
         }
 
         if offset + record_len > len {
-            debug!("Record at 0x{:x} extends past end of data", offset);
+            debug!("Record at 0x{offset:x} extends past end of data");
             break;
         }
 
@@ -299,13 +311,10 @@ pub fn parse_usn_journal(data: &[u8]) -> Result<Vec<UsnRecord>> {
                 }
                 match parse_usn_record_v2(&data[offset..offset + record_len]) {
                     Ok(record) => {
-                        // Skip close-only records (forensically insignificant noise)
-                        if record.reason != UsnReason::CLOSE {
-                            records.push(record);
-                        }
+                        records.push(record);
                     }
                     Err(e) => {
-                        debug!("Failed to parse V2 at 0x{:x}: {}", offset, e);
+                        debug!("Failed to parse V2 at 0x{offset:x}: {e}");
                     }
                 }
             }
@@ -316,22 +325,20 @@ pub fn parse_usn_journal(data: &[u8]) -> Result<Vec<UsnRecord>> {
                 }
                 match parse_usn_record_v3(&data[offset..offset + record_len]) {
                     Ok(record) => {
-                        if record.reason != UsnReason::CLOSE {
-                            records.push(record);
-                        }
+                        records.push(record);
                     }
                     Err(e) => {
-                        debug!("Failed to parse V3 at 0x{:x}: {}", offset, e);
+                        debug!("Failed to parse V3 at 0x{offset:x}: {e}");
                     }
                 }
             }
             4 => {
                 // V4 records contain range-tracking data only (no timestamps/filenames).
                 // Skip them for timeline purposes.
-                debug!("Skipping V4 record at 0x{:x}", offset);
+                debug!("Skipping V4 record at 0x{offset:x}");
             }
             _ => {
-                debug!("Unknown USN version {} at 0x{:x}", major_version, offset);
+                debug!("Unknown USN version {major_version} at 0x{offset:x}");
                 offset += 8;
                 continue;
             }
@@ -450,10 +457,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_journal_skips_close_only() {
+    fn test_parse_journal_includes_close_only() {
         let r = build_v2_record(100, 1, 5, 5, 0x8000_0000, "closed.txt");
         let records = parse_usn_journal(&r).unwrap();
-        assert_eq!(records.len(), 0);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].reason, UsnReason::CLOSE);
     }
 
     #[test]
@@ -490,12 +498,7 @@ mod tests {
 
     // ─── V3 parser tests ────────────────────────────────────────────────
 
-    fn build_v3_record(
-        entry: u64,
-        parent_entry: u64,
-        reason: u32,
-        filename: &str,
-    ) -> Vec<u8> {
+    fn build_v3_record(entry: u64, parent_entry: u64, reason: u32, filename: &str) -> Vec<u8> {
         let name_utf16: Vec<u16> = filename.encode_utf16().collect();
         let name_bytes_len = name_utf16.len() * 2;
         let record_len = 0x4C + name_bytes_len;
@@ -822,10 +825,11 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_journal_v3_close_only_skipped() {
+    fn test_parse_journal_v3_close_only_included() {
         let r = build_v3_record(100, 5, 0x8000_0000, "closed.txt");
         let records = parse_usn_journal(&r).unwrap();
-        assert_eq!(records.len(), 0); // CLOSE-only filtered out
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].reason, UsnReason::CLOSE);
     }
 
     #[test]
@@ -878,11 +882,11 @@ mod tests {
         let mut data = vec![0u8; aligned_len];
         data[0..4].copy_from_slice(&record_len.to_le_bytes());
         data[4..6].copy_from_slice(&3u16.to_le_bytes()); // version 3
-        // Set an invalid internal record_len to trigger parse error
-        // The internal record_len at offset 0 says 0x4C but we make it look invalid
-        // by setting record_len to something too small in the slice
-        // Actually, the internal record_len IS what parse_usn_record_v3 reads at offset 0.
-        // To make it fail, set the internal record_len to < USN_V3_MIN_SIZE
+                                                         // Set an invalid internal record_len to trigger parse error
+                                                         // The internal record_len at offset 0 says 0x4C but we make it look invalid
+                                                         // by setting record_len to something too small in the slice
+                                                         // Actually, the internal record_len IS what parse_usn_record_v3 reads at offset 0.
+                                                         // To make it fail, set the internal record_len to < USN_V3_MIN_SIZE
         data[0..4].copy_from_slice(&(0x30u32).to_le_bytes()); // internal record_len too small
 
         // But parse_usn_journal reads record_len from offset, checks it >= V3_MIN,
@@ -891,12 +895,12 @@ mod tests {
         // but make the v3 data parsing fail.
 
         // Let me build a v3 record with valid header but truncated filename
-        let mut data2 = vec![0u8; 0x50]; // aligned size
+        let mut data2 = [0u8; 0x50]; // aligned size
         data2[0..4].copy_from_slice(&(0x4Cu32).to_le_bytes()); // correct record_len
         data2[4..6].copy_from_slice(&3u16.to_le_bytes()); // version 3
-        // All other fields are zeros, so file refs are 0, timestamp is 0
-        // This will parse OK but with zero timestamp -> epoch fallback
-        // Let's set filename_length to something that exceeds the record
+                                                          // All other fields are zeros, so file refs are 0, timestamp is 0
+                                                          // This will parse OK but with zero timestamp -> epoch fallback
+                                                          // Let's set filename_length to something that exceeds the record
         data2[0x48..0x4A].copy_from_slice(&0xFFu16.to_le_bytes()); // huge filename_length
         data2[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
         // parse_usn_record_v3 will still succeed but with empty filename
@@ -911,8 +915,8 @@ mod tests {
         // after the journal parser's own length checks pass.
         // This would happen if the internal record_len differs from what the
         // journal parser sliced. Let's build that scenario:
-        let mut data3 = vec![0u8; 0x60]; // 96 bytes, aligned
-        // Outer record_len (what journal parser reads): 0x50 (valid >= V3_MIN)
+        let mut data3 = [0u8; 0x60]; // 96 bytes, aligned
+                                     // Outer record_len (what journal parser reads): 0x50 (valid >= V3_MIN)
         data3[0..4].copy_from_slice(&(0x50u32).to_le_bytes());
         data3[4..6].copy_from_slice(&3u16.to_le_bytes());
         // The journal parser slices data3[0..0x50] and passes to parse_usn_record_v3
@@ -926,24 +930,24 @@ mod tests {
         //   data.len() < V3_MIN -> journal ensured this
         //   record_len < V3_MIN || > max -> but this reads from data[0], same as journal
         // So the Err(e) path on line 307-308 is effectively unreachable in normal flow.
-        // The close-only path (line 319-321) IS reachable though - let's test that.
-
-        // For V3 close-only (line 319-321, same as 323-324 in parse_usn_journal):
-        // Already tested in test_parse_journal_v3_close_only_skipped
 
         // Line 274: offset + 8 > len after skipping zeros - this is just the break
         // after the while loop for zero-skipping when we're near the end.
         // This happens when data ends with partial non-zero data < 8 bytes
         let short_data = vec![1u8; 5]; // non-zero but < 8 bytes
         let records = parse_usn_journal(&short_data).unwrap();
-        assert_eq!(records.len(), 0, "Data shorter than 8 bytes should produce no records");
+        assert_eq!(
+            records.len(),
+            0,
+            "Data shorter than 8 bytes should produce no records"
+        );
     }
 
     #[test]
     fn test_parse_journal_partial_data_after_zeros() {
         // Test line 274: data starts with zeros then has < 8 bytes of non-zero data
         let mut data = vec![0u8; 64]; // zeros
-        // Add 4 bytes of non-zero at the end (not enough for a record header)
+                                      // Add 4 bytes of non-zero at the end (not enough for a record header)
         data.extend_from_slice(&[1, 2, 3, 4]);
         let records = parse_usn_journal(&data).unwrap();
         assert_eq!(records.len(), 0);
@@ -985,5 +989,202 @@ mod tests {
         let mut data = [0u8; 2];
         data.copy_from_slice(&1234u16.to_le_bytes());
         assert_eq!(read_u16_le(&data, 0), 1234);
+    }
+
+    // ─── Coverage tests for uncovered lines ────────────────────────────
+
+    #[test]
+    fn test_parse_journal_boundary_after_zero_skip() {
+        // Targets line 286: break when offset + 8 > len after zero-skip.
+        // The zero-skip inner loop runs while offset + 8 <= len. When it exits
+        // without finding non-zero data (found=false), it breaks the outer loop
+        // (not reaching line 286). When found=true, offset + 8 <= len is guaranteed
+        // by the inner while condition. Line 286 is only reachable if after the
+        // zero-skip if-block we have offset + 8 > len, which requires that:
+        // 1. data[offset..offset+4] was NOT all zeros (didn't enter the if)
+        // 2. But offset + 8 > len
+        // However, the outer while condition ensures offset + 8 <= len on entry.
+        // If we don't enter the zero-skip if, offset hasn't changed, so offset + 8 <= len.
+        // Therefore line 286 is unreachable. Test the nearest path:
+        // data with non-zero first 4 bytes but exactly 8 bytes total (boundary).
+        let mut data = vec![0u8; 8];
+        data[0..4].copy_from_slice(&(0x3Au32).to_le_bytes()); // record_len < V2_MIN
+        data[4..6].copy_from_slice(&2u16.to_le_bytes()); // version 2
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(
+            records.len(),
+            0,
+            "8-byte invalid record at boundary produces no records"
+        );
+    }
+
+    #[test]
+    fn test_parse_journal_zeros_then_exactly_8_non_zero_bytes() {
+        // Test zero-skip finding non-zero data right at the boundary.
+        // This exercises the found=true path where offset + 8 == len exactly.
+        let mut data = vec![0u8; 64]; // zeros
+                                      // Add exactly 8 non-zero bytes (an invalid record header)
+        data.extend_from_slice(&[0x3A, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00]);
+
+        let records = parse_usn_journal(&data).unwrap();
+        // The 8 non-zero bytes form an invalid V2 record (record_len=0x3A < V2_MIN)
+        // so it gets skipped, and then offset + 8 > len, ending the loop.
+        assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_parse_journal_v2_parse_error_path() {
+        // Targets lines 316-317: Err(e) => debug!("Failed to parse V2...")
+        // The journal parser pre-validates all conditions that parse_usn_record_v2
+        // checks, making this error path unreachable through parse_usn_journal.
+        // However, we test the parser directly to confirm it errors correctly,
+        // and test the journal with the closest possible scenario.
+
+        // Direct parser test: record_len valid but data says record_len > data.len()
+        // This can't happen via the journal but tests the parser's own error path.
+        let mut data = vec![0u8; 0x3C]; // exactly USN_V2_MIN_SIZE
+        data[0..4].copy_from_slice(&(0x100u32).to_le_bytes()); // claims 256 bytes
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        let result = parse_usn_record_v2(&data);
+        assert!(
+            result.is_err(),
+            "V2 parser should fail when record_len > data.len()"
+        );
+
+        // Journal test: V2 record where internal data is all zeros except header.
+        // Journal pre-checks pass, parser succeeds with empty filename.
+        let mut data2 = vec![0u8; 0x40]; // 64 bytes
+        data2[0..4].copy_from_slice(&(0x3Cu32).to_le_bytes()); // valid V2 record_len
+        data2[4..6].copy_from_slice(&2u16.to_le_bytes()); // version 2
+        let ts: i64 = 133_500_480_000_000_000;
+        data2[0x20..0x28].copy_from_slice(&ts.to_le_bytes()); // valid timestamp
+        data2[0x3A..0x3C].copy_from_slice(&0x3Cu16.to_le_bytes()); // filename_offset
+
+        let records = parse_usn_journal(&data2).unwrap();
+        assert_eq!(records.len(), 1, "Minimal valid V2 record should parse");
+        assert_eq!(records[0].filename, "");
+    }
+
+    #[test]
+    fn test_parse_journal_v3_parse_error_path() {
+        // Targets lines 330-331: Err(e) => debug!("Failed to parse V3...")
+        // The V3 parser only fails if: data.len() < V3_MIN or record_len out of range.
+        // The journal pre-checks both, making the Err path unreachable via parse_usn_journal.
+        // We test the parser directly with record_len out of range.
+
+        // Direct parser test: record_len < USN_V3_MIN_SIZE
+        let mut data = vec![0u8; 0x4C]; // exactly USN_V3_MIN_SIZE bytes
+        data[0..4].copy_from_slice(&(0x30u32).to_le_bytes()); // record_len too small
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let result = parse_usn_record_v3(&data);
+        assert!(
+            result.is_err(),
+            "V3 parser should fail when record_len < V3_MIN"
+        );
+
+        // Direct parser test: record_len > USN_MAX_RECORD_SIZE
+        let mut data1b = vec![0u8; 0x4C];
+        data1b[0..4].copy_from_slice(&(70000u32).to_le_bytes()); // record_len too large
+        data1b[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let result1b = parse_usn_record_v3(&data1b);
+        assert!(
+            result1b.is_err(),
+            "V3 parser should fail when record_len > max"
+        );
+
+        // Journal test: V3 record with minimal valid data
+        let mut data2 = vec![0u8; 0x50]; // slightly more than V3_MIN
+        data2[0..4].copy_from_slice(&(0x4Cu32).to_le_bytes()); // valid V3 record_len
+        data2[4..6].copy_from_slice(&3u16.to_le_bytes()); // version 3
+        let ts: i64 = 133_500_480_000_000_000;
+        data2[0x30..0x38].copy_from_slice(&ts.to_le_bytes()); // valid timestamp
+        data2[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes()); // filename_offset
+
+        let records = parse_usn_journal(&data2).unwrap();
+        assert_eq!(records.len(), 1, "Minimal valid V3 record should parse");
+        assert_eq!(records[0].filename, "");
+    }
+
+    #[test]
+    fn test_parse_journal_with_logging_enabled() {
+        // Enable debug logging to cover debug! format argument evaluation
+        // in V4 skip, unknown version, and invalid record length paths.
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
+
+        let mut data = Vec::new();
+
+        // 1. Invalid record length (triggers debug! at line 293)
+        let mut invalid_len = vec![0u8; 8];
+        invalid_len[0..4].copy_from_slice(&3u32.to_le_bytes()); // len=3, too small
+        invalid_len[4] = 0xFF; // non-zero to avoid zero-skip
+        data.extend_from_slice(&invalid_len);
+
+        // 2. Unknown version (triggers debug! at line 341)
+        let mut unknown_ver = vec![0u8; 0x40];
+        unknown_ver[0..4].copy_from_slice(&(0x40u32).to_le_bytes());
+        unknown_ver[4..6].copy_from_slice(&99u16.to_le_bytes());
+        data.extend_from_slice(&unknown_ver);
+
+        // 3. V4 record (triggers debug! at line 338)
+        let mut v4_record = vec![0u8; 0x38];
+        v4_record[0..4].copy_from_slice(&(0x38u32).to_le_bytes());
+        v4_record[4..6].copy_from_slice(&4u16.to_le_bytes());
+        data.extend_from_slice(&v4_record);
+
+        // 4. Record that extends past end (triggers debug! at line 299)
+        let mut extending = vec![0u8; 16];
+        extending[0..4].copy_from_slice(&(0x1000u32).to_le_bytes());
+        extending[4..6].copy_from_slice(&2u16.to_le_bytes());
+        data.extend_from_slice(&extending);
+
+        let records = parse_usn_journal(&data).unwrap();
+        assert_eq!(records.len(), 0, "No valid records in this data");
+    }
+
+    #[test]
+    fn test_parse_v2_record_len_exceeds_data_len() {
+        // Directly covers the V2 parser's "record_len > data.len()" error path.
+        let mut data = vec![0u8; 0x3C]; // USN_V2_MIN_SIZE bytes
+        data[0..4].copy_from_slice(&(0x3Cu32).to_le_bytes());
+        data[4..6].copy_from_slice(&2u16.to_le_bytes());
+        let result = parse_usn_record_v2(&data);
+        assert!(result.is_ok(), "record_len == data.len() should succeed");
+
+        // Now test where record_len > data.len()
+        let mut data2 = vec![0u8; 0x3C];
+        data2[0..4].copy_from_slice(&(0x3Du32).to_le_bytes()); // 1 byte more than available
+        data2[4..6].copy_from_slice(&2u16.to_le_bytes());
+        let result2 = parse_usn_record_v2(&data2);
+        assert!(result2.is_err(), "record_len > data.len() should fail");
+    }
+
+    #[test]
+    fn test_parse_v3_record_len_out_of_range() {
+        // The V3 parser (unlike V2) does not check record_len > data.len().
+        // It only fails on: data.len() < V3_MIN or record_len out of range.
+        // Test the range check with record_len < V3_MIN:
+        let mut data = vec![0u8; 0x4C];
+        data[0..4].copy_from_slice(&(0x4Bu32).to_le_bytes()); // 1 below V3_MIN
+        data[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let result = parse_usn_record_v3(&data);
+        assert!(result.is_err(), "V3 record_len < V3_MIN should fail");
+
+        // And record_len > USN_MAX_RECORD_SIZE:
+        let mut data2 = vec![0u8; 0x4C];
+        data2[0..4].copy_from_slice(&(65537u32).to_le_bytes());
+        data2[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let result2 = parse_usn_record_v3(&data2);
+        assert!(result2.is_err(), "V3 record_len > max should fail");
+
+        // Test data.len() < V3_MIN:
+        let mut data3 = vec![0u8; 0x4B]; // 1 byte short
+        data3[0..4].copy_from_slice(&(0x4Cu32).to_le_bytes());
+        data3[4..6].copy_from_slice(&3u16.to_le_bytes());
+        let result3 = parse_usn_record_v3(&data3);
+        assert!(result3.is_err(), "V3 data too short should fail");
     }
 }

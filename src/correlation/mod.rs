@@ -4,12 +4,12 @@
 //! and detect evidence of anti-forensic activity (journal clearing,
 //! timestomping, phantom file operations).
 
-use std::collections::{HashMap, HashSet};
 use chrono::{DateTime, Utc};
+use std::collections::{HashMap, HashSet};
 
-use crate::usn::{UsnRecord, UsnReason};
 use crate::logfile::usn_extractor::LogFileUsnRecord;
 use crate::mft::MftEntry;
+use crate::usn::{UsnReason, UsnRecord};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -114,6 +114,12 @@ pub struct FileActivitySummary {
 /// The TriForce correlation engine.
 pub struct CorrelationEngine;
 
+impl Default for CorrelationEngine {
+    fn default() -> Self {
+        Self
+    }
+}
+
 impl CorrelationEngine {
     pub fn new() -> Self {
         Self
@@ -129,7 +135,11 @@ impl CorrelationEngine {
         // Index LogFile records by dedup key: (mft_entry, usn_offset, timestamp_secs)
         let mut logfile_by_key: HashMap<(u64, i64, i64), u64> = HashMap::new();
         for lr in logfile_records {
-            let key = (lr.record.mft_entry, lr.record.usn, lr.record.timestamp.timestamp());
+            let key = (
+                lr.record.mft_entry,
+                lr.record.usn,
+                lr.record.timestamp.timestamp(),
+            );
             logfile_by_key.insert(key, lr.lsn);
         }
 
@@ -154,7 +164,11 @@ impl CorrelationEngine {
 
         // Add LogFile-only records
         for lr in logfile_records {
-            let key = (lr.record.mft_entry, lr.record.usn, lr.record.timestamp.timestamp());
+            let key = (
+                lr.record.mft_entry,
+                lr.record.usn,
+                lr.record.timestamp.timestamp(),
+            );
             if !seen_keys.contains(&key) {
                 events.push(CorrelatedEvent {
                     record: lr.record.clone(),
@@ -183,7 +197,11 @@ impl CorrelationEngine {
         logfile_records
             .iter()
             .filter(|lr| {
-                let key = (lr.record.mft_entry, lr.record.usn, lr.record.timestamp.timestamp());
+                let key = (
+                    lr.record.mft_entry,
+                    lr.record.usn,
+                    lr.record.timestamp.timestamp(),
+                );
                 !usn_keys.contains(&key)
             })
             .map(|lr| GhostRecord {
@@ -252,8 +270,7 @@ impl CorrelationEngine {
             if let Some(&usn_create_ts) = create_ts.get(&entry.entry_number) {
                 if let Some(si_created) = entry.si_created {
                     // SI_Created significantly before USN FILE_CREATE = timestomped
-                    if si_created < usn_create_ts
-                        && (usn_create_ts - si_created).num_seconds() > 2
+                    if si_created < usn_create_ts && (usn_create_ts - si_created).num_seconds() > 2
                     {
                         conflicts.push(TimestampConflict {
                             mft_entry: entry.entry_number,
@@ -321,10 +338,7 @@ impl CorrelationEngine {
     }
 
     /// Summarize all USN activity grouped by MFT entry number.
-    pub fn summarize_file_activity(
-        &self,
-        usn_records: &[UsnRecord],
-    ) -> Vec<FileActivitySummary> {
+    pub fn summarize_file_activity(&self, usn_records: &[UsnRecord]) -> Vec<FileActivitySummary> {
         let mut map: HashMap<(u64, u16), FileActivitySummary> = HashMap::new();
 
         for r in usn_records {
@@ -362,13 +376,21 @@ impl CorrelationEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::{UsnRecord, UsnReason, FileAttributes};
-    use crate::logfile::usn_extractor::{LogFileUsnRecord, LogFileRecordSource};
+    use crate::logfile::usn_extractor::{LogFileRecordSource, LogFileUsnRecord};
     use crate::mft::MftEntry;
+    use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
 
     /// Helper: build a minimal UsnRecord for testing.
-    fn usn(entry: u64, seq: u16, parent: u64, usn_offset: i64, ts_secs: i64, name: &str, reason: UsnReason) -> UsnRecord {
+    fn usn(
+        entry: u64,
+        seq: u16,
+        parent: u64,
+        usn_offset: i64,
+        ts_secs: i64,
+        name: &str,
+        reason: UsnReason,
+    ) -> UsnRecord {
         UsnRecord {
             mft_entry: entry,
             mft_sequence: seq,
@@ -413,7 +435,7 @@ mod tests {
             fn_modified: None,
             fn_mft_modified: None,
             fn_accessed: None,
-            full_path: format!(".\\{}", name),
+            full_path: format!(".\\{name}"),
             file_size: 0,
             has_ads: false,
         }
@@ -424,8 +446,24 @@ mod tests {
     #[test]
     fn test_unified_timeline_from_usn_only() {
         let records = vec![
-            usn(100, 1, 50, 1000, 1700000000, "file1.txt", UsnReason::FILE_CREATE),
-            usn(101, 1, 50, 2000, 1700000100, "file2.txt", UsnReason::FILE_CREATE),
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000000,
+                "file1.txt",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                101,
+                1,
+                50,
+                2000,
+                1700000100,
+                "file2.txt",
+                UsnReason::FILE_CREATE,
+            ),
         ];
 
         let engine = CorrelationEngine::new();
@@ -442,15 +480,27 @@ mod tests {
 
     #[test]
     fn test_unified_timeline_merges_logfile_records() {
-        let usn_records = vec![
-            usn(100, 1, 50, 2000, 1700000200, "file1.txt", UsnReason::DATA_EXTEND),
-        ];
-        let logfile_records = vec![
-            logfile_usn(
-                usn(100, 1, 50, 1000, 1700000100, "file1.txt", UsnReason::FILE_CREATE),
-                500,
+        let usn_records = vec![usn(
+            100,
+            1,
+            50,
+            2000,
+            1700000200,
+            "file1.txt",
+            UsnReason::DATA_EXTEND,
+        )];
+        let logfile_records = vec![logfile_usn(
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000100,
+                "file1.txt",
+                UsnReason::FILE_CREATE,
             ),
-        ];
+            500,
+        )];
 
         let engine = CorrelationEngine::new();
         let timeline = engine.build_timeline(&usn_records, &logfile_records, &[]);
@@ -466,7 +516,15 @@ mod tests {
     #[test]
     fn test_deduplication_when_record_in_both_sources() {
         // Same USN offset + same entry + same timestamp = duplicate
-        let record = usn(100, 1, 50, 1000, 1700000100, "file1.txt", UsnReason::FILE_CREATE);
+        let record = usn(
+            100,
+            1,
+            50,
+            1000,
+            1700000100,
+            "file1.txt",
+            UsnReason::FILE_CREATE,
+        );
         let usn_records = vec![record.clone()];
         let logfile_records = vec![logfile_usn(record.clone(), 500)];
 
@@ -483,17 +541,39 @@ mod tests {
     #[test]
     fn test_ghost_records_detected() {
         // UsnJrnl starts at USN 5000 (journal was cleared/wrapped)
-        let usn_records = vec![
-            usn(200, 1, 50, 5000, 1700001000, "after.txt", UsnReason::FILE_CREATE),
-        ];
+        let usn_records = vec![usn(
+            200,
+            1,
+            50,
+            5000,
+            1700001000,
+            "after.txt",
+            UsnReason::FILE_CREATE,
+        )];
         // LogFile has older records with USN < 5000
         let logfile_records = vec![
             logfile_usn(
-                usn(100, 1, 50, 1000, 1700000100, "deleted_evidence.txt", UsnReason::FILE_CREATE),
+                usn(
+                    100,
+                    1,
+                    50,
+                    1000,
+                    1700000100,
+                    "deleted_evidence.txt",
+                    UsnReason::FILE_CREATE,
+                ),
                 300,
             ),
             logfile_usn(
-                usn(101, 1, 50, 2000, 1700000200, "wiped.exe", UsnReason::FILE_DELETE | UsnReason::CLOSE),
+                usn(
+                    101,
+                    1,
+                    50,
+                    2000,
+                    1700000200,
+                    "wiped.exe",
+                    UsnReason::FILE_DELETE | UsnReason::CLOSE,
+                ),
                 400,
             ),
         ];
@@ -510,7 +590,15 @@ mod tests {
 
     #[test]
     fn test_no_ghosts_when_fully_covered() {
-        let record = usn(100, 1, 50, 1000, 1700000100, "file1.txt", UsnReason::FILE_CREATE);
+        let record = usn(
+            100,
+            1,
+            50,
+            1000,
+            1700000100,
+            "file1.txt",
+            UsnReason::FILE_CREATE,
+        );
         let usn_records = vec![record.clone()];
         let logfile_records = vec![logfile_usn(record, 500)];
 
@@ -525,15 +613,37 @@ mod tests {
     #[test]
     fn test_coverage_analysis() {
         let usn_records = vec![
-            usn(100, 1, 50, 1000, 1700000100, "a.txt", UsnReason::FILE_CREATE),
-            usn(101, 1, 50, 5000, 1700000500, "b.txt", UsnReason::FILE_CREATE),
-        ];
-        let logfile_records = vec![
-            logfile_usn(
-                usn(99, 1, 50, 500, 1700000050, "early.txt", UsnReason::FILE_CREATE),
+            usn(
                 100,
+                1,
+                50,
+                1000,
+                1700000100,
+                "a.txt",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                101,
+                1,
+                50,
+                5000,
+                1700000500,
+                "b.txt",
+                UsnReason::FILE_CREATE,
             ),
         ];
+        let logfile_records = vec![logfile_usn(
+            usn(
+                99,
+                1,
+                50,
+                500,
+                1700000050,
+                "early.txt",
+                UsnReason::FILE_CREATE,
+            ),
+            100,
+        )];
 
         let engine = CorrelationEngine::new();
         let coverage = engine.analyze_coverage(&usn_records, &logfile_records);
@@ -544,7 +654,10 @@ mod tests {
         assert_eq!(coverage.usn_record_count, 2);
 
         // LogFile range
-        assert_eq!(coverage.logfile_earliest_ts.unwrap().timestamp(), 1700000050);
+        assert_eq!(
+            coverage.logfile_earliest_ts.unwrap().timestamp(),
+            1700000050
+        );
         assert_eq!(coverage.logfile_record_count, 1);
 
         // LogFile extends before UsnJrnl = evidence of clearing
@@ -561,9 +674,15 @@ mod tests {
         entry.fn_created = Some(DateTime::from_timestamp(1700000500, 0).unwrap());
 
         // USN Journal says file was created at ts=1700000500
-        let usn_records = vec![
-            usn(100, 1, 50, 1000, 1700000500, "suspicious.exe", UsnReason::FILE_CREATE),
-        ];
+        let usn_records = vec![usn(
+            100,
+            1,
+            50,
+            1000,
+            1700000500,
+            "suspicious.exe",
+            UsnReason::FILE_CREATE,
+        )];
 
         let engine = CorrelationEngine::new();
         let conflicts = engine.find_timestamp_conflicts(&usn_records, &[entry]);
@@ -571,7 +690,10 @@ mod tests {
         // SI_Created (1700000100) predates the USN FILE_CREATE (1700000500) = timestomped
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].mft_entry, 100);
-        assert_eq!(conflicts[0].conflict_type, TimestampConflictType::SiPredatesUsnCreate);
+        assert_eq!(
+            conflicts[0].conflict_type,
+            TimestampConflictType::SiPredatesUsnCreate
+        );
     }
 
     // ─── Test 8: No conflict when timestamps are consistent ──────────────
@@ -583,9 +705,15 @@ mod tests {
         entry.si_created = Some(ts);
         entry.fn_created = Some(ts);
 
-        let usn_records = vec![
-            usn(100, 1, 50, 1000, 1700000500, "normal.txt", UsnReason::FILE_CREATE),
-        ];
+        let usn_records = vec![usn(
+            100,
+            1,
+            50,
+            1000,
+            1700000500,
+            "normal.txt",
+            UsnReason::FILE_CREATE,
+        )];
 
         let engine = CorrelationEngine::new();
         let conflicts = engine.find_timestamp_conflicts(&usn_records, &[entry]);
@@ -598,11 +726,51 @@ mod tests {
     #[test]
     fn test_file_activity_summary() {
         let usn_records = vec![
-            usn(100, 1, 50, 1000, 1700000100, "report.docx", UsnReason::FILE_CREATE),
-            usn(100, 1, 50, 2000, 1700000200, "report.docx", UsnReason::DATA_EXTEND),
-            usn(100, 1, 50, 3000, 1700000300, "report.docx", UsnReason::CLOSE),
-            usn(100, 1, 50, 4000, 1700000400, "report.docx", UsnReason::DATA_EXTEND),
-            usn(100, 1, 50, 5000, 1700000500, "report.docx", UsnReason::CLOSE),
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000100,
+                "report.docx",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                100,
+                1,
+                50,
+                2000,
+                1700000200,
+                "report.docx",
+                UsnReason::DATA_EXTEND,
+            ),
+            usn(
+                100,
+                1,
+                50,
+                3000,
+                1700000300,
+                "report.docx",
+                UsnReason::CLOSE,
+            ),
+            usn(
+                100,
+                1,
+                50,
+                4000,
+                1700000400,
+                "report.docx",
+                UsnReason::DATA_EXTEND,
+            ),
+            usn(
+                100,
+                1,
+                50,
+                5000,
+                1700000500,
+                "report.docx",
+                UsnReason::CLOSE,
+            ),
         ];
 
         let engine = CorrelationEngine::new();
@@ -644,8 +812,24 @@ mod tests {
     fn test_detect_entry_reuse() {
         // Same MFT entry 100, but different sequence numbers = reused
         let usn_records = vec![
-            usn(100, 3, 50, 1000, 1700000100, "old_file.txt", UsnReason::FILE_DELETE | UsnReason::CLOSE),
-            usn(100, 4, 60, 2000, 1700000200, "new_file.exe", UsnReason::FILE_CREATE),
+            usn(
+                100,
+                3,
+                50,
+                1000,
+                1700000100,
+                "old_file.txt",
+                UsnReason::FILE_DELETE | UsnReason::CLOSE,
+            ),
+            usn(
+                100,
+                4,
+                60,
+                2000,
+                1700000200,
+                "new_file.exe",
+                UsnReason::FILE_CREATE,
+            ),
         ];
 
         let engine = CorrelationEngine::new();
@@ -664,8 +848,24 @@ mod tests {
     #[test]
     fn test_no_reuse_same_sequence() {
         let usn_records = vec![
-            usn(100, 3, 50, 1000, 1700000100, "file.txt", UsnReason::FILE_CREATE),
-            usn(100, 3, 50, 2000, 1700000200, "file.txt", UsnReason::DATA_EXTEND),
+            usn(
+                100,
+                3,
+                50,
+                1000,
+                1700000100,
+                "file.txt",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                100,
+                3,
+                50,
+                2000,
+                1700000200,
+                "file.txt",
+                UsnReason::DATA_EXTEND,
+            ),
         ];
 
         let engine = CorrelationEngine::new();
@@ -677,15 +877,27 @@ mod tests {
 
     #[test]
     fn test_triforce_report() {
-        let usn_records = vec![
-            usn(100, 1, 50, 5000, 1700001000, "current.txt", UsnReason::FILE_CREATE),
-        ];
-        let logfile_records = vec![
-            logfile_usn(
-                usn(99, 1, 50, 1000, 1700000100, "ghost.exe", UsnReason::FILE_CREATE),
-                200,
+        let usn_records = vec![usn(
+            100,
+            1,
+            50,
+            5000,
+            1700001000,
+            "current.txt",
+            UsnReason::FILE_CREATE,
+        )];
+        let logfile_records = vec![logfile_usn(
+            usn(
+                99,
+                1,
+                50,
+                1000,
+                1700000100,
+                "ghost.exe",
+                UsnReason::FILE_CREATE,
             ),
-        ];
+            200,
+        )];
         let mut entry = mft_entry(100, 1, 50, "current.txt", false);
         entry.si_created = Some(DateTime::from_timestamp(1700000500, 0).unwrap());
 
@@ -703,8 +915,24 @@ mod tests {
     #[test]
     fn test_activity_summary_multiple_files() {
         let usn_records = vec![
-            usn(100, 1, 50, 1000, 1700000100, "a.txt", UsnReason::FILE_CREATE),
-            usn(101, 1, 50, 2000, 1700000200, "b.txt", UsnReason::FILE_CREATE),
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000100,
+                "a.txt",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                101,
+                1,
+                50,
+                2000,
+                1700000200,
+                "b.txt",
+                UsnReason::FILE_CREATE,
+            ),
             usn(100, 1, 50, 3000, 1700000300, "a.txt", UsnReason::CLOSE),
         ];
 
@@ -729,9 +957,33 @@ mod tests {
         // When the same MFT entry has multiple FILE_CREATE events,
         // the earliest timestamp should be stored.
         let usn_records = vec![
-            usn(100, 1, 50, 1000, 1700000300, "file.exe", UsnReason::FILE_CREATE),
-            usn(100, 1, 50, 2000, 1700000100, "file.exe", UsnReason::FILE_CREATE), // earlier
-            usn(100, 1, 50, 3000, 1700000200, "file.exe", UsnReason::FILE_CREATE),
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000300,
+                "file.exe",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                100,
+                1,
+                50,
+                2000,
+                1700000100,
+                "file.exe",
+                UsnReason::FILE_CREATE,
+            ), // earlier
+            usn(
+                100,
+                1,
+                50,
+                3000,
+                1700000200,
+                "file.exe",
+                UsnReason::FILE_CREATE,
+            ),
         ];
 
         // MFT says SI_Created is way before the earliest USN create -> conflict
@@ -754,11 +1006,35 @@ mod tests {
         // Also tests last_seen update and reason accumulation
         let usn_records = vec![
             // First record seen: ts=200
-            usn(100, 1, 50, 1000, 1700000200, "data.txt", UsnReason::FILE_CREATE),
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000200,
+                "data.txt",
+                UsnReason::FILE_CREATE,
+            ),
             // Earlier timestamp: ts=100 -> should update first_seen
-            usn(100, 1, 50, 2000, 1700000100, "data.txt", UsnReason::DATA_EXTEND),
+            usn(
+                100,
+                1,
+                50,
+                2000,
+                1700000100,
+                "data.txt",
+                UsnReason::DATA_EXTEND,
+            ),
             // Latest timestamp: ts=300 -> should update last_seen
-            usn(100, 1, 50, 3000, 1700000300, "data_renamed.txt", UsnReason::RENAME_NEW_NAME),
+            usn(
+                100,
+                1,
+                50,
+                3000,
+                1700000300,
+                "data_renamed.txt",
+                UsnReason::RENAME_NEW_NAME,
+            ),
         ];
 
         let engine = CorrelationEngine::new();
@@ -771,7 +1047,7 @@ mod tests {
         assert_eq!(s.first_seen.timestamp(), 1700000100);
         assert_eq!(s.last_seen.timestamp(), 1700000300);
         assert_eq!(s.filename, "data_renamed.txt"); // latest filename used
-        // All reasons accumulated
+                                                    // All reasons accumulated
         assert!(s.reasons.contains(UsnReason::FILE_CREATE));
         assert!(s.reasons.contains(UsnReason::DATA_EXTEND));
         assert!(s.reasons.contains(UsnReason::RENAME_NEW_NAME));
@@ -779,17 +1055,33 @@ mod tests {
 
     #[test]
     fn test_timeline_preserves_lsn() {
-        let logfile_records = vec![
-            logfile_usn(
-                usn(100, 1, 50, 1000, 1700000100, "file.txt", UsnReason::FILE_CREATE),
-                42_000,
+        let logfile_records = vec![logfile_usn(
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000100,
+                "file.txt",
+                UsnReason::FILE_CREATE,
             ),
-        ];
+            42_000,
+        )];
 
         let engine = CorrelationEngine::new();
         let timeline = engine.build_timeline(&[], &logfile_records, &[]);
 
         assert_eq!(timeline.len(), 1);
         assert_eq!(timeline[0].lsn, Some(42_000));
+    }
+
+    #[test]
+    fn test_correlation_engine_default() {
+        // Cover lines 118-119: Default impl for CorrelationEngine.
+        #[allow(clippy::default_constructed_unit_structs)]
+        let engine = CorrelationEngine::default();
+        // Default-constructed engine should work identically to new().
+        let timeline = engine.build_timeline(&[], &[], &[]);
+        assert!(timeline.is_empty());
     }
 }

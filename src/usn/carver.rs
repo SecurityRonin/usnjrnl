@@ -87,8 +87,7 @@ pub fn carve_usn_records(data: &[u8]) -> (Vec<CarvedRecord>, CarvingStats) {
         // Check if this could be a valid USN record
         match major_version {
             2 => {
-                if record_len >= USN_V2_MIN_SIZE
-                    && record_len <= USN_MAX_RECORD_SIZE
+                if (USN_V2_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len)
                     && offset + record_len <= len
                 {
                     stats.candidates_examined += 1;
@@ -102,8 +101,7 @@ pub fn carve_usn_records(data: &[u8]) -> (Vec<CarvedRecord>, CarvingStats) {
                 }
             }
             3 => {
-                if record_len >= USN_V3_MIN_SIZE
-                    && record_len <= USN_MAX_RECORD_SIZE
+                if (USN_V3_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len)
                     && offset + record_len <= len
                 {
                     stats.candidates_examined += 1;
@@ -241,7 +239,7 @@ fn try_carve_v3(
 
 /// Check if a Windows FILETIME value falls within a valid range (2000-2030).
 fn is_valid_timestamp(filetime: i64) -> bool {
-    filetime >= FILETIME_2000 && filetime <= FILETIME_2030
+    (FILETIME_2000..=FILETIME_2030).contains(&filetime)
 }
 
 // ─── Binary helpers (duplicated to keep carver self-contained) ───────────────
@@ -361,7 +359,11 @@ mod tests {
         }
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(records.len(), 0, "Should not find any records in random data");
+        assert_eq!(
+            records.len(),
+            0,
+            "Should not find any records in random data"
+        );
         assert_eq!(stats.bytes_scanned, 8192);
     }
 
@@ -369,7 +371,7 @@ mod tests {
     fn test_carve_embedded_v2_record() {
         // Create garbage data with a valid V2 record embedded in the middle
         let mut data = vec![0xAA; 512]; // garbage prefix
-        // Ensure prefix is 8-byte aligned and doesn't accidentally look like a record
+                                        // Ensure prefix is 8-byte aligned and doesn't accidentally look like a record
         for i in (4..512).step_by(8) {
             data[i] = 0xFF;
             data[i + 1] = 0xFF;
@@ -469,9 +471,16 @@ mod tests {
 
         let (records, stats) = carve_usn_records(&data);
 
-        assert_eq!(records.len(), 1, "Should only find the record with valid timestamp");
+        assert_eq!(
+            records.len(),
+            1,
+            "Should only find the record with valid timestamp"
+        );
         assert_eq!(records[0].record.filename, "valid.txt");
-        assert_eq!(stats.rejected_timestamp, 2, "Should reject two records with invalid timestamps");
+        assert_eq!(
+            stats.rejected_timestamp, 2,
+            "Should reject two records with invalid timestamps"
+        );
     }
 
     #[test]
@@ -515,7 +524,9 @@ mod tests {
         assert_eq!(r.parent_mft_entry, 999);
         assert_eq!(r.parent_mft_sequence, 3);
         assert_eq!(r.filename, "important.xlsx");
-        assert!(r.reason.contains(super::super::reason::UsnReason::FILE_CREATE));
+        assert!(r
+            .reason
+            .contains(super::super::reason::UsnReason::FILE_CREATE));
         assert!(r.reason.contains(super::super::reason::UsnReason::CLOSE));
     }
 
@@ -560,7 +571,11 @@ mod tests {
         data[0x38..0x3A].copy_from_slice(&500u16.to_le_bytes());
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(records.len(), 0, "Filename exceeding record should be rejected");
+        assert_eq!(
+            records.len(),
+            0,
+            "Filename exceeding record should be rejected"
+        );
         assert!(stats.rejected_structure > 0);
     }
 
@@ -699,7 +714,7 @@ mod tests {
         let mut stats = CarvingStats::default();
 
         let mut data = vec![0u8; 0x50]; // 80 bytes
-        // Internal record_len = 0x20 (too small for V2, triggers parse error)
+                                        // Internal record_len = 0x20 (too small for V2, triggers parse error)
         data[0..4].copy_from_slice(&(0x20u32).to_le_bytes());
         data[4..6].copy_from_slice(&2u16.to_le_bytes());
         data[0x38..0x3A].copy_from_slice(&4u16.to_le_bytes()); // filename_length = 4
@@ -708,7 +723,10 @@ mod tests {
 
         // Outer record_len = 0x50, but internal says 0x20 -> parse_usn_record_v2 bails
         let result = try_carve_v2(&data, 0, 0x50, &mut stats);
-        assert!(result.is_none(), "Should fail because internal record_len is invalid");
+        assert!(
+            result.is_none(),
+            "Should fail because internal record_len is invalid"
+        );
         assert!(stats.rejected_structure > 0);
     }
 
@@ -720,7 +738,7 @@ mod tests {
         let mut stats = CarvingStats::default();
 
         let mut data = vec![0u8; 0x60]; // 96 bytes
-        // Set internal record_len to something invalid (< USN_V3_MIN_SIZE)
+                                        // Set internal record_len to something invalid (< USN_V3_MIN_SIZE)
         data[0..4].copy_from_slice(&(0x30u32).to_le_bytes()); // too small for V3
         data[4..6].copy_from_slice(&3u16.to_le_bytes());
         data[0x48..0x4A].copy_from_slice(&4u16.to_le_bytes()); // filename_length = 4
@@ -729,7 +747,10 @@ mod tests {
 
         // Call try_carve_v3 with outer record_len=0x60 but data says 0x30 internally
         let result = try_carve_v3(&data, 0, 0x60, &mut stats);
-        assert!(result.is_none(), "Should fail because internal record_len is invalid for V3");
+        assert!(
+            result.is_none(),
+            "Should fail because internal record_len is invalid for V3"
+        );
         assert!(stats.rejected_structure > 0);
     }
 
@@ -795,6 +816,63 @@ mod tests {
         let result = try_carve_v3(&data, 0, record_len, &mut stats);
         assert!(result.is_none());
         assert!(stats.rejected_structure > 0);
+    }
+
+    #[test]
+    fn test_carve_v2_successful_with_logging() {
+        // Covers line 173: the debug! format args inside try_carve_v2's Ok branch.
+        // Enable debug logging so the debug! macro evaluates its arguments.
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
+
+        let mut data = vec![0u8; 64]; // zero prefix (skipped)
+        let record = build_v2_record(42, 1, 5, 5, 0x100, "logged_v2.txt");
+        data.extend_from_slice(&record);
+
+        let (records, stats) = carve_usn_records(&data);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].record.filename, "logged_v2.txt");
+        assert_eq!(stats.records_carved, 1);
+    }
+
+    #[test]
+    fn test_carve_v3_successful_with_logging() {
+        // Covers line 228: the debug! format args inside try_carve_v3's Ok branch.
+        let _ = env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .is_test(true)
+            .try_init();
+
+        let name_utf16: Vec<u16> = "logged_v3.txt".encode_utf16().collect();
+        let name_bytes_len = name_utf16.len() * 2;
+        let record_len = 0x4C + name_bytes_len;
+        let aligned_len = (record_len + 7) & !7;
+        let mut buf = vec![0u8; aligned_len];
+
+        buf[0..4].copy_from_slice(&(record_len as u32).to_le_bytes());
+        buf[4..6].copy_from_slice(&3u16.to_le_bytes()); // V3
+        buf[6..8].copy_from_slice(&0u16.to_le_bytes());
+        buf[0x08..0x18].copy_from_slice(&100u128.to_le_bytes());
+        buf[0x18..0x28].copy_from_slice(&5u128.to_le_bytes());
+        buf[0x28..0x30].copy_from_slice(&200i64.to_le_bytes());
+        let ts: i64 = 133_500_480_000_000_000;
+        buf[0x30..0x38].copy_from_slice(&ts.to_le_bytes());
+        buf[0x38..0x3C].copy_from_slice(&0x100u32.to_le_bytes());
+        buf[0x44..0x48].copy_from_slice(&0x20u32.to_le_bytes());
+        buf[0x48..0x4A].copy_from_slice(&(name_bytes_len as u16).to_le_bytes());
+        buf[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes());
+        for (i, &ch) in name_utf16.iter().enumerate() {
+            let off = 0x4C + i * 2;
+            buf[off..off + 2].copy_from_slice(&ch.to_le_bytes());
+        }
+
+        let (records, stats) = carve_usn_records(&buf);
+        assert_eq!(records.len(), 1);
+        assert_eq!(records[0].record.filename, "logged_v3.txt");
+        assert_eq!(records[0].record.major_version, 3);
+        assert_eq!(stats.records_carved, 1);
     }
 
     #[test]

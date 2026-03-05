@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use crate::usn::{UsnRecord, parse_usn_journal};
+use crate::usn::{parse_usn_journal, UsnRecord};
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
@@ -262,8 +262,17 @@ mod tests {
         let new_record = MonitorEvent::NewRecord(records.into_iter().next().unwrap());
         assert!(matches!(new_record, MonitorEvent::NewRecord(_)));
 
-        let wrap = MonitorEvent::JournalWrap { old_usn: 5000, new_usn: 100 };
-        assert!(matches!(wrap, MonitorEvent::JournalWrap { old_usn: 5000, new_usn: 100 }));
+        let wrap = MonitorEvent::JournalWrap {
+            old_usn: 5000,
+            new_usn: 100,
+        };
+        assert!(matches!(
+            wrap,
+            MonitorEvent::JournalWrap {
+                old_usn: 5000,
+                new_usn: 100
+            }
+        ));
 
         let error = MonitorEvent::Error("test error".to_string());
         assert!(matches!(error, MonitorEvent::Error(_)));
@@ -273,8 +282,24 @@ mod tests {
     fn test_monitor_processes_new_data() {
         // Given a mock data source with two records, monitor should parse them.
         let mut data = Vec::new();
-        data.extend_from_slice(&build_v2_record_with_usn(100, 1, 5, 5, 1000, 0x100, "file1.txt"));
-        data.extend_from_slice(&build_v2_record_with_usn(200, 1, 5, 5, 2000, 0x200, "file2.txt"));
+        data.extend_from_slice(&build_v2_record_with_usn(
+            100,
+            1,
+            5,
+            5,
+            1000,
+            0x100,
+            "file1.txt",
+        ));
+        data.extend_from_slice(&build_v2_record_with_usn(
+            200,
+            1,
+            5,
+            5,
+            2000,
+            0x200,
+            "file2.txt",
+        ));
 
         let source = MockJournalSource::new(data, 1);
         let mut monitor = JournalMonitor::new(source, MonitorConfig::default()).unwrap();
@@ -299,8 +324,12 @@ mod tests {
     fn test_monitor_tracks_last_usn() {
         // After processing records, last_usn should be updated to the highest USN seen.
         let mut data = Vec::new();
-        data.extend_from_slice(&build_v2_record_with_usn(100, 1, 5, 5, 1000, 0x100, "a.txt"));
-        data.extend_from_slice(&build_v2_record_with_usn(200, 1, 5, 5, 5000, 0x200, "b.txt"));
+        data.extend_from_slice(&build_v2_record_with_usn(
+            100, 1, 5, 5, 1000, 0x100, "a.txt",
+        ));
+        data.extend_from_slice(&build_v2_record_with_usn(
+            200, 1, 5, 5, 5000, 0x200, "b.txt",
+        ));
 
         let source = MockJournalSource::new(data, 1);
         let mut monitor = JournalMonitor::new(source, MonitorConfig::default()).unwrap();
@@ -391,8 +420,8 @@ mod tests {
         fn read_from_usn(&mut self, _start_usn: i64, buffer: &mut [u8]) -> Result<usize> {
             // Fill with garbage that looks like a record but isn't
             let n = 64.min(buffer.len());
-            for i in 0..n {
-                buffer[i] = 0xDE;
+            for item in buffer.iter_mut().take(n) {
+                *item = 0xDE;
             }
             // Make it look like a valid record header but with corrupt data
             buffer[0..4].copy_from_slice(&(0x40u32).to_le_bytes()); // record_len
@@ -430,8 +459,8 @@ mod tests {
             // Return data that parse_usn_journal handles gracefully (no error)
             // but produces no records
             let n = 64.min(buffer.len());
-            for i in 0..n {
-                buffer[i] = 0xFF;
+            for item in buffer.iter_mut().take(n) {
+                *item = 0xFF;
             }
             Ok(n)
         }

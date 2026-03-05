@@ -349,6 +349,12 @@ Modules:
 - `monitor`: Real-time journal polling abstraction
 - `output`: CSV, JSONL, SQLite, Sleuthkit body, TLN, XML exporters
 
+## Validation
+
+Record-level comparison against MFTECmd, usn.py, dfir_ntfs, usnrs, usnjrnl_rewind, and Velociraptor using three publicly available forensic disk images (757,491 total records). All tools agree on record counts and USN offsets. For path resolution, `usnjrnl-forensic` resolves 100% of paths correctly via the Rewind algorithm, compared to usnjrnl_rewind (94.0%), MFTECmd (83.7%), dfir_ntfs (62.3%), and usnrs (54.6%). usnjrnl_rewind's 6% incorrect paths are caused by retroactive rename application and ADS name inclusion — verified by USN chronology against the journal's own rename events.
+
+See the full report: **[docs/VALIDATION.md](docs/VALIDATION.md)**
+
 ## Testing
 
 341 unit tests covering every module. Run with:

@@ -2,7 +2,7 @@
 //!
 //! ReFS uses full 128-bit file reference numbers instead of NTFS's 48-bit entry
 //! + 16-bit sequence format. This module provides types and analysis for ReFS
-//! volumes where USN_RECORD_V3 records contain these wider references.
+//!   volumes where USN_RECORD_V3 records contain these wider references.
 //!
 //! Key differences from NTFS:
 //! - File references are opaque 128-bit IDs, not split into entry+sequence
@@ -104,9 +104,9 @@ impl RefsAnalyzer {
 
         // If any file or parent reference has non-zero upper 64 bits,
         // this is likely a ReFS volume (NTFS V3 refs fit in lower 64 bits).
-        self.records.iter().any(|r| {
-            r.file_id.high() != 0 || r.parent_id.high() != 0
-        })
+        self.records
+            .iter()
+            .any(|r| r.file_id.high() != 0 || r.parent_id.high() != 0)
     }
 
     /// Group records by their full 128-bit file ID.
@@ -138,7 +138,8 @@ impl RefsAnalyzer {
 
         // Determine root IDs: any parent_id that has no entry in the lookup
         // is considered a root anchor.
-        let root_ids: std::collections::HashSet<RefsFileId> = self.records
+        let root_ids: std::collections::HashSet<RefsFileId> = self
+            .records
             .iter()
             .map(|r| r.parent_id)
             .filter(|pid| !lookup.contains_key(pid))
@@ -188,8 +189,8 @@ impl RefsAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::{UsnReason, FileAttributes};
-    use chrono::{DateTime, Utc};
+    use crate::usn::{FileAttributes, UsnReason};
+    use chrono::DateTime;
 
     /// Helper: build a UsnRecord with major_version 3 for testing.
     fn make_v3_record(
@@ -241,17 +242,20 @@ mod tests {
     fn test_refs_file_id_display() {
         // Display format should show high:low in hex
         let id = RefsFileId::from_u128(0x0000_0000_0000_0001_0000_0000_0000_0064);
-        let display = format!("{}", id);
+        let display = format!("{id}");
         assert_eq!(display, "0x0000000000000001:0x0000000000000064");
 
         // Zero case
         let zero_id = RefsFileId::from_u128(0);
-        assert_eq!(format!("{}", zero_id), "0x0000000000000000:0x0000000000000000");
+        assert_eq!(
+            format!("{zero_id}"),
+            "0x0000000000000000:0x0000000000000000"
+        );
 
         // Large values
         let large_id = RefsFileId::from_u128(0xDEAD_BEEF_CAFE_BABE_1234_5678_9ABC_DEF0);
         assert_eq!(
-            format!("{}", large_id),
+            format!("{large_id}"),
             "0xdeadbeefcafebabe:0x123456789abcdef0"
         );
     }
@@ -267,7 +271,10 @@ mod tests {
         );
 
         let analyzer = RefsAnalyzer::new(vec![refs_rec1]);
-        assert!(analyzer.is_likely_refs(), "V3 records with upper bits should be detected as ReFS");
+        assert!(
+            analyzer.is_likely_refs(),
+            "V3 records with upper bits should be detected as ReFS"
+        );
 
         // Case 2: V3 records with upper bits all zero -> likely NTFS using V3 format
         let rec2 = make_v3_record(200, 5, UsnReason::FILE_CREATE, "ntfs_file.txt");
@@ -278,11 +285,17 @@ mod tests {
         );
 
         let analyzer2 = RefsAnalyzer::new(vec![refs_rec2]);
-        assert!(!analyzer2.is_likely_refs(), "V3 records with zero upper bits should not be flagged as ReFS");
+        assert!(
+            !analyzer2.is_likely_refs(),
+            "V3 records with zero upper bits should not be flagged as ReFS"
+        );
 
         // Case 3: Empty records -> not ReFS
         let analyzer3 = RefsAnalyzer::new(vec![]);
-        assert!(!analyzer3.is_likely_refs(), "Empty set should not be detected as ReFS");
+        assert!(
+            !analyzer3.is_likely_refs(),
+            "Empty set should not be detected as ReFS"
+        );
     }
 
     #[test]
@@ -474,6 +487,48 @@ mod tests {
         );
 
         let analyzer = RefsAnalyzer::new(vec![refs_rec]);
-        assert!(!analyzer.is_likely_refs(), "Mixed v2/v3 should not be detected as ReFS");
+        assert!(
+            !analyzer.is_likely_refs(),
+            "Mixed v2/v3 should not be detected as ReFS"
+        );
+    }
+
+    #[test]
+    fn test_refs_reconstruct_paths_parent_not_in_lookup() {
+        // Cover line 173: break when current's parent is not in lookup and not a root.
+        // Create three records: A -> B -> C where C's parent (D) doesn't exist.
+        // When walking from A: A's parent is B (in lookup), B's parent is C (in lookup),
+        // C's parent is D (not in lookup). Line 168 checks root_ids.contains(parent)
+        // || !lookup.contains_key(parent) and breaks.
+        //
+        // But we also need a record whose file_id is in root_ids to test line 153.
+        // root_ids = {parent_ids not in lookup}. For file_id to be in root_ids,
+        // we need file_id to be a parent_id that has no entry in lookup -- but
+        // file_id IS in lookup. So line 153 is logically unreachable.
+        //
+        // Test the path that breaks at line 168 (parent not in lookup).
+        let id_a = RefsFileId::from_u128(10);
+        let id_b = RefsFileId::from_u128(20);
+        let id_c = RefsFileId::from_u128(30); // parent not in lookup
+
+        let rec_a = RefsRecord::new(
+            make_v3_record(10, 20, UsnReason::FILE_CREATE, "file_a"),
+            id_a,
+            id_b,
+        );
+        let rec_b = RefsRecord::new(
+            make_v3_record(20, 30, UsnReason::FILE_CREATE, "dir_b"),
+            id_b,
+            id_c,
+        );
+        // No record for id_c, so id_c becomes a root anchor.
+
+        let analyzer = RefsAnalyzer::new(vec![rec_a, rec_b]);
+        let paths = analyzer.reconstruct_paths();
+
+        // A should resolve to dir_b\file_a
+        assert_eq!(paths.get(&id_a).map(|s| s.as_str()), Some("dir_b\\file_a"));
+        // B should resolve to dir_b
+        assert_eq!(paths.get(&id_b).map(|s| s.as_str()), Some("dir_b"));
     }
 }

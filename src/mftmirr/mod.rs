@@ -234,13 +234,11 @@ mod tests {
             assert!(!result.is_consistent);
             for j in 0..MIRROR_ENTRY_COUNT {
                 if j == entry_idx {
-                    assert!(!result.matches[j],
-                        "Entry {} should not match", j);
+                    assert!(!result.matches[j], "Entry {j} should not match");
                     assert_eq!(result.diff_offsets[j].len(), 1);
                     assert_eq!(result.diff_offsets[j][0], 100);
                 } else {
-                    assert!(result.matches[j],
-                        "Entry {} should match", j);
+                    assert!(result.matches[j], "Entry {j} should match");
                 }
             }
         }
@@ -253,5 +251,36 @@ mod tests {
         assert_eq!(data.len() % MFT_ENTRY_SIZE, 0);
         let result = compare_mft_mirror(&data, &data).unwrap();
         assert!(result.is_consistent);
+    }
+
+    #[test]
+    fn test_insufficient_data_warn_with_logger() {
+        // Cover lines 47-48: exercise the warn! format args for insufficient data.
+        // Initialize a logger so the warn! macro actually evaluates its arguments.
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        let mirr = vec![0xAAu8; MFT_ENTRY_SIZE * 2]; // Only 2 entries
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        // Entries 2 and 3 should be marked as not matching due to insufficient data
+        assert!(!result.matches[2]);
+        assert!(!result.matches[3]);
+    }
+
+    #[test]
+    fn test_diff_warn_with_logger() {
+        // Cover lines 68, 70-71: exercise the warn! format args for differences.
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let mft = vec![0xAAu8; MFT_ENTRY_SIZE * MIRROR_ENTRY_COUNT];
+        let mut mirr = mft.clone();
+        mirr[0] = 0xBB; // Differ in entry 0
+
+        let result = compare_mft_mirror(&mft, &mirr).unwrap();
+        assert!(!result.is_consistent);
+        assert!(!result.matches[0]);
+        assert_eq!(result.diff_offsets[0].len(), 1);
     }
 }

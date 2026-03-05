@@ -37,7 +37,9 @@ pub fn export_jsonl<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Res
             .to_string();
 
         let json_rec = JsonRecord {
-            timestamp: r.timestamp.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
+            timestamp: r
+                .timestamp
+                .to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
             usn: r.usn,
             entry_number: r.mft_entry,
             sequence_number: r.mft_sequence,
@@ -63,8 +65,8 @@ pub fn export_jsonl<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::{UsnRecord, UsnReason, FileAttributes};
     use crate::rewind::ResolvedRecord;
+    use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
 
     #[test]

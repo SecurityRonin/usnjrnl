@@ -110,13 +110,13 @@ fn detect_sdelete_patterns(records: &[UsnRecord]) -> Vec<SecureDeletionIndicator
         let time_end = group.last().unwrap().timestamp;
 
         // Higher confidence if we see both creates and deletes
-        let has_creates = group.iter().any(|r| r.reason.contains(UsnReason::FILE_CREATE));
-        let has_deletes = group.iter().any(|r| r.reason.contains(UsnReason::FILE_DELETE));
-        let confidence = if has_creates && has_deletes {
-            0.9
-        } else {
-            0.6
-        };
+        let has_creates = group
+            .iter()
+            .any(|r| r.reason.contains(UsnReason::FILE_CREATE));
+        let has_deletes = group
+            .iter()
+            .any(|r| r.reason.contains(UsnReason::FILE_DELETE));
+        let confidence = if has_creates && has_deletes { 0.9 } else { 0.6 };
 
         indicators.push(SecureDeletionIndicator {
             pattern: SecureDeletionPattern::SDelete,
@@ -139,8 +139,7 @@ fn is_sdelete_filename(name: &str) -> bool {
     }
     let first = base.chars().next().unwrap();
     // SDelete uses repeating single characters: AAA, ZZZ, 000
-    base.chars().all(|c| c == first)
-        && (first.is_ascii_uppercase() || first.is_ascii_digit())
+    base.chars().all(|c| c == first) && (first.is_ascii_uppercase() || first.is_ascii_digit())
 }
 
 /// Detect bulk .tmp file deletion indicative of cleaning tools.
@@ -151,8 +150,7 @@ fn detect_bulk_temp_deletion(records: &[UsnRecord]) -> Vec<SecureDeletionIndicat
     let tmp_deletes: Vec<&UsnRecord> = records
         .iter()
         .filter(|r| {
-            r.reason.contains(UsnReason::FILE_DELETE)
-                && r.filename.to_lowercase().ends_with(".tmp")
+            r.reason.contains(UsnReason::FILE_DELETE) && r.filename.to_lowercase().ends_with(".tmp")
         })
         .collect();
 
@@ -379,11 +377,7 @@ fn detect_known_ransomware_extensions(records: &[UsnRecord]) -> Vec<RansomwareIn
         if group.len() >= 3 {
             let time_start = group.iter().map(|r| r.timestamp).min().unwrap();
             let time_end = group.iter().map(|r| r.timestamp).max().unwrap();
-            let sample: Vec<String> = group
-                .iter()
-                .take(10)
-                .map(|r| r.filename.clone())
-                .collect();
+            let sample: Vec<String> = group.iter().take(10).map(|r| r.filename.clone()).collect();
 
             let confidence = if group.len() >= 20 {
                 0.95
@@ -448,11 +442,8 @@ fn detect_mass_rename_patterns(records: &[UsnRecord]) -> Vec<RansomwareIndicator
 
             // 20+ renames to the same unusual extension within 10 minutes is suspicious
             if duration <= Duration::minutes(10) {
-                let sample: Vec<String> = group
-                    .iter()
-                    .take(10)
-                    .map(|r| r.filename.clone())
-                    .collect();
+                let sample: Vec<String> =
+                    group.iter().take(10).map(|r| r.filename.clone()).collect();
 
                 indicators.push(RansomwareIndicator {
                     extension: ext.clone(),
@@ -473,11 +464,42 @@ fn detect_mass_rename_patterns(records: &[UsnRecord]) -> Vec<RansomwareIndicator
 fn is_common_extension(ext: &str) -> bool {
     matches!(
         ext,
-        ".txt" | ".doc" | ".docx" | ".xls" | ".xlsx" | ".pdf" | ".jpg" | ".jpeg"
-            | ".png" | ".gif" | ".mp3" | ".mp4" | ".avi" | ".zip" | ".rar"
-            | ".exe" | ".dll" | ".sys" | ".log" | ".tmp" | ".bak" | ".html"
-            | ".htm" | ".css" | ".js" | ".py" | ".rs" | ".c" | ".h" | ".cpp"
-            | ".java" | ".xml" | ".json" | ".csv" | ".ppt" | ".pptx"
+        ".txt"
+            | ".doc"
+            | ".docx"
+            | ".xls"
+            | ".xlsx"
+            | ".pdf"
+            | ".jpg"
+            | ".jpeg"
+            | ".png"
+            | ".gif"
+            | ".mp3"
+            | ".mp4"
+            | ".avi"
+            | ".zip"
+            | ".rar"
+            | ".exe"
+            | ".dll"
+            | ".sys"
+            | ".log"
+            | ".tmp"
+            | ".bak"
+            | ".html"
+            | ".htm"
+            | ".css"
+            | ".js"
+            | ".py"
+            | ".rs"
+            | ".c"
+            | ".h"
+            | ".cpp"
+            | ".java"
+            | ".xml"
+            | ".json"
+            | ".csv"
+            | ".ppt"
+            | ".pptx"
     )
 }
 
@@ -512,7 +534,10 @@ pub fn detect_timestomping(records: &[UsnRecord]) -> Vec<TimestompIndicator> {
     // Build a map of MFT entry -> records for correlation
     let mut entry_events: HashMap<u64, Vec<&UsnRecord>> = HashMap::new();
     for record in records {
-        entry_events.entry(record.mft_entry).or_default().push(record);
+        entry_events
+            .entry(record.mft_entry)
+            .or_default()
+            .push(record);
     }
 
     // For each file, look for isolated BASIC_INFO_CHANGE events
@@ -545,8 +570,7 @@ pub fn detect_timestomping(records: &[UsnRecord]) -> Vec<TimestompIndicator> {
             // Isolated BASIC_INFO_CHANGE is suspicious
             if !has_nearby_data_change {
                 // Check if reason is ONLY BASIC_INFO_CHANGE (possibly with CLOSE)
-                let reason_without_close =
-                    event.reason & !UsnReason::CLOSE;
+                let reason_without_close = event.reason & !UsnReason::CLOSE;
                 let is_isolated = reason_without_close == UsnReason::BASIC_INFO_CHANGE;
 
                 let confidence = if is_isolated { 0.8 } else { 0.5 };
@@ -645,7 +669,7 @@ mod tests {
         for i in 0..15 {
             records.push(make_record(
                 100 + i,
-                &format!("tmp{:04}.tmp", i),
+                &format!("tmp{i:04}.tmp"),
                 UsnReason::FILE_DELETE,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -653,11 +677,11 @@ mod tests {
         }
 
         let indicators = detect_secure_deletion(&records);
-        assert!(
-            !indicators.is_empty(),
-            "Should detect bulk .tmp deletion"
+        assert!(!indicators.is_empty(), "Should detect bulk .tmp deletion");
+        assert_eq!(
+            indicators[0].pattern,
+            SecureDeletionPattern::BulkTempDeletion
         );
-        assert_eq!(indicators[0].pattern, SecureDeletionPattern::BulkTempDeletion);
     }
 
     #[test]
@@ -696,7 +720,10 @@ mod tests {
         ];
 
         let result = detect_journal_clearing(&records);
-        assert!(result.clearing_detected, "High starting USN should indicate clearing");
+        assert!(
+            result.clearing_detected,
+            "High starting USN should indicate clearing"
+        );
         assert!(result.confidence >= 0.4);
         assert_eq!(result.first_usn, Some(2_000_000_000));
     }
@@ -754,7 +781,7 @@ mod tests {
         for i in 0..5 {
             records.push(make_record(
                 100 + i,
-                &format!("document{}.docx.encrypted", i),
+                &format!("document{i}.docx.encrypted"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -776,7 +803,7 @@ mod tests {
         for i in 0..25 {
             records.push(make_record(
                 100 + i,
-                &format!("file{}.xyz_ransom", i),
+                &format!("file{i}.xyz_ransom"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -812,7 +839,7 @@ mod tests {
         for i in 0..5 {
             records.push(make_record(
                 100 + i,
-                &format!("file{}.locked", i),
+                &format!("file{i}.locked"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -822,7 +849,7 @@ mod tests {
         for i in 0..4 {
             records.push(make_record(
                 200 + i,
-                &format!("photo{}.crypto", i),
+                &format!("photo{i}.crypto"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(100 + i as i64),
                 2000 + (i as i64) * 100,
@@ -845,15 +872,13 @@ mod tests {
 
     #[test]
     fn test_detect_isolated_basic_info_change() {
-        let records = vec![
-            make_record(
-                100,
-                "suspicious.exe",
-                UsnReason::BASIC_INFO_CHANGE,
-                ts(1000),
-                5000,
-            ),
-        ];
+        let records = vec![make_record(
+            100,
+            "suspicious.exe",
+            UsnReason::BASIC_INFO_CHANGE,
+            ts(1000),
+            5000,
+        )];
 
         let indicators = detect_timestomping(&records);
         assert!(
@@ -868,13 +893,7 @@ mod tests {
     #[test]
     fn test_no_timestomp_with_data_change() {
         let records = vec![
-            make_record(
-                100,
-                "normal.docx",
-                UsnReason::DATA_OVERWRITE,
-                ts(999),
-                4900,
-            ),
+            make_record(100, "normal.docx", UsnReason::DATA_OVERWRITE, ts(999), 4900),
             make_record(
                 100,
                 "normal.docx",
@@ -935,13 +954,7 @@ mod tests {
                 ts(5),
                 1500,
             ),
-            make_record(
-                300,
-                "normal.txt",
-                UsnReason::DATA_OVERWRITE,
-                ts(10),
-                2000,
-            ),
+            make_record(300, "normal.txt", UsnReason::DATA_OVERWRITE, ts(10), 2000),
             make_record(
                 300,
                 "normal.txt",
@@ -972,13 +985,7 @@ mod tests {
     fn test_no_timestomp_on_create() {
         // FILE_CREATE is a legitimate reason for BASIC_INFO_CHANGE
         let records = vec![
-            make_record(
-                100,
-                "newfile.txt",
-                UsnReason::FILE_CREATE,
-                ts(0),
-                1000,
-            ),
+            make_record(100, "newfile.txt", UsnReason::FILE_CREATE, ts(0), 1000),
             make_record(
                 100,
                 "newfile.txt",
@@ -1074,7 +1081,7 @@ mod tests {
         for i in 0..5 {
             records.push(make_record(
                 100 + i,
-                &format!("tmp{:04}.tmp", i),
+                &format!("tmp{i:04}.tmp"),
                 UsnReason::FILE_DELETE,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1082,9 +1089,10 @@ mod tests {
         }
         // Gap > 30 seconds
         for i in 0..5 {
+            let n = 100 + i;
             records.push(make_record(
                 200 + i,
-                &format!("tmp{:04}.tmp", 100 + i),
+                &format!("tmp{n:04}.tmp"),
                 UsnReason::FILE_DELETE,
                 ts(60 + i as i64),
                 2000 + (i as i64) * 100,
@@ -1106,7 +1114,7 @@ mod tests {
         for i in 0..25 {
             records.push(make_record(
                 100 + i,
-                &format!("file{}.txt", i),
+                &format!("file{i}.txt"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1127,7 +1135,7 @@ mod tests {
         for i in 0..25 {
             records.push(make_record(
                 100 + i,
-                &format!("document{}.docx.encrypted", i),
+                &format!("document{i}.docx.encrypted"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1153,7 +1161,7 @@ mod tests {
         for i in 0..12 {
             records.push(make_record(
                 100 + i,
-                &format!("file{}.locked", i),
+                &format!("file{i}.locked"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1179,7 +1187,7 @@ mod tests {
         for i in 0..25 {
             records.push(make_record(
                 100 + i,
-                &format!("file{}.xyz_spread", i),
+                &format!("file{i}.xyz_spread"),
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64 * 60), // 1 minute apart, total > 10 min
                 1000 + (i as i64) * 100,
@@ -1215,15 +1223,13 @@ mod tests {
     #[test]
     fn test_timestomp_basic_info_change_with_close() {
         // BASIC_INFO_CHANGE | CLOSE (not isolated) should have lower confidence
-        let records = vec![
-            make_record(
-                100,
-                "stomped.exe",
-                UsnReason::BASIC_INFO_CHANGE | UsnReason::CLOSE | UsnReason::SECURITY_CHANGE,
-                ts(1000),
-                5000,
-            ),
-        ];
+        let records = vec![make_record(
+            100,
+            "stomped.exe",
+            UsnReason::BASIC_INFO_CHANGE | UsnReason::CLOSE | UsnReason::SECURITY_CHANGE,
+            ts(1000),
+            5000,
+        )];
 
         let indicators = detect_timestomping(&records);
         if !indicators.is_empty() {
@@ -1245,7 +1251,7 @@ mod tests {
         for i in 0..4u64 {
             records.push(make_record(
                 100 + i,
-                &format!("{}", "A".repeat(7)),
+                &"A".repeat(7),
                 UsnReason::FILE_CREATE,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1274,7 +1280,7 @@ mod tests {
         for i in 0..3u64 {
             records.push(make_record(
                 300 + i,
-                &format!("{}", "C".repeat(7)),
+                &"C".repeat(7),
                 UsnReason::FILE_CREATE,
                 ts(300 + i as i64),
                 3000 + (i as i64) * 100,
@@ -1288,7 +1294,7 @@ mod tests {
             .filter(|i| i.pattern == SecureDeletionPattern::SDelete)
             .collect();
         assert!(
-            sdelete_indicators.len() >= 1,
+            !sdelete_indicators.is_empty(),
             "Should detect SDelete groups split by time gap, got {} indicators",
             sdelete_indicators.len()
         );
@@ -1304,7 +1310,7 @@ mod tests {
         for i in 0..12u64 {
             records.push(make_record(
                 100 + i,
-                &format!("tmp{:04}.tmp", i),
+                &format!("tmp{i:04}.tmp"),
                 UsnReason::FILE_DELETE,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1316,7 +1322,7 @@ mod tests {
         for i in 0..5u64 {
             records.push(make_record(
                 200 + i,
-                &format!("tmpB{:04}.tmp", i),
+                &format!("tmpB{i:04}.tmp"),
                 UsnReason::FILE_DELETE,
                 ts(72 + i as i64),
                 2000 + (i as i64) * 100,
@@ -1327,7 +1333,7 @@ mod tests {
         for i in 0..10u64 {
             records.push(make_record(
                 300 + i,
-                &format!("tmpC{:04}.tmp", i),
+                &format!("tmpC{i:04}.tmp"),
                 UsnReason::FILE_DELETE,
                 ts(200 + i as i64),
                 3000 + (i as i64) * 100,
@@ -1340,7 +1346,7 @@ mod tests {
             .filter(|i| i.pattern == SecureDeletionPattern::BulkTempDeletion)
             .collect();
         assert!(
-            bulk_indicators.len() >= 1,
+            !bulk_indicators.is_empty(),
             "Should detect BulkTmpDeletion groups split by time gap, got {} indicators",
             bulk_indicators.len()
         );
@@ -1400,7 +1406,7 @@ mod tests {
         for i in 0..25 {
             records.push(make_record(
                 100 + i,
-                &format!("file{}", i), // No extension
+                &format!("file{i}"), // No extension
                 UsnReason::RENAME_NEW_NAME,
                 ts(i as i64),
                 1000 + (i as i64) * 100,
@@ -1412,6 +1418,32 @@ mod tests {
         assert!(
             indicators.is_empty(),
             "Files without extensions should not trigger mass-rename"
+        );
+    }
+
+    #[test]
+    fn test_timestomp_other_timestamp_after_event() {
+        // Cover line 557: `other.timestamp - event.timestamp` branch.
+        // Create a BASIC_INFO_CHANGE event with a DATA_OVERWRITE event that occurs
+        // AFTER it (within 60 seconds). This exercises the `other.timestamp >= event.timestamp`
+        // path where `time_diff = other.timestamp - event.timestamp`.
+        let records = vec![
+            make_record(100, "file.exe", UsnReason::BASIC_INFO_CHANGE, ts(100), 5000),
+            make_record(
+                100,
+                "file.exe",
+                UsnReason::DATA_OVERWRITE,
+                ts(110), // 10 seconds AFTER the BASIC_INFO_CHANGE
+                5100,
+            ),
+        ];
+
+        let indicators = detect_timestomping(&records);
+        // The DATA_OVERWRITE is within 60 seconds and after the BASIC_INFO_CHANGE,
+        // so it should NOT be flagged as timestomping.
+        assert!(
+            indicators.is_empty(),
+            "BASIC_INFO_CHANGE with nearby later data change should not trigger detection"
         );
     }
 }

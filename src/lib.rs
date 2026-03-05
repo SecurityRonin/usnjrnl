@@ -5,14 +5,15 @@
 //! parsing of $UsnJrnl:$J (V2/V3/V4), $MFT correlation, $MFTMirr comparison,
 //! and $LogFile gap detection.
 
-pub mod usn;
-pub mod mft;
-pub mod rewind;
-pub mod logfile;
-pub mod mftmirr;
-pub mod output;
 pub mod analysis;
 pub mod correlation;
-pub mod rules;
-pub mod refs;
+pub mod image;
+pub mod logfile;
+pub mod mft;
+pub mod mftmirr;
 pub mod monitor;
+pub mod output;
+pub mod refs;
+pub mod rewind;
+pub mod rules;
+pub mod usn;

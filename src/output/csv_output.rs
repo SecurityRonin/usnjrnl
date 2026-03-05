@@ -11,7 +11,7 @@ pub fn export_csv<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
     let mut wtr = csv::Writer::from_writer(writer);
 
     // Header matching MFTECmd format
-    wtr.write_record(&[
+    wtr.write_record([
         "UpdateTimestamp",
         "UpdateSequenceNumber",
         "EntryNumber",
@@ -37,8 +37,9 @@ pub fn export_csv<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
             .filter(|ext| ext.len() < r.filename.len())
             .unwrap_or("");
 
-        wtr.write_record(&[
-            r.timestamp.to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
+        wtr.write_record([
+            r.timestamp
+                .to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
             r.usn.to_string(),
             r.mft_entry.to_string(),
             r.mft_sequence.to_string(),
@@ -62,8 +63,8 @@ pub fn export_csv<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::{UsnRecord, UsnReason, FileAttributes};
     use crate::rewind::ResolvedRecord;
+    use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
 
     #[test]

@@ -1,7 +1,6 @@
 /// Sleuthkit bodyfile format output (pipe-delimited, used by mactime/log2timeline).
 ///
 /// Format: `0|full_path|mft_entry|0|0|0|file_size|atime|mtime|ctime|crtime`
-
 use std::io::Write;
 
 use anyhow::Result;
@@ -71,7 +70,11 @@ mod tests {
         export_body(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
         let fields: Vec<&str> = output.trim().split('|').collect();
-        assert_eq!(fields.len(), 11, "bodyfile must have 11 pipe-delimited fields");
+        assert_eq!(
+            fields.len(),
+            11,
+            "bodyfile must have 11 pipe-delimited fields"
+        );
         assert_eq!(fields[0], "0", "MD5 is always 0");
         assert_eq!(fields[1], ".\\temp\\test.exe", "full_path");
         assert_eq!(fields[2], "100", "mft_entry");
@@ -88,8 +91,22 @@ mod tests {
     #[test]
     fn test_body_multiple_records() {
         let resolved = vec![
-            make_record("a.txt", ".\\docs\\a.txt", ".\\docs", 10, 1700000000, UsnReason::FILE_CREATE),
-            make_record("b.log", ".\\logs\\b.log", ".\\logs", 20, 1700001000, UsnReason::DATA_EXTEND),
+            make_record(
+                "a.txt",
+                ".\\docs\\a.txt",
+                ".\\docs",
+                10,
+                1700000000,
+                UsnReason::FILE_CREATE,
+            ),
+            make_record(
+                "b.log",
+                ".\\logs\\b.log",
+                ".\\logs",
+                20,
+                1700001000,
+                UsnReason::DATA_EXTEND,
+            ),
         ];
         let mut buf = Vec::new();
         export_body(&resolved, &mut buf).unwrap();
@@ -118,7 +135,7 @@ mod tests {
     impl std::io::Write for FailWriter {
         fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
             if self.remaining == 0 {
-                return Err(std::io::Error::new(std::io::ErrorKind::Other, "write failed"));
+                return Err(std::io::Error::other("write failed"));
             }
             let n = buf.len().min(self.remaining);
             self.remaining -= n;
@@ -142,6 +159,24 @@ mod tests {
         let mut writer = FailWriter { remaining: 5 };
         let result = export_body(&resolved, &mut writer);
         assert!(result.is_err(), "Should propagate write error");
+    }
+
+    #[test]
+    fn test_body_write_error_immediate_fail() {
+        // Writer that fails on the very first write attempt, ensuring the
+        // writeln! formatting line (line 18) is covered when write_fmt fails
+        // immediately without accepting any bytes.
+        let resolved = vec![make_record(
+            "test.exe",
+            ".\\temp\\test.exe",
+            ".\\temp",
+            100,
+            1700000000,
+            UsnReason::FILE_CREATE,
+        )];
+        let mut writer = FailWriter { remaining: 0 };
+        let result = export_body(&resolved, &mut writer);
+        assert!(result.is_err(), "Should fail immediately on first write");
     }
 
     #[test]

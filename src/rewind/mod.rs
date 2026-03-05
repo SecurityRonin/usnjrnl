@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 
-use crate::usn::{UsnRecord, UsnReason};
+use crate::usn::{UsnReason, UsnRecord};
 
 /// Key for the rewind lookup table: (mft_entry, mft_sequence).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -37,7 +37,10 @@ impl EntryKey {
 
     /// The NTFS root directory is always entry 5, sequence 5.
     pub fn root() -> Self {
-        Self { entry: 5, sequence: 5 }
+        Self {
+            entry: 5,
+            sequence: 5,
+        }
     }
 
     pub fn is_root(&self) -> bool {
@@ -158,13 +161,16 @@ impl RewindEngine {
                 // the entry was renamed FROM this name TO something else.
                 // We want to record this as the name for this entry-sequence pair
                 // at this point in time.
-                self.lookup.insert(key, EntryInfo {
-                    name: record.filename.clone(),
-                    parent: parent_key,
-                });
-            } else if !self.lookup.contains_key(&key) {
+                self.lookup.insert(
+                    key,
+                    EntryInfo {
+                        name: record.filename.clone(),
+                        parent: parent_key,
+                    },
+                );
+            } else {
                 // First time seeing this entry-sequence going backwards = latest state
-                self.lookup.insert(key, EntryInfo {
+                self.lookup.entry(key).or_insert(EntryInfo {
                     name: record.filename.clone(),
                     parent: parent_key,
                 });
@@ -190,18 +196,24 @@ impl RewindEngine {
             // Update the forward lookup with what this record tells us
             if record.reason.contains(UsnReason::RENAME_NEW_NAME) {
                 // Entry was renamed to this name
-                forward_lookup.insert(key, EntryInfo {
-                    name: record.filename.clone(),
-                    parent: parent_key,
-                });
+                forward_lookup.insert(
+                    key,
+                    EntryInfo {
+                        name: record.filename.clone(),
+                        parent: parent_key,
+                    },
+                );
             } else if record.reason.contains(UsnReason::FILE_CREATE) {
                 // New entry created
-                forward_lookup.insert(key, EntryInfo {
-                    name: record.filename.clone(),
-                    parent: parent_key,
-                });
-            } else if !forward_lookup.contains_key(&key) {
-                forward_lookup.insert(key, EntryInfo {
+                forward_lookup.insert(
+                    key,
+                    EntryInfo {
+                        name: record.filename.clone(),
+                        parent: parent_key,
+                    },
+                );
+            } else {
+                forward_lookup.entry(key).or_insert(EntryInfo {
                     name: record.filename.clone(),
                     parent: parent_key,
                 });
@@ -257,8 +269,8 @@ impl Default for RewindEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::DateTime;
     use crate::usn::{FileAttributes, UsnReason};
+    use chrono::DateTime;
 
     fn make_record(
         entry: u64,
@@ -321,13 +333,17 @@ mod tests {
     #[test]
     fn test_rewind_simple_create() {
         // Scenario: file created at .\temp\malware.exe
-        let mut engine = RewindEngine::from_mft(vec![
-            (50, 1, "temp".into(), 5, 5),
-        ]);
+        let mut engine = RewindEngine::from_mft(vec![(50, 1, "temp".into(), 5, 5)]);
 
-        let records = vec![
-            make_record(100, 1, 50, 1, UsnReason::FILE_CREATE, "malware.exe", 100),
-        ];
+        let records = vec![make_record(
+            100,
+            1,
+            50,
+            1,
+            UsnReason::FILE_CREATE,
+            "malware.exe",
+            100,
+        )];
 
         let resolved = engine.rewind(&records);
         assert_eq!(resolved.len(), 1);
@@ -346,9 +362,7 @@ mod tests {
         // Without rewind, parent 983:4 would be UNKNOWN.
         // With rewind, we should resolve it to .\Intel\Drivers\ip_scanner
 
-        let mut engine = RewindEngine::from_mft(vec![
-            (30, 1, "Intel".into(), 5, 5),
-        ]);
+        let mut engine = RewindEngine::from_mft(vec![(30, 1, "Intel".into(), 5, 5)]);
 
         // Journal records (oldest to newest):
         // 1. Folder "Drivers" created at entry 500, seq 1, parent 30:1 (Intel)
@@ -369,7 +383,10 @@ mod tests {
         let resolved = engine.rewind(&records);
 
         // The data.txt create should resolve to .\Intel\Drivers\ip_scanner\data.txt
-        assert_eq!(resolved[2].full_path, ".\\Intel\\Drivers\\ip_scanner\\data.txt");
+        assert_eq!(
+            resolved[2].full_path,
+            ".\\Intel\\Drivers\\ip_scanner\\data.txt"
+        );
         // The new folder at entry 983 seq 6 should be .\NewFolder
         assert_eq!(resolved[5].full_path, ".\\NewFolder");
     }
@@ -512,9 +529,7 @@ mod tests {
 
     #[test]
     fn test_rewind_data_extend_and_truncation() {
-        let mut engine = RewindEngine::from_mft(vec![
-            (50, 1, "data".into(), 5, 5),
-        ]);
+        let mut engine = RewindEngine::from_mft(vec![(50, 1, "data".into(), 5, 5)]);
 
         let records = vec![
             make_record(100, 1, 50, 1, UsnReason::FILE_CREATE, "log.txt", 10),
@@ -542,7 +557,7 @@ mod tests {
             engine.insert(
                 EntryKey::new(entry_num, 1),
                 EntryInfo {
-                    name: format!("dir_{}", i),
+                    name: format!("dir_{i}"),
                     parent: EntryKey::new(parent_num, 1),
                 },
             );
@@ -552,8 +567,7 @@ mod tests {
         let path = engine.resolve_path(&EntryKey::new(1000, 1));
         assert!(
             path.contains("UNRESOLVED") || path.contains("UNKNOWN"),
-            "Should hit depth limit or reach unknown entry, got: {}",
-            path
+            "Should hit depth limit or reach unknown entry, got: {path}"
         );
     }
 
@@ -586,9 +600,15 @@ mod tests {
         );
 
         // Process a record whose parent is in the cycle
-        let records = vec![
-            make_record(400, 1, 100, 1, UsnReason::FILE_CREATE, "trapped.txt", 10),
-        ];
+        let records = vec![make_record(
+            400,
+            1,
+            100,
+            1,
+            UsnReason::FILE_CREATE,
+            "trapped.txt",
+            10,
+        )];
 
         let resolved = engine.rewind(&records);
         assert_eq!(resolved.len(), 1);
@@ -605,9 +625,7 @@ mod tests {
         // Test lines 204-206: forward_lookup doesn't have the key yet,
         // and the record is not a RENAME_NEW_NAME or FILE_CREATE.
         // This exercises the else branch in the forward pass.
-        let mut engine = RewindEngine::from_mft(vec![
-            (50, 1, "data".into(), 5, 5),
-        ]);
+        let mut engine = RewindEngine::from_mft(vec![(50, 1, "data".into(), 5, 5)]);
 
         let records = vec![
             // DATA_EXTEND is not RENAME_NEW_NAME nor FILE_CREATE
@@ -634,17 +652,26 @@ mod tests {
 
         let resolved = engine.rewind(&records);
         assert_eq!(resolved.len(), 1);
-        assert!(resolved[0].parent_path.contains("UNKNOWN(999:1)"),
-            "Parent should be UNKNOWN, got: {}", resolved[0].parent_path);
+        assert!(
+            resolved[0].parent_path.contains("UNKNOWN(999:1)"),
+            "Parent should be UNKNOWN, got: {}",
+            resolved[0].parent_path
+        );
     }
 
     #[test]
     fn test_resolve_path_from_standalone() {
         // Test the resolve_path_from function directly via rewind behavior
         let mut engine = RewindEngine::new();
-        let records = vec![
-            make_record(10, 1, 5, 5, UsnReason::FILE_CREATE, "root_file.txt", 10),
-        ];
+        let records = vec![make_record(
+            10,
+            1,
+            5,
+            5,
+            UsnReason::FILE_CREATE,
+            "root_file.txt",
+            10,
+        )];
 
         let resolved = engine.rewind(&records);
         assert_eq!(resolved.len(), 1);
