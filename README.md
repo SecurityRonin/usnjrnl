@@ -2,15 +2,18 @@
 
 [![Crates.io](https://img.shields.io/crates/v/usnjrnl-forensic.svg)](https://crates.io/crates/usnjrnl-forensic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-341-green.svg)](https://github.com/SecurityRonin/usnjrnl-forensic)
+[![Tests](https://img.shields.io/badge/tests-400-green.svg)](https://github.com/SecurityRonin/usnjrnl-forensic)
 
 The most comprehensive NTFS USN Journal forensic analysis tool. Period.
 
-`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates four NTFS artifacts to recover evidence missed by other tools, and detects attacker activity through built-in forensic rules.
+`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates four NTFS artifacts to recover evidence missed by other tools, and detects attacker activity through built-in forensic rules. It can open E01 forensic images directly — no manual extraction needed.
 
 ```
-$ usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --csv timeline.csv
+$ usnjrnl-forensic --image evidence.E01 --detect-timestomping --csv timeline.csv
 
+[*] Opening disk image: evidence.E01
+[*] Detected format: Ewf
+[+] Extracted $MFT, $MFTMirr, $LogFile, $UsnJrnl:$J
 [+] 847,293 USN records parsed
 [+] 112,448 MFT entries parsed
 [+] $MFTMirr is consistent with $MFT
@@ -26,6 +29,12 @@ $ usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --csv tim
 
 ```bash
 cargo install usnjrnl-forensic
+```
+
+To enable direct E01/raw disk image support:
+
+```bash
+cargo install usnjrnl-forensic --features image
 ```
 
 This gives you the `usnjrnl-forensic` binary. Runs on Windows, macOS, and Linux. No runtime dependencies.
@@ -57,7 +66,7 @@ engine.seed_from_mft(&mft_data);
 let resolved = engine.resolve_all(records);
 ```
 
-Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `rules`, `refs`, `monitor`, `output`.
+Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `rules`, `refs`, `monitor`, `image`, `output`.
 
 A reference implementation of the full CLI is included in the crate's `src/main.rs`.
 
@@ -66,36 +75,59 @@ A reference implementation of the full CLI is included in the crate's `src/main.
 ```bash
 git clone https://github.com/SecurityRonin/usnjrnl-forensic
 cd usnjrnl-forensic
-cargo build --release
+cargo build --release                   # without E01 support
+cargo build --release --features image  # with E01 support
 ```
 
 ## Usage
 
-### Basic: parse $UsnJrnl with MFT path resolution
+### From an E01 forensic image (recommended)
+
+Open an E01 image directly — all four NTFS artifacts are extracted and analyzed automatically:
+
+```bash
+usnjrnl-forensic --image evidence.E01 --csv timeline.csv
+```
+
+Keep the extracted artifacts for later use:
+
+```bash
+usnjrnl-forensic -i evidence.E01 --output-dir ./extracted --sqlite analysis.db
+```
+
+This also works with raw (dd) disk images:
+
+```bash
+usnjrnl-forensic --image disk.raw --csv output.csv
+```
+
+### From pre-extracted artifacts
+
+#### Basic: parse $UsnJrnl with MFT path resolution
 
 ```bash
 usnjrnl-forensic -j $J -m $MFT --csv output.csv
 ```
 
-### Full QuadLink analysis: correlate all four artifacts
+#### Full QuadLink analysis: correlate all four artifacts
 
 ```bash
 usnjrnl-forensic -j $J -m $MFT --mftmirr $MFTMirr --logfile $LogFile --sqlite analysis.db
 ```
 
-### Detect timestomping
+#### Detect timestomping
 
 ```bash
 usnjrnl-forensic -j $J -m $MFT --detect-timestomping
 ```
 
-### All output formats at once
+#### All output formats at once
 
 ```bash
 usnjrnl-forensic -j $J -m $MFT --csv out.csv --jsonl out.jsonl --sqlite out.db --body out.body --tln out.tln --xml out.xml
 ```
 
-### Journal-only mode (no MFT)
+#### Journal-only mode (no MFT)
 
 ```bash
 usnjrnl-forensic -j $J --csv output.csv
@@ -113,10 +145,12 @@ Every USN journal parser on the market has blind spots. MFTECmd produces "UNKNOW
 
 How `usnjrnl-forensic` compares against every notable USN journal tool, past and present.
 
-### Parsing & Filesystem Support
+### Input & Parsing
 
 | Feature | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
+| E01 image support | Yes | No | No | No | No | No | No |
+| Raw disk image support | Yes | No | No | No | No | No | No |
 | USN V2 parsing | Yes | Yes | Yes | Yes | Yes | Yes | Via MFTECmd |
 | USN V3 parsing | Yes | Yes | No | No | No | Yes | No |
 | USN V4 parsing | Yes | No | No | No | No | Yes | No |
@@ -177,9 +211,9 @@ How `usnjrnl-forensic` compares against every notable USN journal tool, past and
 
 | | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
-| **Feature count** | **23/23** | **6/23** | **4/23** | **5/23** | **6/23** | **7/23** | **3/23** |
+| **Feature count** | **25/25** | **6/25** | **4/25** | **5/25** | **6/25** | **7/25** | **3/25** |
 
-Feature count includes all rows from Parsing, Path Resolution, Forensic Detection, Performance, and Output sections. Partial/Basic counts as half.
+Feature count includes all rows from Input & Parsing, Path Resolution, Forensic Detection, Performance, and Output sections. Partial/Basic counts as half.
 
 ## Features
 
@@ -316,6 +350,12 @@ All formats include: timestamp, USN offset, MFT entry/sequence, parent entry/seq
 
 ```mermaid
 graph LR
+    E01["E01 / Raw Image"] --> IMG["Image Module<br/>EWF · MBR · GPT<br/>NTFS Detection"]
+    IMG --> J
+    IMG --> MFT
+    IMG --> LF
+    IMG --> Mirror
+
     J["$UsnJrnl:$J"] --> USN["USN Parser<br/>V2 / V3 / V4"]
     USN --> Rewind["Rewind Engine"]
     MFT["$MFT"] --> MFTP["MFT Parser"]
@@ -337,6 +377,7 @@ graph LR
 ```
 
 Modules:
+- `image`: E01/raw disk image opening, NTFS partition discovery, artifact extraction (optional `image` feature)
 - `usn`: Binary parsing of USN_RECORD_V2, V3, V4 with streaming and parallel modes
 - `mft`: $MFT entry extraction with SI/FN timestamp pairs
 - `rewind`: CyberCX Rewind algorithm for path reconstruction
@@ -357,7 +398,7 @@ See the full report: **[docs/VALIDATION.md](docs/VALIDATION.md)**
 
 ## Testing
 
-341 unit tests covering every module. Run with:
+400 unit tests covering every module. Run with:
 
 ```bash
 cargo test

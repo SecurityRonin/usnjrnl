@@ -1,7 +1,7 @@
 use std::io::BufWriter;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use clap::Parser;
 
 use usnjrnl_forensic::mft::MftData;
@@ -15,13 +15,14 @@ use usnjrnl_forensic::usn;
     long_about = "Parses $UsnJrnl:$J with optional $MFT correlation to reconstruct full file paths.\n\
                   Implements the CyberCX 'Rewind' algorithm for complete path resolution even when\n\
                   MFT entries have been reallocated. Supports V2/V3/V4 records, timestomping\n\
-                  detection, $MFTMirr integrity checks, and $LogFile gap analysis.",
+                  detection, $MFTMirr integrity checks, and $LogFile gap analysis.\n\n\
+                  Can directly open E01/raw disk images with --image (requires 'image' feature).",
     version
 )]
 struct Cli {
-    /// Path to raw $UsnJrnl:$J file
-    #[arg(short = 'j', long)]
-    journal: PathBuf,
+    /// Path to raw $UsnJrnl:$J file (not needed when using --image)
+    #[arg(short = 'j', long, required_unless_present = "image")]
+    journal: Option<PathBuf>,
 
     /// Path to raw $MFT file (enables full path resolution and rewind)
     #[arg(short = 'm', long)]
@@ -34,6 +35,14 @@ struct Cli {
     /// Path to $LogFile (enables gap detection)
     #[arg(long)]
     logfile: Option<PathBuf>,
+
+    /// Path to E01 or raw disk image (extracts all NTFS artifacts automatically)
+    #[arg(short = 'i', long, conflicts_with_all = ["journal", "mft", "mftmirr", "logfile"])]
+    image: Option<PathBuf>,
+
+    /// Directory to save extracted artifacts when using --image (default: temp dir)
+    #[arg(long)]
+    output_dir: Option<PathBuf>,
 
     /// Output CSV file
     #[arg(long)]
@@ -59,7 +68,7 @@ struct Cli {
     #[arg(long)]
     xml: Option<PathBuf>,
 
-    /// Detect timestomping (requires --mft)
+    /// Detect timestomping (requires --mft or --image)
     #[arg(long)]
     detect_timestomping: bool,
 
@@ -68,15 +77,36 @@ struct Cli {
     stats: bool,
 }
 
+/// Resolved artifact paths — either from CLI flags or extracted from a disk image.
+struct ArtifactPaths {
+    journal: PathBuf,
+    mft: Option<PathBuf>,
+    mftmirr: Option<PathBuf>,
+    logfile: Option<PathBuf>,
+}
+
 fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
 
+    // ─── Validate CLI constraints ────────────────────────────────────────────
+
+    if cli.output_dir.is_some() && cli.image.is_none() {
+        bail!("--output-dir can only be used with --image");
+    }
+
+    // ─── Resolve artifact paths ─────────────────────────────────────────────
+
+    let (_temp_dir, artifacts) = resolve_artifacts(&cli)?;
+
     // ─── Parse USN Journal ───────────────────────────────────────────────────
 
-    eprintln!("[*] Reading $UsnJrnl:$J from {}", cli.journal.display());
-    let usn_data = std::fs::read(&cli.journal)
-        .with_context(|| format!("Failed to read journal: {}", cli.journal.display()))?;
+    eprintln!(
+        "[*] Reading $UsnJrnl:$J from {}",
+        artifacts.journal.display()
+    );
+    let usn_data = std::fs::read(&artifacts.journal)
+        .with_context(|| format!("Failed to read journal: {}", artifacts.journal.display()))?;
     eprintln!(
         "[*] Journal size: {} bytes ({:.1} MB)",
         usn_data.len(),
@@ -94,7 +124,7 @@ fn main() -> Result<()> {
 
     // ─── Parse MFT (optional) ────────────────────────────────────────────────
 
-    let mft_data = if let Some(ref mft_path) = cli.mft {
+    let mft_data = if let Some(ref mft_path) = artifacts.mft {
         eprintln!("[*] Reading $MFT from {}", mft_path.display());
         let raw = std::fs::read(mft_path)
             .with_context(|| format!("Failed to read MFT: {}", mft_path.display()))?;
@@ -137,7 +167,7 @@ fn main() -> Result<()> {
 
     // ─── MFTMirr integrity check ─────────────────────────────────────────────
 
-    if let (Some(ref mft_path), Some(ref mirr_path)) = (&cli.mft, &cli.mftmirr) {
+    if let (Some(ref mft_path), Some(ref mirr_path)) = (&artifacts.mft, &artifacts.mftmirr) {
         eprintln!("[*] Checking $MFTMirr integrity...");
         let mft_raw = std::fs::read(mft_path)?;
         let mirr_raw = std::fs::read(mirr_path)
@@ -163,7 +193,7 @@ fn main() -> Result<()> {
 
     // ─── LogFile analysis + USN extraction ──────────────────────────────────
 
-    let logfile_usn_records = if let Some(ref logfile_path) = cli.logfile {
+    let logfile_usn_records = if let Some(ref logfile_path) = artifacts.logfile {
         eprintln!("[*] Analyzing $LogFile...");
         let log_raw = std::fs::read(logfile_path)
             .with_context(|| format!("Failed to read $LogFile: {}", logfile_path.display()))?;
@@ -355,10 +385,88 @@ fn main() -> Result<()> {
 
     if !has_output {
         eprintln!("\n[*] No output format specified. Use --csv, --jsonl, --sqlite, --body, --tln, or --xml.");
-        eprintln!("[*] Example: usnjrnl -j $J -m $MFT --csv output.csv");
+        eprintln!("[*] Example: usnjrnl-forensic -j $J -m $MFT --csv output.csv");
+        eprintln!("[*] Example: usnjrnl-forensic --image evidence.E01 --csv output.csv");
     }
 
     Ok(())
+}
+
+/// Resolve artifact paths: either from direct CLI flags or by extracting from a disk image.
+///
+/// Returns an optional `TempDir` handle (kept alive to prevent cleanup when using a temp dir)
+/// and the resolved paths.
+fn resolve_artifacts(cli: &Cli) -> Result<(Option<tempfile::TempDir>, ArtifactPaths)> {
+    if let Some(ref image_path) = cli.image {
+        resolve_from_image(image_path, cli.output_dir.as_deref())
+    } else {
+        // Direct artifact mode — journal is guaranteed present by clap's required_unless_present
+        Ok((
+            None,
+            ArtifactPaths {
+                journal: cli.journal.clone().unwrap(),
+                mft: cli.mft.clone(),
+                mftmirr: cli.mftmirr.clone(),
+                logfile: cli.logfile.clone(),
+            },
+        ))
+    }
+}
+
+/// Extract NTFS artifacts from a disk image and return their paths.
+#[cfg(feature = "image")]
+fn resolve_from_image(
+    image_path: &std::path::Path,
+    output_dir: Option<&std::path::Path>,
+) -> Result<(Option<tempfile::TempDir>, ArtifactPaths)> {
+    eprintln!("[*] Opening disk image: {}", image_path.display());
+
+    let format = usnjrnl_forensic::image::ImageFormat::detect(image_path)
+        .with_context(|| format!("Failed to read image: {}", image_path.display()))?;
+    eprintln!("[*] Detected format: {:?}", format);
+
+    // Determine output directory: user-specified or temp
+    let (temp_dir, extract_dir) = if let Some(dir) = output_dir {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("Failed to create output dir: {}", dir.display()))?;
+        eprintln!("[*] Extracting artifacts to {}", dir.display());
+        (None, dir.to_path_buf())
+    } else {
+        let td = tempfile::TempDir::new().context("Failed to create temp directory")?;
+        eprintln!("[*] Extracting artifacts to {}", td.path().display());
+        let path = td.path().to_path_buf();
+        (Some(td), path)
+    };
+
+    let extracted = usnjrnl_forensic::image::extract_artifacts(image_path, &extract_dir)
+        .context("Failed to extract NTFS artifacts from disk image")?;
+
+    eprintln!("[+] Extracted $MFT:      {}", extracted.mft.display());
+    eprintln!("[+] Extracted $MFTMirr:  {}", extracted.mftmirr.display());
+    eprintln!("[+] Extracted $LogFile:  {}", extracted.logfile.display());
+    eprintln!("[+] Extracted $UsnJrnl:  {}", extracted.usnjrnl.display());
+
+    Ok((
+        temp_dir,
+        ArtifactPaths {
+            journal: extracted.usnjrnl,
+            mft: Some(extracted.mft),
+            mftmirr: Some(extracted.mftmirr),
+            logfile: Some(extracted.logfile),
+        },
+    ))
+}
+
+/// Stub when the `image` feature is not enabled — gives a clear compile-time-safe error.
+#[cfg(not(feature = "image"))]
+fn resolve_from_image(
+    _image_path: &std::path::Path,
+    _output_dir: Option<&std::path::Path>,
+) -> Result<(Option<tempfile::TempDir>, ArtifactPaths)> {
+    bail!(
+        "Disk image support requires the 'image' feature.\n\
+         Rebuild with: cargo build --release --features image"
+    );
 }
 
 fn print_reason_stats(records: &[usn::UsnRecord]) {
@@ -451,5 +559,80 @@ mod tests {
         assert!(cli.body.is_none());
         assert!(cli.tln.is_none());
         assert!(cli.xml.is_none());
+    }
+
+    // ─── --image CLI tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_cli_accepts_image_flag() {
+        let cli =
+            Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "--csv", "out.csv"])
+                .unwrap();
+        assert_eq!(cli.image, Some(PathBuf::from("evidence.E01")));
+        assert!(cli.journal.is_none());
+    }
+
+    #[test]
+    fn test_cli_image_short_flag() {
+        let cli =
+            Cli::try_parse_from(["usnjrnl", "-i", "evidence.E01", "--csv", "out.csv"]).unwrap();
+        assert_eq!(cli.image, Some(PathBuf::from("evidence.E01")));
+    }
+
+    #[test]
+    fn test_cli_image_with_output_dir() {
+        let cli = Cli::try_parse_from([
+            "usnjrnl",
+            "--image",
+            "evidence.E01",
+            "--output-dir",
+            "/tmp/artifacts",
+            "--csv",
+            "out.csv",
+        ])
+        .unwrap();
+        assert_eq!(cli.image, Some(PathBuf::from("evidence.E01")));
+        assert_eq!(cli.output_dir, Some(PathBuf::from("/tmp/artifacts")));
+    }
+
+    #[test]
+    fn test_cli_image_conflicts_with_journal() {
+        let result = Cli::try_parse_from([
+            "usnjrnl",
+            "--image",
+            "evidence.E01",
+            "-j",
+            "journal.bin",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cli_image_conflicts_with_mft() {
+        let result =
+            Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "-m", "mft.bin"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cli_output_dir_parses_with_journal() {
+        // --output-dir parses successfully with --journal (runtime validation rejects it)
+        let cli = Cli::try_parse_from([
+            "usnjrnl",
+            "-j",
+            "test.bin",
+            "--output-dir",
+            "/tmp/artifacts",
+        ])
+        .unwrap();
+        // Validation would reject at runtime: --output-dir requires --image
+        assert!(cli.output_dir.is_some());
+        assert!(cli.image.is_none());
+    }
+
+    #[test]
+    fn test_cli_requires_journal_or_image() {
+        let result = Cli::try_parse_from(["usnjrnl", "--csv", "out.csv"]);
+        assert!(result.is_err());
     }
 }

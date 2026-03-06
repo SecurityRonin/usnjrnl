@@ -41,6 +41,9 @@ env_logger = "0.11"
 # SQLite output
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+# Temp directory for image extraction
+tempfile = "3"
+
 # Disk image support (optional, MIT-licensed)
 ewf = { version = "0.1", optional = true }
 ntfs = { version = "0.4", optional = true }
@@ -50,4 +53,3 @@ default = []
 image = ["ewf", "ntfs"]
 
 [dev-dependencies]
-tempfile = "3"
