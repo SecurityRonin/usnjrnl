@@ -70,6 +70,10 @@ struct Cli {
     #[arg(long)]
     xml: Option<PathBuf>,
 
+    /// Output HTML triage report
+    #[arg(long)]
+    report: Option<PathBuf>,
+
     /// Detect timestomping (requires --mft or --image)
     #[arg(long)]
     detect_timestomping: bool,
@@ -236,6 +240,13 @@ fn main() -> Result<()> {
 
     // ─── Unallocated space carving (optional) ─────────────────────────────────
 
+    let mut carved_usn_count: usize = 0;
+    let mut carved_mft_count: usize = 0;
+    let mut carving_bytes_scanned: u64 = 0;
+    let mut carving_chunks: u64 = 0;
+    let mut carving_usn_dupes: u64 = 0;
+    let mut carving_mft_dupes: u64 = 0;
+
     let mut records = records;
     let carved_mft_entries = if cli.carve_unallocated {
         if let Some(ref image_path) = cli.image {
@@ -257,8 +268,15 @@ fn main() -> Result<()> {
                 carve_results.stats.mft_duplicates_removed,
             );
 
+            // Capture carving stats for report
+            carved_usn_count = carve_results.usn_records.len();
+            carved_mft_count = carve_results.mft_entries.len();
+            carving_bytes_scanned = carve_results.stats.bytes_scanned;
+            carving_chunks = carve_results.stats.chunks_processed;
+            carving_usn_dupes = carve_results.stats.usn_duplicates_removed as u64;
+            carving_mft_dupes = carve_results.stats.mft_duplicates_removed as u64;
+
             // Merge carved USN records into the record list
-            let carved_usn_count = carve_results.usn_records.len();
             records.extend(carve_results.usn_records.into_iter().map(|c| c.record));
             records.sort_by_key(|r| r.usn);
 
@@ -321,6 +339,8 @@ fn main() -> Result<()> {
 
     // ─── TriForce Correlation ───────────────────────────────────────────────
 
+    let mut ghost_records_for_report: Vec<usnjrnl_forensic::correlation::GhostRecord> = Vec::new();
+
     if !logfile_usn_records.is_empty() || mft_data.is_some() {
         eprintln!("[*] Running TriForce correlation (MFT + LogFile + UsnJrnl)...");
         let correlation = usnjrnl_forensic::correlation::CorrelationEngine::new();
@@ -349,7 +369,9 @@ fn main() -> Result<()> {
         );
 
         if report.ghost_record_count > 0 {
-            let ghosts = correlation.find_ghost_records(&records, &logfile_usn_records);
+            ghost_records_for_report =
+                correlation.find_ghost_records(&records, &logfile_usn_records);
+            let ghosts = &ghost_records_for_report;
 
             eprintln!(
                 "[+] {} ghost records found in $LogFile (not present in $UsnJrnl)",
@@ -393,7 +415,8 @@ fn main() -> Result<()> {
         || cli.sqlite.is_some()
         || cli.body.is_some()
         || cli.tln.is_some()
-        || cli.xml.is_some();
+        || cli.xml.is_some()
+        || cli.report.is_some();
 
     if let Some(ref csv_path) = cli.csv {
         eprintln!("[*] Writing CSV to {}", csv_path.display());
@@ -446,10 +469,65 @@ fn main() -> Result<()> {
         eprintln!("[+] XML export complete");
     }
 
+    if let Some(ref report_path) = cli.report {
+        eprintln!("[*] Running forensic analysis for triage report...");
+        let timestomping_indicators = usnjrnl_forensic::analysis::detect_timestomping(&records);
+        let secure_deletion_indicators =
+            usnjrnl_forensic::analysis::detect_secure_deletion(&records);
+        let ransomware_indicators =
+            usnjrnl_forensic::analysis::detect_ransomware_patterns(&records);
+        let journal_clearing_result = usnjrnl_forensic::analysis::detect_journal_clearing(&records);
+
+        let image_name = cli
+            .image
+            .as_ref()
+            .map(|p| {
+                p.file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            })
+            .unwrap_or_else(|| {
+                cli.journal
+                    .as_ref()
+                    .map(|p| {
+                        p.file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string()
+                    })
+                    .unwrap_or_else(|| "unknown".to_string())
+            });
+
+        let questions = usnjrnl_forensic::triage::queries::builtin_questions();
+        let report_input = usnjrnl_forensic::output::report::ReportInput {
+            image_name: &image_name,
+            resolved: &resolved,
+            mft_data: mft_data.as_ref(),
+            timestomping: &timestomping_indicators,
+            secure_deletion: &secure_deletion_indicators,
+            ransomware: &ransomware_indicators,
+            journal_clearing: &journal_clearing_result,
+            ghost_records: &ghost_records_for_report,
+            carved_usn_count,
+            carved_mft_count,
+            carving_bytes_scanned,
+            carving_chunks,
+            carving_usn_dupes,
+            carving_mft_dupes,
+        };
+        let report_data =
+            usnjrnl_forensic::output::report::build_report_data(&report_input, &questions);
+        let file = std::fs::File::create(report_path)?;
+        let mut writer = BufWriter::new(file);
+        usnjrnl_forensic::output::report::export_report(&report_data, &mut writer)?;
+        eprintln!("[+] Triage report written to {}", report_path.display());
+    }
+
     if !has_output {
-        eprintln!("\n[*] No output format specified. Use --csv, --jsonl, --sqlite, --body, --tln, or --xml.");
+        eprintln!("\n[*] No output format specified. Use --csv, --jsonl, --sqlite, --body, --tln, --xml, or --report.");
         eprintln!("[*] Example: usnjrnl-forensic -j $J -m $MFT --csv output.csv");
-        eprintln!("[*] Example: usnjrnl-forensic --image evidence.E01 --csv output.csv");
+        eprintln!("[*] Example: usnjrnl-forensic --image evidence.E01 --report triage.html");
     }
 
     Ok(())
