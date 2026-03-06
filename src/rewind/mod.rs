@@ -846,15 +846,7 @@ mod tests {
         // Carved USN records: malware.exe created under the deleted Temp dir
         let carved_usn = vec![CarvedRecord {
             offset: 50000,
-            record: make_record(
-                500,
-                1,
-                30,
-                1,
-                UsnReason::FILE_CREATE,
-                "malware.exe",
-                99999,
-            ),
+            record: make_record(500, 1, 30, 1, UsnReason::FILE_CREATE, "malware.exe", 99999),
         }];
 
         // Merge carved USN records into the record list (simulating main.rs logic)
@@ -864,8 +856,7 @@ mod tests {
         let resolved = engine.rewind(&all_records);
         assert_eq!(resolved.len(), 1);
         assert_eq!(
-            resolved[0].full_path,
-            ".\\Users\\admin\\Temp\\malware.exe",
+            resolved[0].full_path, ".\\Users\\admin\\Temp\\malware.exe",
             "Carved USN record should resolve via carved MFT directory tree"
         );
     }
