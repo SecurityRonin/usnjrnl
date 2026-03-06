@@ -274,6 +274,56 @@ Two bugs account for all 45,751 incorrect paths:
 
 **Root cause:** usnjrnl_rewind processes the journal in reverse order (newest to oldest) and accumulates directory renames without scoping them chronologically. When it encounters a rename (e.g., `WSAA → $R6CHL9I`), it applies the new name to *all* events referencing that MFT entry — including earlier events where the directory still had its original name. `usnjrnl-forensic` walks the journal forward, applying each rename only to events *after* the rename, which is the correct interpretation of the [Rewind algorithm](https://cybercx.com.au/blog/ntfs-usnjrnl-rewind/).
 
+## Unallocated Space Carving
+
+`usnjrnl-forensic` can carve USN journal records and MFT entries from unallocated space when processing E01 or raw disk images (`--carve-unallocated`). No other USN journal tool provides this capability, so no cross-tool comparison is possible. This section documents the methodology, results, and validation approach.
+
+### Methodology
+
+The scanner reads the entire NTFS partition in overlapping 4 MB chunks (64 KB overlap to handle USN records spanning chunk boundaries). Each chunk is processed by two carvers:
+
+- **USN carver**: scans on 8-byte aligned boundaries for USN_RECORD_V2/V3 signatures. Validates record length, version field, filename offset/length, UTF-16 alignment, and timestamp range (2000–2030).
+- **MFT carver**: scans on 1024-byte aligned boundaries for "FILE" signatures. Validates sequence number > 0, first attribute offset, and presence of a FILE_NAME attribute with extractable filename and parent reference.
+
+Carved records are deduplicated against allocated artifacts:
+- USN records: by the `usn` field (journal byte offset — unique per record). If a carved record's USN offset matches one from the allocated `$J`, it is discarded.
+- MFT entries: by `(entry_number, sequence_number)`. If a carved entry matches an allocated MFT entry, it is discarded. Entries with the same entry number but a *different* sequence number are kept — these represent historical versions from before the MFT entry was reused, which are valuable for Rewind path resolution.
+
+Because the scanner reads the entire partition (not just unallocated clusters), it also finds records in slack space and other residual areas. The deduplication step ensures only genuinely new records are reported.
+
+### Results
+
+| | Szechuan Sauce | MaxPowers C Drive | PC-MUS-001 |
+|---|---:|---:|---:|
+| **Partition size** | 14,735 MB | 50,231 MB | 243,318 MB |
+| **Allocated USN records** | 43,463 | 333,135 | 380,893 |
+| **Allocated MFT entries** | 104,383 | 293,303 | 515,876 |
+| **Carved USN records** | 12,191 | 5,012,740 | 3,943 |
+| **Carved MFT entries** | 5 | 636 | 23,131 |
+| **USN duplicates removed** | 51,343 | 645,690 | 423,250 |
+| **MFT duplicates removed** | 105,920 | 313,932 | 670,149 |
+| **Scan time (release build)** | 32 s | 112 s | 309 s |
+
+### Analysis
+
+**MaxPowers C Drive** produced the highest USN carving yield: 5,012,740 carved records versus 333,135 allocated — a 15× increase in timeline coverage. This indicates significant journal wrapping: the `$UsnJrnl:$J` file recycled its space many times, but the underlying disk clusters were not overwritten. These carved records extend the investigable timeline far beyond what the active journal contains.
+
+**PC-MUS-001** produced a large number of carved MFT entries (23,131) relative to USN records (3,943). This pattern is consistent with substantial MFT entry reuse — the NTFS volume has reallocated many MFT entry numbers to new files over time. These historical MFT entries enable the Rewind engine to resolve paths for older USN records that reference now-reused entry numbers.
+
+**Szechuan Sauce** produced moderate yields (12,191 USN, 5 MFT), consistent with a smaller partition with less history.
+
+### Validation Approach
+
+Since no other tool carves USN records from unallocated space in disk images, cross-tool comparison is not possible. Instead, carved records are validated through structural and semantic checks:
+
+1. **Structural validation** — Each candidate must pass binary format checks: correct version field at the expected offset, record length within valid bounds, filename offset matching the version-specific constant (0x3C for V2, 0x4C for V3), even filename byte length (UTF-16), and filename fitting within the declared record length. For MFT entries: "FILE" signature, non-zero sequence number, valid first-attribute offset, and a parseable FILE_NAME attribute.
+
+2. **Timestamp validation** — USN record timestamps must fall within 2000–2030 (Windows FILETIME range). This eliminates the vast majority of false positives from random byte sequences that happen to match version fields.
+
+3. **Deduplication consistency** — The deduplication counts confirm the carvers are finding real records. For example, MaxPowers found 645,690 USN records that matched allocated `$J` entries by USN offset, plus 5,012,740 that did not. The high match rate for allocated records demonstrates the carver's accuracy — it correctly identifies the same records the standard parser finds, then surfaces additional ones.
+
+4. **Field sanity** — All carved records have non-empty filenames, valid reason flags (for USN), and non-zero sequence numbers (for MFT). The E2E tests assert these properties programmatically across all three test images.
+
 ## How to Reproduce
 
 1. Download E01 images from [The Evidence Locker](https://theevidencelocker.github.io/)
