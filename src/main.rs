@@ -565,9 +565,8 @@ mod tests {
 
     #[test]
     fn test_cli_accepts_image_flag() {
-        let cli =
-            Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "--csv", "out.csv"])
-                .unwrap();
+        let cli = Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "--csv", "out.csv"])
+            .unwrap();
         assert_eq!(cli.image, Some(PathBuf::from("evidence.E01")));
         assert!(cli.journal.is_none());
     }
@@ -597,20 +596,14 @@ mod tests {
 
     #[test]
     fn test_cli_image_conflicts_with_journal() {
-        let result = Cli::try_parse_from([
-            "usnjrnl",
-            "--image",
-            "evidence.E01",
-            "-j",
-            "journal.bin",
-        ]);
+        let result =
+            Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "-j", "journal.bin"]);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_cli_image_conflicts_with_mft() {
-        let result =
-            Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "-m", "mft.bin"]);
+        let result = Cli::try_parse_from(["usnjrnl", "--image", "evidence.E01", "-m", "mft.bin"]);
         assert!(result.is_err());
     }
 
