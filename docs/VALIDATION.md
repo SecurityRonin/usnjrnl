@@ -188,9 +188,9 @@ Across 757,491 records from three real forensic images:
 ```mermaid
 xychart-beta
     title "Correct Full Path Resolution Rate (%) — 757,491 records across 3 images"
-    x-axis ["usnjrnl-forensic", "usnjrnl_rewind", "MFTECmd", "dfir_ntfs", "usnrs", "usn.py"]
+    x-axis ["usnjrnl-forensic", "usnjrnl_rewind", "MFTECmd", "dfir_ntfs", "usnrs"]
     y-axis "Resolution Rate (%)" 0 --> 100
-    bar [100, 94.0, 83.7, 62.3, 54.6, 0]
+    bar [100, 94.0, 83.7, 62.3, 54.6]
 ```
 
 #### Examples
