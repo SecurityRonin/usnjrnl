@@ -4,6 +4,8 @@
 //! sequence numbers, filenames, and parent references needed for the
 //! Rewind engine and timestomping detection.
 
+pub mod carver;
+
 use std::collections::HashMap;
 
 use anyhow::Result;

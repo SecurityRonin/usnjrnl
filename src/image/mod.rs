@@ -3,6 +3,8 @@
 //! Supports opening E01 (Expert Witness Format) disk images and extracting
 //! NTFS forensic artifacts: $MFT, $UsnJrnl:$J, $LogFile, and $MFTMirr.
 
+pub mod unallocated;
+
 use anyhow::{bail, Result};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};

@@ -72,6 +72,10 @@ struct Cli {
     #[arg(long)]
     detect_timestomping: bool,
 
+    /// Carve USN records and MFT entries from unallocated space (requires --image)
+    #[arg(long)]
+    carve_unallocated: bool,
+
     /// Show statistics summary
     #[arg(long, default_value_t = true)]
     stats: bool,
@@ -93,6 +97,10 @@ fn main() -> Result<()> {
 
     if cli.output_dir.is_some() && cli.image.is_none() {
         bail!("--output-dir can only be used with --image");
+    }
+
+    if cli.carve_unallocated && cli.image.is_none() {
+        bail!("--carve-unallocated can only be used with --image");
     }
 
     // ─── Resolve artifact paths ─────────────────────────────────────────────
@@ -627,5 +635,28 @@ mod tests {
     fn test_cli_requires_journal_or_image() {
         let result = Cli::try_parse_from(["usnjrnl", "--csv", "out.csv"]);
         assert!(result.is_err());
+    }
+
+    // ─── --carve-unallocated CLI tests ──────────────────────────────────────
+
+    #[test]
+    fn test_cli_accepts_carve_unallocated_with_image() {
+        let cli = Cli::try_parse_from([
+            "usnjrnl",
+            "--image",
+            "evidence.E01",
+            "--carve-unallocated",
+            "--csv",
+            "out.csv",
+        ])
+        .unwrap();
+        assert!(cli.carve_unallocated);
+        assert!(cli.image.is_some());
+    }
+
+    #[test]
+    fn test_cli_carve_unallocated_defaults_false() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--csv", "out.csv"]).unwrap();
+        assert!(!cli.carve_unallocated);
     }
 }
