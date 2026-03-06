@@ -856,4 +856,43 @@ mod tests {
         let cli = Cli::try_parse_from(["usnjrnl", "-j", "test.bin", "--csv", "out.csv"]).unwrap();
         assert!(!cli.carve_unallocated);
     }
+
+    // ─── --report CLI tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_cli_accepts_report_flag() {
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", "$J", "--report", "triage.html"]).unwrap();
+        assert_eq!(cli.report.unwrap().to_str().unwrap(), "triage.html");
+    }
+
+    #[test]
+    fn test_cli_report_with_image_and_carve() {
+        let cli = Cli::try_parse_from([
+            "usnjrnl",
+            "--image",
+            "evidence.E01",
+            "--carve-unallocated",
+            "--report",
+            "triage.html",
+        ])
+        .unwrap();
+        assert!(cli.report.is_some());
+        assert!(cli.carve_unallocated);
+    }
+
+    #[test]
+    fn test_cli_report_alongside_other_outputs() {
+        let cli = Cli::try_parse_from([
+            "usnjrnl",
+            "-j",
+            "test.bin",
+            "--csv",
+            "out.csv",
+            "--report",
+            "triage.html",
+        ])
+        .unwrap();
+        assert!(cli.csv.is_some());
+        assert!(cli.report.is_some());
+    }
 }
