@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/usnjrnl-forensic.svg)](https://crates.io/crates/usnjrnl-forensic)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-445-green.svg)](https://github.com/SecurityRonin/usnjrnl-forensic)
+[![Tests](https://img.shields.io/badge/tests-483-green.svg)](https://github.com/SecurityRonin/usnjrnl-forensic)
 [![Sponsor](https://img.shields.io/badge/sponsor-h4x0r-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/h4x0r)
 
 The most comprehensive NTFS USN Journal forensic analysis tool. Period.
@@ -49,7 +49,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-usnjrnl-forensic = "0.1"
+usnjrnl-forensic = "0.6"
 ```
 
 Then use it in your code:
@@ -70,7 +70,7 @@ engine.seed_from_mft(&mft_data);
 let resolved = engine.resolve_all(records);
 ```
 
-Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `rules`, `refs`, `monitor`, `image`, `output`.
+Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `triage`, `rules`, `refs`, `monitor`, `image`, `output`.
 
 A reference implementation of the full CLI is included in the crate's `src/main.rs`.
 
@@ -218,6 +218,7 @@ How `usnjrnl-forensic` compares against every notable USN journal tool, past and
 | Sleuthkit body | Yes | Yes | No | No | No | No | No |
 | TLN | Yes | No | No | No | No | No | No |
 | XML | Yes | No | No | No | No | No | No |
+| HTML Report | Yes | No | No | No | No | No | No |
 
 ### Platform & Implementation
 
@@ -232,7 +233,7 @@ How `usnjrnl-forensic` compares against every notable USN journal tool, past and
 
 | | usnjrnl-forensic | MFTECmd | ANJP | ntfs-linker | NTFS Log Tracker | dfir_ntfs | CyberCX Rewind |
 |---------|:-------:|:-------:|:----:|:-----------:|:----------------:|:---------:|:--------------:|
-| **Feature count** | **26/26** | **6/26** | **4/26** | **5/26** | **6/26** | **7/26** | **3/26** |
+| **Feature count** | **27/27** | **6/27** | **4/27** | **5/27** | **6/27** | **7/27** | **3/27** |
 
 Feature count includes all rows from Input & Parsing, Path Resolution, Forensic Detection, Performance, and Output sections. Partial/Basic counts as half.
 
@@ -414,6 +415,10 @@ graph LR
     MFTC --> Rewind
     Rewind --> Resolved["Resolved Records"]
     Resolved --> Output["Output<br/>CSV · JSONL · SQLite<br/>Body · TLN · XML"]
+    Resolved --> Triage["Triage Engine<br/>12 IR Questions"]
+    Triage --> HTMLReport["HTML Report<br/>Story · Explore"]
+    Analysis --> HTMLReport
+    Corr --> HTMLReport
     Resolved --> Rules["Rule Engine"]
     Resolved --> Analysis["Analysis<br/>SDelete · Ransomware<br/>Timestomping"]
 
@@ -437,10 +442,11 @@ Modules:
 - `mftmirr`: $MFTMirr integrity verification
 - `correlation`: QuadLink engine linking all four artifacts
 - `analysis`: Anti-forensics detection (secure delete, ransomware, timestomping, journal clearing)
+- `triage`: Rapid IR triage engine with 12 built-in business-oriented questions and source-aware filtering
 - `rules`: Pattern-matching rule engine with glob, regex, and reason flag conditions
 - `refs`: ReFS 128-bit file ID handling
 - `monitor`: Real-time journal polling abstraction
-- `output`: CSV, JSONL, SQLite, Sleuthkit body, TLN, XML exporters
+- `output`: CSV, JSONL, SQLite, Sleuthkit body, TLN, XML, and HTML triage report exporters
 
 ## Validation
 
@@ -450,7 +456,7 @@ See the full report: **[docs/VALIDATION.md](docs/VALIDATION.md)**
 
 ## Testing
 
-445 unit tests covering every module. Run with:
+483 tests (unit + integration) covering every module. Run with:
 
 ```bash
 cargo test
