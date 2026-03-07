@@ -883,10 +883,10 @@ mod tests {
         struct FailWriter;
         impl std::io::Write for FailWriter {
             fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-                Err(std::io::Error::new(std::io::ErrorKind::Other, "disk full"))
+                Err(std::io::Error::other("disk full"))
             }
             fn flush(&mut self) -> std::io::Result<()> {
-                Err(std::io::Error::new(std::io::ErrorKind::Other, "disk full"))
+                Err(std::io::Error::other("disk full"))
             }
         }
 

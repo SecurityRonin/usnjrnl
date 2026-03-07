@@ -493,7 +493,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 2, "carved + ghost should match");
     }
@@ -539,7 +539,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits, "prefetch creation should be detected");
         assert_eq!(results[0].hit_count, 2);
     }
@@ -565,7 +565,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(
             results[0].hit_count, 1,
@@ -593,7 +593,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(
             results[0].hit_count, 1,
@@ -622,7 +622,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(
             results[0].hit_count, 2,
@@ -651,7 +651,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 1, "only ADS operation should match");
     }
@@ -677,7 +677,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(
             results[0].hit_count, 1,
@@ -706,7 +706,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![0]);
@@ -733,7 +733,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 1);
     }
@@ -759,7 +759,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![0]);
@@ -786,7 +786,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![0]);
@@ -813,7 +813,7 @@ mod tests {
             ),
         ];
 
-        let results = run_triage(&[q.clone()], &records);
+        let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![0]);
