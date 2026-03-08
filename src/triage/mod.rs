@@ -1112,6 +1112,600 @@ mod tests {
         );
     }
 
+    // ─── FN reduction: expanded reason flags ─────────────────────────────
+
+    #[test]
+    fn test_malware_deployed_catches_rename_new_name() {
+        // Malware often appears via RENAME_NEW_NAME when files are moved
+        // into suspicious directories (e.g. temp extraction, sideloading).
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "malware_deployed")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\Temp\dropper.exe",
+            "dropper.exe",
+            UsnReason::RENAME_NEW_NAME,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "RENAME_NEW_NAME exe in Temp should trigger malware_deployed"
+        );
+    }
+
+    #[test]
+    fn test_malware_deployed_catches_security_change() {
+        // SECURITY_CHANGE on executables in suspicious dirs can indicate
+        // permission escalation or ownership transfer after drop.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "malware_deployed")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\ProgramData\implant.dll",
+            "implant.dll",
+            UsnReason::SECURITY_CHANGE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "SECURITY_CHANGE dll in ProgramData should trigger malware_deployed"
+        );
+    }
+
+    #[test]
+    fn test_data_staging_catches_rename_new_name() {
+        // Archives moved to staging directories via rename.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "data_staging")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Desktop\exfil.zip",
+            "exfil.zip",
+            UsnReason::RENAME_NEW_NAME,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "RENAME_NEW_NAME zip on Desktop should trigger data_staging"
+        );
+    }
+
+    #[test]
+    fn test_data_staging_catches_file_delete() {
+        // Archive deleted after exfiltration — still relevant staging evidence.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "data_staging")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Downloads\loot.rar",
+            "loot.rar",
+            UsnReason::FILE_DELETE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "FILE_DELETE rar in Downloads should trigger data_staging"
+        );
+    }
+
+    #[test]
+    fn test_sensitive_data_catches_file_create() {
+        // Sensitive files being created (e.g. copied/extracted) is relevant.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "sensitive_data")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Documents\secrets.docx",
+            "secrets.docx",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "FILE_CREATE docx in Documents should trigger sensitive_data"
+        );
+    }
+
+    #[test]
+    fn test_sensitive_data_catches_rename_new_name() {
+        // Sensitive files moved to new location (staging for exfil).
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "sensitive_data")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Desktop\financials.xlsx",
+            "financials.xlsx",
+            UsnReason::RENAME_NEW_NAME,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "RENAME_NEW_NAME xlsx on Desktop should trigger sensitive_data"
+        );
+    }
+
+    #[test]
+    fn test_sensitive_data_catches_file_delete() {
+        // Sensitive file deletion — potential evidence destruction.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "sensitive_data")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Documents\passwords.kdbx",
+            "passwords.kdbx",
+            UsnReason::FILE_DELETE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "FILE_DELETE kdbx in Documents should trigger sensitive_data"
+        );
+    }
+
+    #[test]
+    fn test_sensitive_data_catches_zip_and_lnk() {
+        // Archives and shortcuts to sensitive files are relevant indicators.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "sensitive_data")
+            .unwrap();
+
+        let records = vec![
+            make_resolved(
+                r".\Users\admin\Desktop\data.zip",
+                "data.zip",
+                UsnReason::FILE_CREATE,
+            ),
+            make_resolved(
+                r".\Users\admin\Recent\secret.lnk",
+                "secret.lnk",
+                UsnReason::FILE_CREATE,
+            ),
+        ];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert_eq!(
+            results[0].hit_count, 2,
+            "zip and lnk should both trigger sensitive_data"
+        );
+    }
+
+    #[test]
+    fn test_evidence_destruction_catches_data_overwrite() {
+        // Overwriting log files is evidence destruction.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "evidence_destruction")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\System32\winevt\Logs\Security.evtx",
+            "Security.evtx",
+            UsnReason::DATA_OVERWRITE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "DATA_OVERWRITE on evtx should trigger evidence_destruction"
+        );
+    }
+
+    #[test]
+    fn test_evidence_destruction_catches_file_create_in_prefetch() {
+        // Prefetch file recreation (after deletion) indicates evidence tampering.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "evidence_destruction")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\Prefetch\SDELETE.EXE-AABBCCDD.pf",
+            "SDELETE.EXE-AABBCCDD.pf",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "FILE_CREATE pf in Prefetch should trigger evidence_destruction"
+        );
+    }
+
+    #[test]
+    fn test_initial_access_catches_rename_new_name() {
+        // Files moved into Downloads/Temp via rename (e.g. browser download complete).
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "initial_access")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Downloads\exploit.exe",
+            "exploit.exe",
+            UsnReason::RENAME_NEW_NAME,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "RENAME_NEW_NAME exe in Downloads should trigger initial_access"
+        );
+    }
+
+    // ─── FP reduction: exclusion patterns ──────────────────────────────
+
+    #[test]
+    fn test_malware_deployed_excludes_onedrive() {
+        // OneDrive sync creates executables in AppData — not malware.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "malware_deployed")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\Microsoft\OneDrive\21.150.0725.0001\FileSyncShell64.dll",
+            "FileSyncShell64.dll",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "OneDrive DLL should NOT trigger malware_deployed"
+        );
+    }
+
+    #[test]
+    fn test_malware_deployed_excludes_native_images() {
+        // .NET NativeImages assemblies under AppData are system-generated, not malware.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "malware_deployed")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\assembly\NativeImages_v4.0.30319_64\System.Core\abc123\System.Core.ni.dll",
+            "System.Core.ni.dll",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "NativeImages DLL in AppData should NOT trigger malware_deployed"
+        );
+    }
+
+    #[test]
+    fn test_malware_deployed_excludes_packages() {
+        // Windows Store app packages in AppData\Local\Packages.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "malware_deployed")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\Packages\Microsoft.Windows.Photos_8we\app.exe",
+            "app.exe",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "Store Packages exe should NOT trigger malware_deployed"
+        );
+    }
+
+    #[test]
+    fn test_initial_access_excludes_js_extension() {
+        // .js files cause too many FPs from system scripts.
+        // The initial_access query should not include js.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "initial_access")
+            .unwrap();
+
+        assert!(
+            !q.query.extension_filter.contains(&"js"),
+            "initial_access should not include 'js' in extension_filter"
+        );
+    }
+
+    #[test]
+    fn test_initial_access_excludes_onedrive() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "initial_access")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\Microsoft\OneDrive\21.150\OneDriveStandaloneUpdater.exe",
+            "OneDriveStandaloneUpdater.exe",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "OneDrive exe should NOT trigger initial_access"
+        );
+    }
+
+    #[test]
+    fn test_initial_access_excludes_packages() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "initial_access")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\Packages\Microsoft.MicrosoftEdge_8we\AC\script.hta",
+            "script.hta",
+            UsnReason::FILE_CREATE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "Edge Packages hta should NOT trigger initial_access"
+        );
+    }
+
+    #[test]
+    fn test_file_disguise_excludes_assembly() {
+        // .NET assembly ADS operations are system noise.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "file_disguise")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\assembly\NativeImages_v4.0.30319_64\System.Xml\foo.dll",
+            "foo.dll",
+            UsnReason::NAMED_DATA_EXTEND,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "assembly NativeImages ADS should NOT trigger file_disguise"
+        );
+    }
+
+    #[test]
+    fn test_file_disguise_excludes_windowsapps() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "file_disguise")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Program Files\WindowsApps\Microsoft.Windows.Photos_2020\PhotosApp.dll",
+            "PhotosApp.dll",
+            UsnReason::NAMED_DATA_EXTEND,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "WindowsApps ADS should NOT trigger file_disguise"
+        );
+    }
+
+    #[test]
+    fn test_file_disguise_excludes_program_files() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "file_disguise")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Program Files\SomeApp\helper.dll",
+            "helper.dll",
+            UsnReason::NAMED_DATA_OVERWRITE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "Program Files ADS should NOT trigger file_disguise"
+        );
+    }
+
+    #[test]
+    fn test_file_disguise_excludes_software_distribution() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "file_disguise")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\SoftwareDistribution\Download\abc123\update.exe",
+            "update.exe",
+            UsnReason::NAMED_DATA_EXTEND,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "SoftwareDistribution ADS should NOT trigger file_disguise"
+        );
+    }
+
+    #[test]
+    fn test_file_disguise_still_catches_user_ads() {
+        // ADS in user directories should still be flagged.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "file_disguise")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\Documents\resume.docx",
+            "resume.docx",
+            UsnReason::NAMED_DATA_EXTEND,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            results[0].has_hits,
+            "User Documents ADS should still trigger file_disguise"
+        );
+    }
+
+    #[test]
+    fn test_persistence_excludes_start_menu_non_startup() {
+        // "Start Menu" (not Startup) matches too broadly — normal shortcuts.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "persistence")
+            .unwrap();
+
+        // Verify "Start Menu" is NOT in path_patterns (only "Startup" should be)
+        let has_start_menu = q
+            .query
+            .path_patterns
+            .iter()
+            .any(|p| *p == "Start Menu");
+        assert!(
+            !has_start_menu,
+            "persistence should not have bare 'Start Menu' in path_patterns"
+        );
+    }
+
+    #[test]
+    fn test_timestomping_excludes_windows_temp() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "timestomping")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\Temp\setup_patch.exe",
+            "setup_patch.exe",
+            UsnReason::BASIC_INFO_CHANGE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "Windows\\Temp exe should NOT trigger timestomping"
+        );
+    }
+
+    #[test]
+    fn test_timestomping_excludes_software_distribution() {
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "timestomping")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\SoftwareDistribution\Download\abc\update.exe",
+            "update.exe",
+            UsnReason::BASIC_INFO_CHANGE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "SoftwareDistribution exe should NOT trigger timestomping"
+        );
+    }
+
+    #[test]
+    fn test_sensitive_data_excludes_appdata() {
+        // AppData contains app caches with .txt/.csv etc — not user-sensitive.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "sensitive_data")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Users\admin\AppData\Local\SomeApp\cache.csv",
+            "cache.csv",
+            UsnReason::DATA_EXTEND | UsnReason::CLOSE,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "AppData csv should NOT trigger sensitive_data"
+        );
+    }
+
+    #[test]
+    fn test_evidence_destruction_excludes_data_truncation() {
+        // DATA_TRUNCATION on .pf files is normal prefetch churn, not evidence destruction.
+        // The query should use DATA_OVERWRITE instead to reduce FPs.
+        let questions = queries::builtin_questions();
+        let q = questions
+            .iter()
+            .find(|q| q.id == "evidence_destruction")
+            .unwrap();
+
+        let records = vec![make_resolved(
+            r".\Windows\Prefetch\SVCHOST.EXE-12345678.pf",
+            "SVCHOST.EXE-12345678.pf",
+            UsnReason::DATA_TRUNCATION,
+        )];
+
+        let results = run_triage(std::slice::from_ref(q), &records);
+        assert!(
+            !results[0].has_hits,
+            "DATA_TRUNCATION on pf should NOT trigger evidence_destruction (normal churn)"
+        );
+    }
+
     #[test]
     fn test_evidence_destruction_excludes_windows_update_logs() {
         // Windows Update log rotation is normal, not evidence destruction.
