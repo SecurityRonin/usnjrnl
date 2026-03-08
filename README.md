@@ -5,121 +5,112 @@
 [![Tests](https://img.shields.io/badge/tests-483-green.svg)](https://github.com/SecurityRonin/usnjrnl-forensic)
 [![Sponsor](https://img.shields.io/badge/sponsor-h4x0r-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/h4x0r)
 
-The most comprehensive NTFS USN Journal forensic analysis tool. Period.
+Point this at an E01. Get a triage report in 35 seconds.
 
-`usnjrnl-forensic` parses `$UsnJrnl:$J` records, reconstructs full file paths through MFT entry reuse, correlates four NTFS artifacts to recover evidence missed by other tools, carves deleted records from unallocated space, and detects attacker activity through built-in forensic rules. It can open E01 forensic images directly — no manual extraction needed.
+12 questions answered. 55,000+ records analyzed. 12,000 deleted records recovered from unallocated space. One self-contained HTML file you open in your browser and hand to your incident commander.
+
+### Demo: [Szechuan Sauce](https://dfirmadness.com/the-stolen-szechuan-sauce/) CTF
+
+```bash
+usnjrnl-forensic --image DESKTOP-SDN1RPT.E01 --carve-unallocated --report triage.html
+```
+
+35 seconds later:
+
+[![Triage Report Story Tab](docs/demo/szechuan-sauce-triage-story.png)](docs/demo/szechuan-sauce-triage.html)
+
+**The Story tab answers 12 IR questions in seconds.** Was the system compromised? What malware is present? Were credentials stolen? Did the attacker destroy evidence? Click any question to see the matching records.
+
+[![Triage Report Explore Tab](docs/demo/szechuan-sauce-triage-explore.png)](docs/demo/szechuan-sauce-triage.html)
+
+**The Explore tab is a full timeline workbench.** 55,809 records with search, filters by reason flag, source pill filtering (allocated/carved/ghost), activity sparkline, and paginated results. Every record shows its origin: purple "CARVED" pills for records recovered from unallocated space, red "GHOST" pills for records found in `$LogFile` but wiped from `$UsnJrnl`.
+
+> [View the live report](docs/demo/szechuan-sauce-triage.html) (download the HTML and open it in your browser). Generated from the [Szechuan Sauce DFIR CTF](https://dfirmadness.com/the-stolen-szechuan-sauce/) desktop image ([download the E01](https://dfirmadness.com/the-stolen-szechuan-sauce/), 6.4 GB).
+
+### What "recovered" means
+
+The "12,346 recovered records" in the report are USN journal entries carved from unallocated disk space and `$LogFile`. Each entry proves a file existed at a specific path, at a specific time, with a specific operation (create, delete, rename, data write). This is metadata recovery. The file's data blocks are a separate matter. Those clusters may have been overwritten. Carved USN entries give you the *what, when, and where* of file activity the attacker tried to erase. They do not guarantee the file content is still on disk.
+
+To recover actual file data from carved MFT entries, you would feed the MFT record into a tool like `icat` or `tsk_recover` and check whether the data runs are still intact. `usnjrnl-forensic` tells you which files to look for. Data recovery tools tell you whether the bits survived.
+
+## What it does
+
+`usnjrnl-forensic` opens E01 forensic images directly, extracts four NTFS artifacts (`$UsnJrnl`, `$MFT`, `$LogFile`, `$MFTMirr`), reconstructs full file paths through MFT entry reuse, carves deleted records from unallocated space, and runs 12 forensic triage questions against the results.
 
 ```
-$ usnjrnl-forensic --image evidence.E01 --carve-unallocated --detect-timestomping --csv timeline.csv
+$ usnjrnl-forensic --image evidence.E01 --carve-unallocated --report triage.html
 
 [*] Opening disk image: evidence.E01
-[*] Detected format: Ewf
-[+] Extracted $MFT, $MFTMirr, $LogFile, $UsnJrnl:$J
 [+] 847,293 USN records parsed
 [+] 112,448 MFT entries parsed
-[+] $MFTMirr is consistent with $MFT
 [+] 5,378 USN records recovered from $LogFile
 [+] 771 ghost records found in $LogFile (not present in $UsnJrnl)
-[+] Carved 1,247 USN records from unallocated space
-[+] Carved 89 MFT entries from unallocated space
-[+] Merged 1,247 carved USN records into timeline (848,540 total)
-[!] 3 potential timestomping indicators
+[+] Carved 1,247 USN records + 89 MFT entries from unallocated space
 [+] All paths fully resolved (0 UNKNOWN)
+[+] Triage report written to triage.html
 ```
 
 ## Install
-
-### As a CLI tool
-
-```bash
-cargo install usnjrnl-forensic
-```
-
-To enable direct E01/raw disk image support:
 
 ```bash
 cargo install usnjrnl-forensic --features image
 ```
 
-This gives you the `usnjrnl-forensic` binary. Runs on Windows, macOS, and Linux. No runtime dependencies.
+This gives you the `usnjrnl-forensic` binary with E01/raw disk image support. Runs on Windows, macOS, and Linux. No runtime dependencies.
 
-### As a library
+Without image support (pre-extracted artifacts only):
 
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-usnjrnl-forensic = "0.6"
+```bash
+cargo install usnjrnl-forensic
 ```
-
-Then use it in your code:
-
-```rust
-use usnjrnl_forensic::usn::{parse_usn_journal, UsnRecord, UsnReason};
-use usnjrnl_forensic::rewind::RewindEngine;
-use usnjrnl_forensic::mft::MftData;
-
-// Parse USN journal records
-let data = std::fs::read("$J")?;
-let records = parse_usn_journal(&data);
-
-// Resolve full paths using MFT + Rewind
-let mft_data = MftData::parse(&mft_bytes)?;
-let mut engine = RewindEngine::new();
-engine.seed_from_mft(&mft_data);
-let resolved = engine.resolve_all(records);
-```
-
-Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `triage`, `rules`, `refs`, `monitor`, `image`, `output`.
-
-A reference implementation of the full CLI is included in the crate's `src/main.rs`.
 
 ### Build from source
 
 ```bash
 git clone https://github.com/SecurityRonin/usnjrnl-forensic
 cd usnjrnl-forensic
-cargo build --release                   # without E01 support
-cargo build --release --features image  # with E01 support
+cargo build --release --features image
 ```
+
+### As a library
+
+```toml
+[dependencies]
+usnjrnl-forensic = "0.6"
+```
+
+Available modules: `usn`, `mft`, `rewind`, `logfile`, `mftmirr`, `correlation`, `analysis`, `triage`, `rules`, `refs`, `monitor`, `image`, `output`.
 
 ## Usage
 
-### From an E01 forensic image (recommended)
+### Rapid triage (recommended starting point)
 
-Open an E01 image directly — all four NTFS artifacts are extracted and analyzed automatically:
-
-```bash
-usnjrnl-forensic --image evidence.E01 --csv timeline.csv
-```
-
-Keep the extracted artifacts for later use:
-
-```bash
-usnjrnl-forensic -i evidence.E01 --output-dir ./extracted --sqlite analysis.db
-```
-
-This also works with raw (dd) disk images:
-
-```bash
-usnjrnl-forensic --image disk.raw --csv output.csv
-```
-
-#### Carve deleted records from unallocated space
-
-```bash
-usnjrnl-forensic --image evidence.E01 --carve-unallocated --csv timeline.csv
-```
-
-This scans unallocated disk space for deleted USN records and MFT entries, merges them into the timeline, and uses carved directory entries to resolve paths for carved records. See [Unallocated Space Carving](#unallocated-space-carving) for details.
-
-#### Generate a triage report
+Point at an E01, get an HTML report:
 
 ```bash
 usnjrnl-forensic --image evidence.E01 --carve-unallocated --report triage.html
 ```
 
-Produces a self-contained HTML file with a **Story** tab (question-driven forensic narrative) and an **Explore** tab (full timeline workbench with search, filters, and sparkline). Opens in any browser — no server needed.
+The report is a self-contained HTML file. Open it in any browser. The **Story** tab answers 12 IR questions. The **Explore** tab gives you the full timeline with search, filters, and sparkline.
+
+### Timeline export
+
+```bash
+usnjrnl-forensic --image evidence.E01 --csv timeline.csv
+usnjrnl-forensic --image evidence.E01 --carve-unallocated --sqlite analysis.db
+```
+
+Keep extracted artifacts for later use:
+
+```bash
+usnjrnl-forensic -i evidence.E01 --output-dir ./extracted --sqlite analysis.db
+```
+
+Works with raw (dd) disk images too:
+
+```bash
+usnjrnl-forensic --image disk.raw --csv output.csv
+```
 
 ### From pre-extracted artifacts
 
