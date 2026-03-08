@@ -476,7 +476,7 @@ fn compute_auc(roc_points: &[(f64, f64)]) -> f64 {
 
 // ─── Report Generation ───────────────────────────────────────────────────────
 
-fn generate_markdown(metrics: &[PrecisionRecall], roc_data: &[(String, Vec<(f64, f64)>)]) -> String {
+fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, Vec<(f64, f64)>)]) -> String {
     let mut md = String::new();
 
     md.push_str("# Triage Precision & Recall Analysis\n\n");
@@ -645,7 +645,7 @@ fn generate_markdown(metrics: &[PrecisionRecall], roc_data: &[(String, Vec<(f64,
 
     md.push_str("### Per-Question Analysis\n\n");
     for m in metrics {
-        let commentary = precision_commentary(&m.question_id, m);
+        let commentary = _precision_commentary_unused(&m.question_id, m);
         if commentary.is_empty() {
             continue;
         }
@@ -698,7 +698,7 @@ fn generate_markdown(metrics: &[PrecisionRecall], roc_data: &[(String, Vec<(f64,
     md
 }
 
-fn precision_commentary(question_id: &str, m: &PrecisionRecall) -> String {
+fn _precision_commentary_unused(question_id: &str, m: &PrecisionRecall) -> String {
     match question_id {
         "data_staging" => "Narrow query (FILE_CREATE + archive extensions in user dirs). Perfect precision but low recall — misses RENAME_NEW_NAME (loot.zip) and associated .lnk/.TMP records.".into(),
         "execution_evidence" => format!("All {} COREUPDATER.EXE prefetch records found (100% recall). Low precision because all {} .pf FILE_CREATE events match, not just attacker programs.", m.strict_tp, m.hit_count),
@@ -980,16 +980,12 @@ fn precision_recall_analysis() {
     }
 
     // ── Generate outputs ──
-    let md = generate_markdown(&metrics, &roc_data);
     let html = generate_html(&metrics, &roc_data);
 
-    std::fs::write("docs/TRIAGE_PRECISION_RECALL.md", &md)
-        .expect("Failed to write markdown report");
     std::fs::write("precision_recall.html", &html)
         .expect("Failed to write HTML report");
 
     eprintln!("\n[pr] Reports written:");
-    eprintln!("[pr]   docs/TRIAGE_PRECISION_RECALL.md");
     eprintln!("[pr]   precision_recall.html");
 
     // ── Assertions ──

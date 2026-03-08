@@ -251,7 +251,91 @@ The triage report surface-level hit counts include noise, but the underlying rec
 
 4. **Timezone complexity** — The VM clock was set to UTC-7 (Pacific) while the network PCAP was at UTC-6. Our timestamps are correct relative to the image's own clock, but analysts cross-referencing with network evidence need to account for this 1-hour offset. This is documented in all four reference writeups.
 
-**For full quantitative analysis including temporal ROC curves and AUC values, see [TRIAGE_PRECISION_RECALL.md](TRIAGE_PRECISION_RECALL.md).**
+## Quantitative Precision / Recall
+
+### Methodology
+
+Each triage question is evaluated as a binary classifier. Every matched record is classified under two regimes:
+
+- **Strict**: Only records **directly attributable** to known attacker activity (e.g., `coreupdater.exe` in the filename, `loot.zip` creation)
+- **Permissive**: Records that are **forensically relevant** — an analyst would want to review them even if they might be benign OS operations during the attack window
+
+Definitions: **Precision** = TP / (TP + FP), **Recall** = TP / (TP + FN), **F1** = harmonic mean, **N/A** = 0 known positives (data source limitation).
+
+### Strict Classification
+
+| # | Question | Hits | TP | FP | FN | Precision | Recall | F1 |
+|---|----------|-----:|---:|---:|---:|----------:|-------:|---:|
+| 1 | initial_access | 124 | 6 | 118 | 67 | 4.8% | 8.2% | 6.1% |
+| 2 | malware_deployed | 139 | 4 | 135 | 2 | 2.9% | 66.7% | 5.5% |
+| 3 | execution_evidence | 114 | 3 | 111 | 0 | 2.6% | 100.0% | 5.1% |
+| 4 | sensitive_data | 31 | 8 | 23 | 15 | 25.8% | 34.8% | 29.6% |
+| 5 | data_staging | 7 | 7 | 0 | 13 | 100.0% | 35.0% | 51.9% |
+| 6 | credential_access | 39 | 1 | 38 | 0 | 2.6% | 100.0% | 5.0% |
+| 7 | persistence | 0 | 0 | 0 | 0 | N/A | N/A | N/A |
+| 8 | lateral_movement | 0 | 0 | 0 | 0 | N/A | N/A | N/A |
+| 9 | evidence_destruction | 636 | 7 | 629 | 1 | 1.1% | 87.5% | 2.2% |
+| 10 | timestomping | 22 | 0 | 22 | 2 | 0.0% | 0.0% | N/A |
+| 11 | file_disguise | 106 | 8 | 98 | 3 | 7.5% | 72.7% | 13.7% |
+| 12 | recovered_evidence | 191 | 191 | 0 | 0 | 100.0% | 100.0% | 100.0% |
+
+### Permissive Classification
+
+| # | Question | Hits | TP | FP | FN | Precision | Recall | F1 |
+|---|----------|-----:|---:|---:|---:|----------:|-------:|---:|
+| 1 | initial_access | 124 | 6 | 118 | 95 | 4.8% | 5.9% | 5.3% |
+| 2 | malware_deployed | 139 | 4 | 135 | 30 | 2.9% | 11.8% | 4.6% |
+| 3 | execution_evidence | 114 | 3 | 111 | 0 | 2.6% | 100.0% | 5.1% |
+| 4 | sensitive_data | 31 | 22 | 9 | 724 | 71.0% | 2.9% | 5.7% |
+| 5 | data_staging | 7 | 7 | 0 | 13 | 100.0% | 35.0% | 51.9% |
+| 6 | credential_access | 39 | 39 | 0 | 2991 | 100.0% | 1.3% | 2.5% |
+| 7 | persistence | 0 | 0 | 0 | 0 | N/A | N/A | N/A |
+| 8 | lateral_movement | 0 | 0 | 0 | 0 | N/A | N/A | N/A |
+| 9 | evidence_destruction | 636 | 401 | 235 | 3 | 63.1% | 99.3% | 77.1% |
+| 10 | timestomping | 22 | 0 | 22 | 2 | 0.0% | 0.0% | N/A |
+| 11 | file_disguise | 106 | 38 | 68 | 10 | 35.8% | 79.2% | 49.4% |
+| 12 | recovered_evidence | 191 | 191 | 0 | 0 | 100.0% | 100.0% | 100.0% |
+
+### Aggregate (Micro-Average)
+
+| Regime | TP | FP | FN | Precision | Recall | F1 |
+|--------|---:|---:|---:|----------:|-------:|---:|
+| Strict | 235 | 1174 | 103 | 16.7% | 69.5% | 26.9% |
+| Permissive | 711 | 698 | 3868 | 50.5% | 15.5% | 23.7% |
+
+## Temporal ROC Analysis
+
+The temporal ROC varies a time-window radius around the attack center (03:43 journal time). For each window size T, **TPR** = fraction of within-window records that the query matched, **FPR** = fraction of outside-window records that the query matched. This measures how well each query concentrates its hits near the attack.
+
+**Interpretation:** AUC ≈ 0.50 means matches are uniformly distributed across the journal timeline — expected for content-based queries (filename/path/reason matching) that don't use temporal proximity. AUC > 0.55 would indicate temporal clustering; AUC < 0.45 indicates matches concentrated away from the attack window.
+
+### AUC Summary
+
+| Question | AUC | Interpretation |
+|---|---:|---|
+| initial_access | 0.499 | Content-based, not temporally selective |
+| malware_deployed | 0.499 | Content-based, not temporally selective |
+| execution_evidence | 0.499 | Content-based, not temporally selective |
+| sensitive_data | 0.497 | Content-based, not temporally selective |
+| data_staging | 0.500 | Content-based, not temporally selective |
+| credential_access | 0.500 | Content-based, not temporally selective |
+| evidence_destruction | 0.499 | Content-based, not temporally selective |
+| timestomping | 0.500 | Content-based, not temporally selective |
+| file_disguise | 0.310 | Inversely correlated with attack window |
+| recovered_evidence | 0.001 | Inversely correlated with attack window |
+
+### ROC Interpretation
+
+All content-based queries (questions 1–9) show AUC ≈ 0.50, confirming they select records by **content** (filename, path, reason flags) rather than temporal proximity. This is by design — the triage engine does not use time-window filtering.
+
+Two outliers:
+
+- **file_disguise (AUC = 0.310)**: The ADS operations (NAMED_DATA_EXTEND) that survive exclusion filtering are concentrated in user-profile paths which happen to cluster in the pre-attack portion of the journal (Edge backups, profile initialization). The 8 attack-related ADS hits at 03:40 are a small minority of the 106 total.
+- **recovered_evidence (AUC = 0.001)**: Ghost records from $LogFile have timestamp 00:00:00 (unrecoverable from the LogFile page structure), placing them at the earliest point in the timeline — maximally far from the attack center. This is an artifact of the recovery process, not a meaningful temporal signal.
+
+**Implication for future work:** Since AUC ≈ 0.50 across all content queries, a temporal scoring layer (weighting hits by proximity to detected activity bursts) would be orthogonal to the current approach and could substantially improve precision without sacrificing recall.
+
+The interactive precision-recall scatter plot and temporal ROC curves are available in [`precision_recall.html`](../precision_recall.html).
 
 ## Conclusion
 
