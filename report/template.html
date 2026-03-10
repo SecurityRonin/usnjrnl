@@ -89,6 +89,77 @@ input[type="text"] { font-family: inherit; }
   color: #7d8590;
 }
 
+/* ── Time Range Inputs ───────────────────────────────────────── */
+.time-range-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.time-input-label {
+  font-size: 10px;
+  color: #484f58;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.time-input {
+  width: 100%;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: #e6edf3;
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  transition: border-color 0.2s;
+  color-scheme: dark;
+}
+.time-input:focus { border-color: #58a6ff; }
+.quick-time-btns {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.quick-btn {
+  background: #21262d;
+  color: #7d8590;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 600;
+  transition: all 0.15s;
+  flex: 1;
+  text-align: center;
+  min-width: 0;
+}
+.quick-btn:hover { color: #e6edf3; border-color: #484f58; background: #30363d; }
+.quick-btn.active { color: #58a6ff; border-color: #58a6ff; background: rgba(88,166,255,0.1); }
+.time-active-label {
+  font-size: 10px;
+  color: #58a6ff;
+  margin-top: 4px;
+  display: none;
+}
+.time-kbd-hint {
+  font-size: 10px;
+  color: #30363d;
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.time-kbd-hint kbd {
+  background: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: inherit;
+  font-size: 10px;
+  color: #484f58;
+}
+
 /* ── Tab Switcher ─────────────────────────────────────────────── */
 .tab-switcher { display: flex; gap: 4px; margin-bottom: 20px; }
 .tab-btn {
@@ -578,6 +649,68 @@ var state = {
   selectedRow: -1
 };
 
+/* ── Time Zoom Helpers ────────────────────────────────────────── */
+function msToInputVal(ms) {
+  return new Date(ms).toISOString().slice(0, 19);
+}
+function inputValToMs(val) {
+  if (!val) return NaN;
+  return new Date(val + 'Z').getTime();
+}
+function fmtDuration(ms) {
+  var sec = Math.round(ms / 1000);
+  if (sec < 60) return sec + 's window';
+  var min = Math.floor(sec / 60);
+  if (min < 60) return min + 'm window';
+  var hr = Math.floor(min / 60);
+  var remMin = min % 60;
+  if (hr < 24) return hr + 'h' + (remMin > 0 ? ' ' + remMin + 'm' : '') + ' window';
+  var days = Math.floor(hr / 24);
+  var remHr = hr % 24;
+  return days + 'd' + (remHr > 0 ? ' ' + remHr + 'h' : '') + ' window';
+}
+function setTimeZoom(startMs, endMs) {
+  if (startMs > endMs) { var tmp = startMs; startMs = endMs; endMs = tmp; }
+  state.timeZoom = { start: startMs, end: endMs };
+  state.page = 0;
+  applyFilters();
+  drawSparkline();
+  renderTable();
+  syncTimeUI();
+}
+function clearTimeZoom() {
+  state.timeZoom = null;
+  state.page = 0;
+  applyFilters();
+  drawSparkline();
+  renderTable();
+  syncTimeUI();
+}
+function syncTimeUI() {
+  var fromInput = document.getElementById('time-from');
+  var toInput = document.getElementById('time-to');
+  var label = document.getElementById('time-active-label');
+  var resetBtn = document.getElementById('sparkline-reset');
+  if (!fromInput) return;
+  if (state.timeZoom) {
+    fromInput.value = msToInputVal(state.timeZoom.start);
+    toInput.value = msToInputVal(state.timeZoom.end);
+    label.textContent = fmtDuration(state.timeZoom.end - state.timeZoom.start);
+    label.style.display = 'block';
+    if (resetBtn) resetBtn.classList.add('visible');
+  } else {
+    fromInput.value = '';
+    toInput.value = '';
+    label.style.display = 'none';
+    if (resetBtn) resetBtn.classList.remove('visible');
+  }
+}
+function getDataMidpoint() {
+  var tss = allRecords.filter(function(r) { return r._ts > 0; }).map(function(r) { return r._ts; });
+  if (tss.length === 0) return null;
+  return (Math.min.apply(null, tss) + Math.max.apply(null, tss)) / 2;
+}
+
 /* ── Build all records with indices & normalize ──────────────── */
 var allRecords = (DATA.records || []).map(function(r, i) {
   r._index = i;
@@ -811,6 +944,29 @@ function renderSidebar() {
   html += '<input type="text" class="search-input" id="search-input" placeholder="Filter filename / path...">';
   html += '</div>';
 
+  /* Time Range */
+  html += '<div class="sidebar-section">';
+  html += '<div class="sidebar-label">Time Range</div>';
+  html += '<div class="time-range-inputs">';
+  html += '<label class="time-input-label">From</label>';
+  html += '<input type="datetime-local" class="time-input" id="time-from" step="1">';
+  html += '<label class="time-input-label">To</label>';
+  html += '<input type="datetime-local" class="time-input" id="time-to" step="1">';
+  html += '</div>';
+  html += '<div class="quick-time-btns">';
+  html += '<button class="quick-btn" data-duration="300000">\u00b15m</button>';
+  html += '<button class="quick-btn" data-duration="900000">\u00b115m</button>';
+  html += '<button class="quick-btn" data-duration="3600000">\u00b11h</button>';
+  html += '<button class="quick-btn" data-duration="21600000">\u00b16h</button>';
+  html += '</div>';
+  html += '<div class="quick-time-btns">';
+  html += '<button class="quick-btn" id="btn-this-day">This Day</button>';
+  html += '<button class="quick-btn" id="btn-full-range">Full Range</button>';
+  html += '</div>';
+  html += '<div class="time-active-label" id="time-active-label"></div>';
+  html += '<div class="time-kbd-hint"><kbd>t</kbd> focus &nbsp;<kbd>Esc</kbd> reset &nbsp;<kbd>[</kbd><kbd>]</kbd> shift &nbsp;<kbd>+</kbd><kbd>-</kbd> zoom<br>Shift+click row \u2192 \u00b15m around timestamp</div>';
+  html += '</div>';
+
   /* Reasons */
   html += '<div class="sidebar-section">';
   html += '<div class="sidebar-label">Reason Flags</div>';
@@ -886,6 +1042,60 @@ function renderSidebar() {
       renderTable();
     });
   });
+
+  /* Time range inputs */
+  var timeFrom = document.getElementById('time-from');
+  var timeTo = document.getElementById('time-to');
+  function onTimeInputChange() {
+    var from = inputValToMs(timeFrom.value);
+    var to = inputValToMs(timeTo.value);
+    if (!isNaN(from) && !isNaN(to) && from < to) {
+      state.filteredIndices = null;
+      setTimeZoom(from, to);
+    }
+  }
+  timeFrom.addEventListener('change', onTimeInputChange);
+  timeTo.addEventListener('change', onTimeInputChange);
+
+  /* Quick duration buttons */
+  document.querySelectorAll('.quick-btn[data-duration]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var halfDur = parseInt(this.getAttribute('data-duration'));
+      var center;
+      if (state.timeZoom) {
+        center = (state.timeZoom.start + state.timeZoom.end) / 2;
+      } else {
+        center = getDataMidpoint();
+        if (center === null) return;
+      }
+      state.filteredIndices = null;
+      setTimeZoom(center - halfDur, center + halfDur);
+    });
+  });
+
+  /* This Day button */
+  document.getElementById('btn-this-day').addEventListener('click', function() {
+    var center;
+    if (state.timeZoom) {
+      center = (state.timeZoom.start + state.timeZoom.end) / 2;
+    } else {
+      center = getDataMidpoint();
+      if (center === null) return;
+    }
+    var d = new Date(center);
+    var dayStart = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())).getTime();
+    state.filteredIndices = null;
+    setTimeZoom(dayStart, dayStart + 86400000);
+  });
+
+  /* Full Range button */
+  document.getElementById('btn-full-range').addEventListener('click', function() {
+    state.filteredIndices = null;
+    clearTimeZoom();
+  });
+
+  /* Sync inputs if timeZoom already set (e.g., from viewInExplore) */
+  syncTimeUI();
 }
 
 /* ── Filtering ────────────────────────────────────────────────── */
@@ -1007,36 +1217,65 @@ function drawSparkline() {
   ctx.fillText(fmtTimestamp(new Date(maxTs).toISOString()), w - 2, 10);
 }
 
-/* Sparkline click → zoom */
-document.getElementById('sparkline').addEventListener('click', function(e) {
-  if (sparklineBuckets.length === 0) return;
-  var canvas = this;
-  var rect = canvas.getBoundingClientRect();
-  var x = e.clientX - rect.left;
-  var bucketIdx = Math.floor(x / (canvas.width / sparklineBuckets.length));
-  if (bucketIdx < 0) bucketIdx = 0;
-  if (bucketIdx >= sparklineBuckets.length) bucketIdx = sparklineBuckets.length - 1;
+/* Sparkline brush selection */
+var brushState = { dragging: false, startX: 0, currentX: 0 };
+var sparkCanvas = document.getElementById('sparkline');
 
-  var bucketStart = sparklineMinTs + bucketIdx * sparklineBucketWidth;
-  var zoomPadding = sparklineBucketWidth * 5;
-  state.timeZoom = {
-    start: bucketStart - zoomPadding,
-    end: bucketStart + sparklineBucketWidth + zoomPadding
-  };
-  state.page = 0;
-  document.getElementById('sparkline-reset').classList.add('visible');
-  applyFilters();
+sparkCanvas.addEventListener('mousedown', function(e) {
+  if (sparklineBuckets.length === 0) return;
+  brushState.dragging = true;
+  brushState.startX = e.clientX - this.getBoundingClientRect().left;
+  brushState.currentX = brushState.startX;
+  e.preventDefault();
+});
+
+sparkCanvas.addEventListener('mousemove', function(e) {
+  if (!brushState.dragging) return;
+  brushState.currentX = e.clientX - this.getBoundingClientRect().left;
   drawSparkline();
-  renderTable();
+  var ctx = this.getContext('2d');
+  var x1 = Math.min(brushState.startX, brushState.currentX);
+  var x2 = Math.max(brushState.startX, brushState.currentX);
+  if (x2 - x1 > 2) {
+    ctx.fillStyle = 'rgba(88,166,255,0.15)';
+    ctx.fillRect(x1, 0, x2 - x1, this.height);
+    ctx.strokeStyle = 'rgba(88,166,255,0.4)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x1 + 0.5, 0.5, x2 - x1 - 1, this.height - 1);
+  }
+});
+
+document.addEventListener('mouseup', function() {
+  if (!brushState.dragging) return;
+  brushState.dragging = false;
+  if (sparklineBuckets.length === 0) return;
+
+  var x1 = Math.min(brushState.startX, brushState.currentX);
+  var x2 = Math.max(brushState.startX, brushState.currentX);
+  var w = sparkCanvas.width;
+  var range = sparklineMaxTs - sparklineMinTs;
+  if (range <= 0) return;
+
+  state.filteredIndices = null;
+  if (x2 - x1 < 5) {
+    /* Small click — zoom to bucket ± padding */
+    var bucketIdx = Math.floor(x1 / (w / sparklineBuckets.length));
+    if (bucketIdx < 0) bucketIdx = 0;
+    if (bucketIdx >= sparklineBuckets.length) bucketIdx = sparklineBuckets.length - 1;
+    var bucketStart = sparklineMinTs + bucketIdx * sparklineBucketWidth;
+    var zoomPadding = sparklineBucketWidth * 5;
+    setTimeZoom(bucketStart - zoomPadding, bucketStart + sparklineBucketWidth + zoomPadding);
+  } else {
+    /* Brush drag — precise range selection */
+    var startTs = sparklineMinTs + (x1 / w) * range;
+    var endTs = sparklineMinTs + (x2 / w) * range;
+    setTimeZoom(startTs, endTs);
+  }
 });
 
 document.getElementById('sparkline-reset').addEventListener('click', function() {
-  state.timeZoom = null;
-  state.page = 0;
-  this.classList.remove('visible');
-  applyFilters();
-  drawSparkline();
-  renderTable();
+  state.filteredIndices = null;
+  clearTimeZoom();
 });
 
 window.addEventListener('resize', function() {
@@ -1044,6 +1283,57 @@ window.addEventListener('resize', function() {
     resizeSparkline();
     drawSparkline();
   }
+});
+
+/* ── Keyboard Shortcuts ──────────────────────────────────────── */
+document.addEventListener('keydown', function(e) {
+  if (state.activeTab !== 'explore') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+  if (e.key === 't' || e.key === 'T') {
+    var fi = document.getElementById('time-from');
+    if (fi) { fi.focus(); e.preventDefault(); }
+  } else if (e.key === 'Escape') {
+    state.filteredIndices = null;
+    clearTimeZoom();
+    e.preventDefault();
+  } else if (e.key === '[' && state.timeZoom) {
+    var dur = state.timeZoom.end - state.timeZoom.start;
+    var shift = dur * 0.25;
+    setTimeZoom(state.timeZoom.start - shift, state.timeZoom.end - shift);
+    e.preventDefault();
+  } else if (e.key === ']' && state.timeZoom) {
+    var dur = state.timeZoom.end - state.timeZoom.start;
+    var shift = dur * 0.25;
+    setTimeZoom(state.timeZoom.start + shift, state.timeZoom.end + shift);
+    e.preventDefault();
+  } else if ((e.key === '+' || e.key === '=') && state.timeZoom) {
+    var center = (state.timeZoom.start + state.timeZoom.end) / 2;
+    var halfDur = (state.timeZoom.end - state.timeZoom.start) / 4;
+    setTimeZoom(center - halfDur, center + halfDur);
+    e.preventDefault();
+  } else if (e.key === '-' && state.timeZoom) {
+    var center = (state.timeZoom.start + state.timeZoom.end) / 2;
+    var halfDur = (state.timeZoom.end - state.timeZoom.start);
+    setTimeZoom(center - halfDur, center + halfDur);
+    e.preventDefault();
+  }
+});
+
+/* ── Shift+Click row → zoom ±5min around timestamp ───────────── */
+document.getElementById('data-tbody').addEventListener('click', function(e) {
+  if (!e.shiftKey) return;
+  var row = e.target.closest('tr');
+  if (!row) return;
+  var tsCell = row.querySelector('td:first-child');
+  if (!tsCell) return;
+  var tsText = tsCell.textContent.trim();
+  if (tsText === '\u2014' || !tsText) return;
+  var ms = new Date(tsText.replace(' ', 'T').replace(/Z$/i, '') + 'Z').getTime();
+  if (isNaN(ms)) return;
+  e.preventDefault();
+  state.filteredIndices = null;
+  setTimeZoom(ms - 300000, ms + 300000);
 });
 
 /* ── Data Table ───────────────────────────────────────────────── */
