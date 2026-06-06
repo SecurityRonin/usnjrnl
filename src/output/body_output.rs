@@ -18,6 +18,7 @@ pub fn export_body<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resu
             resolved.full_path, r.mft_entry, ts, ts, ts, ts
         )?;
     }
+    writer.flush()?;
     Ok(())
 }
 
@@ -156,6 +157,21 @@ mod tests {
         let mut writer = FailWriter { remaining: 5 };
         let result = export_body(&resolved, &mut writer);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_body_flush_on_success() {
+        // Ample capacity: every write succeeds and export reaches writer.flush().
+        let resolved = vec![make_record(
+            "a.txt",
+            ".\\a.txt",
+            ".\\",
+            1,
+            1_700_000_000,
+            UsnReason::FILE_CREATE,
+        )];
+        let mut writer = FailWriter { remaining: 1 << 20 };
+        assert!(export_body(&resolved, &mut writer).is_ok());
     }
 
     #[test]

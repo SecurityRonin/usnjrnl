@@ -18,6 +18,7 @@ pub fn export_tln<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
             ts, r.reason, resolved.full_path
         )?;
     }
+    writer.flush()?;
     Ok(())
 }
 
@@ -144,6 +145,19 @@ mod tests {
         let mut writer = FailWriter { remaining: 5 };
         let result = export_tln(&resolved, &mut writer);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tln_flush_on_success() {
+        let resolved = vec![make_record(
+            "a.txt",
+            ".\\a.txt",
+            ".\\",
+            1700000000,
+            UsnReason::FILE_CREATE,
+        )];
+        let mut writer = FailWriter { remaining: 1 << 20 };
+        assert!(export_tln(&resolved, &mut writer).is_ok());
     }
 
     #[test]
