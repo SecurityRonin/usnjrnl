@@ -1087,6 +1087,70 @@ mod tests {
         assert!(m.entries[0].full_path.contains("orphan.txt"));
     }
 
+    /// Append an UNNAMED `$DATA` attribute (resident or non-resident) to a fresh
+    /// MFT record, so MftData::parse extracts a file_size from it.
+    fn entry_with_unnamed_data(
+        entry_num: u32,
+        name: &str,
+        non_resident: bool,
+        size: u64,
+    ) -> Vec<u8> {
+        let mut buf = build_mft_entry_bytes(entry_num, 1, 5, 5, name, 0x01);
+        // Walk to the end-of-attributes marker.
+        let mut off = 0x38usize;
+        loop {
+            let t = u32::from_le_bytes(buf[off..off + 4].try_into().unwrap());
+            if t == 0xFFFF_FFFF {
+                break;
+            }
+            let sz = u32::from_le_bytes(buf[off + 4..off + 8].try_into().unwrap()) as usize;
+            off += sz;
+        }
+        let total: u32 = if non_resident {
+            // Non-resident header is 0x40 bytes; a single 0x00 runlist terminator follows.
+            let total = ((0x40 + 8 + 7) & !7) as u32;
+            buf[off..off + 4].copy_from_slice(&0x80u32.to_le_bytes());
+            buf[off + 4..off + 8].copy_from_slice(&total.to_le_bytes());
+            buf[off + 8] = 1; // non-resident
+            buf[off + 9] = 0; // unnamed
+            buf[off + 14..off + 16].copy_from_slice(&3u16.to_le_bytes()); // attr id
+            buf[off + 0x20..off + 0x22].copy_from_slice(&0x40u16.to_le_bytes()); // runs_offset
+            buf[off + 0x28..off + 0x30].copy_from_slice(&4096u64.to_le_bytes()); // allocated
+            buf[off + 0x30..off + 0x38].copy_from_slice(&size.to_le_bytes()); // real_size
+            buf[off + 0x38..off + 0x40].copy_from_slice(&size.to_le_bytes()); // initialized
+            total
+        } else {
+            let content = size as usize;
+            let total = ((24 + content + 7) & !7) as u32;
+            buf[off..off + 4].copy_from_slice(&0x80u32.to_le_bytes());
+            buf[off + 4..off + 8].copy_from_slice(&total.to_le_bytes());
+            buf[off + 8] = 0; // resident
+            buf[off + 9] = 0; // unnamed
+            buf[off + 14..off + 16].copy_from_slice(&3u16.to_le_bytes());
+            buf[off + 16..off + 20].copy_from_slice(&(content as u32).to_le_bytes()); // content_length
+            buf[off + 20..off + 22].copy_from_slice(&24u16.to_le_bytes()); // content_offset
+            total
+        };
+        let end = off + total as usize;
+        buf[end..end + 4].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+        buf[0x18..0x1C].copy_from_slice(&((end + 8) as u32).to_le_bytes()); // bytes used
+        buf
+    }
+
+    #[test]
+    fn parse_extracts_file_size_from_unnamed_data() {
+        // Resident unnamed $DATA -> file_size from content_length.
+        let res = entry_with_unnamed_data(400, "res.txt", false, 42);
+        let m = MftData::parse(&res).unwrap();
+        assert_eq!(m.entries.len(), 1);
+        assert_eq!(m.entries[0].file_size, 42);
+        // Non-resident unnamed $DATA -> file_size from real_size.
+        let nr = entry_with_unnamed_data(401, "nr.txt", true, 123_456);
+        let m2 = MftData::parse(&nr).unwrap();
+        assert_eq!(m2.entries.len(), 1);
+        assert_eq!(m2.entries[0].file_size, 123_456);
+    }
+
     #[test]
     fn parse_handles_out_of_bounds_attribute_offset_without_panic() {
         // first_attribute_offset points past the 1024-byte record. parse_attributes

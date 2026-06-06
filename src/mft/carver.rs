@@ -402,6 +402,22 @@ mod tests {
     }
 
     #[test]
+    fn test_carve_filename_dos_then_posix_domination() {
+        // Two $FILE_NAMEs: first DOS (8.3), then POSIX. The domination check has
+        // to evaluate its second disjunct (prev_ns is neither Win32 nor Win32+DOS,
+        // and the current name is not DOS), so the POSIX long name wins.
+        let mut buf = build_mft_entry(500, 1, 5, 5, "placeholder", 0x01);
+        let s0 = write_filename_attr(&mut buf, 56, 5, 5, "DOS~1.TXT", NS_DOS);
+        let s1 = write_filename_attr(&mut buf, 56 + s0, 5, 5, "longposix.txt", 0); // POSIX
+        let end = 56 + s0 + s1;
+        buf[end..end + 4].copy_from_slice(&0xFFFF_FFFFu32.to_le_bytes());
+
+        let (entries, _) = carve_mft_entries(&buf);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].filename, "longposix.txt");
+    }
+
+    #[test]
     fn test_carve_all_zeros() {
         let data = vec![0u8; 8192];
         let (entries, stats) = carve_mft_entries(&data);
