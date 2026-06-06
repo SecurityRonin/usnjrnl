@@ -15,9 +15,6 @@ path = "src/main.rs"
 # CLI
 clap = { version = "4", features = ["derive"] }
 
-# NTFS
-mft = "0.6"
-
 # Timestamps
 chrono = { version = "0.4", features = ["serde"] }
 
