@@ -595,15 +595,9 @@ mod tests {
                                                                               // Write end-of-attributes marker (0xFFFFFFFF) at first attribute offset
             data[o + 0x38..o + 0x3C].copy_from_slice(&0xFFFFFFFFu32.to_le_bytes());
         }
-        let result = std::panic::catch_unwind(|| MftData::parse(&data));
-        match result {
-            Ok(Ok(mft_data)) => {
-                // All entries lack $FILE_NAME, so should be skipped via `continue`
-                assert!(mft_data.entries.is_empty());
-            }
-            Ok(Err(_)) => {} // Parse error is acceptable
-            Err(_) => {}     // Panic from mft crate is acceptable (we caught it)
-        }
+        let mft_data = MftData::parse(&data).unwrap();
+        // All entries lack $FILE_NAME, so should be skipped via `continue`
+        assert!(mft_data.entries.is_empty());
     }
 
     #[test]
@@ -808,28 +802,22 @@ mod tests {
             0x01, // flags: in-use
         );
 
-        let result = std::panic::catch_unwind(|| MftData::parse(&entry_data));
-        match result {
-            Ok(Ok(mft_data)) => {
-                // If parsing succeeded, verify the entry was extracted
-                if !mft_data.entries.is_empty() {
-                    let e = &mft_data.entries[0];
-                    assert_eq!(e.filename, "testfile.txt");
-                    assert_eq!(e.parent_entry, 5);
-                    assert!(e.si_created.is_some());
-                    assert!(e.fn_created.is_some());
-                    assert!(!e.has_ads);
-                    // The mft crate may use position-based entry number (0)
-                    // rather than the header field (100), so check by actual entry number
-                    let entry_num = e.entry_number;
-                    assert!(mft_data.by_entry.contains_key(&entry_num));
-                    assert!(mft_data
-                        .by_key
-                        .contains_key(&EntryKey::new(entry_num, e.sequence_number)));
-                }
-            }
-            Ok(Err(_)) => {} // Parse error acceptable for synthetic data
-            Err(_) => {}     // Panic from mft crate acceptable
+        let mft_data = MftData::parse(&entry_data).unwrap();
+        // If parsing succeeded, verify the entry was extracted
+        if !mft_data.entries.is_empty() {
+            let e = &mft_data.entries[0];
+            assert_eq!(e.filename, "testfile.txt");
+            assert_eq!(e.parent_entry, 5);
+            assert!(e.si_created.is_some());
+            assert!(e.fn_created.is_some());
+            assert!(!e.has_ads);
+            // The mft crate may use position-based entry number (0)
+            // rather than the header field (100), so check by actual entry number
+            let entry_num = e.entry_number;
+            assert!(mft_data.by_entry.contains_key(&entry_num));
+            assert!(mft_data
+                .by_key
+                .contains_key(&EntryKey::new(entry_num, e.sequence_number)));
         }
     }
 
@@ -913,20 +901,14 @@ mod tests {
             entry_data[0x18..0x1C].copy_from_slice(&new_bytes_used.to_le_bytes());
         }
 
-        let result = std::panic::catch_unwind(|| MftData::parse(&entry_data));
-        match result {
-            Ok(Ok(mft_data)) => {
-                if !mft_data.entries.is_empty() {
-                    let e = &mft_data.entries[0];
-                    assert_eq!(e.filename, "ads_file.txt");
-                    // ADS detection depends on mft crate's attribute iteration
-                    // If it works, has_ads should be true
-                    // If it doesn't parse the named $DATA attr, has_ads stays false
-                    // Either way, we've exercised the ADS detection loop
-                }
-            }
-            Ok(Err(_)) => {}
-            Err(_) => {}
+        let mft_data = MftData::parse(&entry_data).unwrap();
+        if !mft_data.entries.is_empty() {
+            let e = &mft_data.entries[0];
+            assert_eq!(e.filename, "ads_file.txt");
+            // ADS detection depends on mft crate's attribute iteration
+            // If it works, has_ads should be true
+            // If it doesn't parse the named $DATA attr, has_ads stays false
+            // Either way, we've exercised the ADS detection loop
         }
     }
 
@@ -942,16 +924,10 @@ mod tests {
         data.extend_from_slice(&entry1);
         data.extend_from_slice(&entry2);
 
-        let result = std::panic::catch_unwind(|| MftData::parse(&data));
-        match result {
-            Ok(Ok(mft_data)) => {
-                // Should have parsed at least some entries
-                // (depends on mft crate behavior with synthetic data)
-                assert!(mft_data.entries.len() <= 3);
-            }
-            Ok(Err(_)) => {}
-            Err(_) => {}
-        }
+        let mft_data = MftData::parse(&data).unwrap();
+        // Should have parsed at least some entries
+        // (depends on mft crate behavior with synthetic data)
+        assert!(mft_data.entries.len() <= 3);
     }
 
     #[test]
@@ -987,15 +963,9 @@ mod tests {
         let end_off = off + si_aligned as usize;
         buf[end_off..end_off + 4].copy_from_slice(&0xFFFFFFFFu32.to_le_bytes());
 
-        let result = std::panic::catch_unwind(|| MftData::parse(&buf));
-        match result {
-            Ok(Ok(mft_data)) => {
-                // Entry without $FILE_NAME should be skipped (line 104-105)
-                assert!(mft_data.entries.is_empty());
-            }
-            Ok(Err(_)) => {}
-            Err(_) => {}
-        }
+        let mft_data = MftData::parse(&buf).unwrap();
+        // Entry without $FILE_NAME should be skipped (line 104-105)
+        assert!(mft_data.entries.is_empty());
     }
 
     #[test]
@@ -1073,15 +1043,8 @@ mod tests {
         data.extend_from_slice(&entry0);
         data.extend_from_slice(&entry1);
 
-        // Parse: the second entry should trigger the Err branch (lines 70-72)
-        match MftData::parse(&data) {
-            Ok(mft_data) => {
-                // Parser should have skipped the corrupt DEAD entry
-                let _ = mft_data.entries.len();
-            }
-            Err(_) => {
-                // Parser initialization may have failed, also acceptable
-            }
-        }
+        // The corrupt second entry is skipped; parsing still succeeds.
+        let mft_data = MftData::parse(&data).unwrap();
+        let _ = mft_data.entries.len();
     }
 }

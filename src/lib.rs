@@ -31,6 +31,15 @@ mod test_log_setup {
         let _ = log::set_logger(&SINK);
         log::set_max_level(log::LevelFilter::Trace);
     }
+
+    #[test]
+    fn sink_logger_implements_all_trait_methods() {
+        use log::Log;
+        let meta = log::MetadataBuilder::new().level(log::Level::Trace).build();
+        assert!(SINK.enabled(&meta));
+        SINK.log(&log::Record::builder().args(format_args!("x")).build());
+        SINK.flush();
+    }
 }
 
 pub mod analysis;
