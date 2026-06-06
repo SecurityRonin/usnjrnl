@@ -345,19 +345,13 @@ mod tests {
 
     #[test]
     fn test_scan_partition_larger_than_data_stops_at_eof() {
-        // partition_size claims far more than the reader holds, so read_full hits
-        // EOF (0 => break) and a later read of 0 bytes stops the scan loop.
-        let data = vec![0u8; 4096];
-        let mut cursor = Cursor::new(data);
-        let result = scan_for_unallocated(
-            &mut cursor,
-            0,
-            1_000_000,
-            &HashSet::new(),
-            &HashSet::new(),
-            4096,
-        )
-        .unwrap();
+        // partition_size claims data the empty reader does not have: the first
+        // read_full yields 0 (its `0 => break`), and the scan loop's `n == 0`
+        // break stops cleanly.
+        let mut cursor = Cursor::new(Vec::new());
+        let result =
+            scan_for_unallocated(&mut cursor, 0, 4096, &HashSet::new(), &HashSet::new(), 0)
+                .unwrap();
         assert_eq!(result.usn_records.len(), 0);
     }
 

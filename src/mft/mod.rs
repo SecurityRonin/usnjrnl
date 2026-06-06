@@ -1086,4 +1086,15 @@ mod tests {
         assert_eq!(m.entries.len(), 1);
         assert!(m.entries[0].full_path.contains("orphan.txt"));
     }
+
+    #[test]
+    fn parse_handles_out_of_bounds_attribute_offset_without_panic() {
+        // first_attribute_offset points past the 1024-byte record. parse_attributes
+        // returns no attributes (rather than erroring), so the entry is skipped for
+        // lacking a $FILE_NAME — and parsing never panics on the bad offset.
+        let mut e = build_mft_entry_bytes(310, 1, 5, 5, "x.txt", 0x01);
+        e[0x14..0x16].copy_from_slice(&0x0410u16.to_le_bytes());
+        let m = MftData::parse(&e).unwrap();
+        assert!(m.entries.is_empty());
+    }
 }
