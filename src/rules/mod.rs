@@ -531,6 +531,30 @@ mod tests {
     }
 
     #[test]
+    fn rule_match_converts_to_a_canonical_finding() {
+        let rule = Rule {
+            name: "suspicious_extension".into(),
+            description: "double extension".into(),
+            severity: Severity::High,
+            filename_match: Some(FilenameMatch::Glob("*.exe".into())),
+            exclude_pattern: None,
+            any_reasons: None,
+            all_reasons: None,
+        };
+        let ruleset = RuleSet::from_rules(vec![rule]);
+        let rec = make_record("invoice.pdf.exe", UsnReason::FILE_CREATE);
+        let m = &ruleset.evaluate(&rec)[0];
+        let f = m.to_finding(forensicnomicon::report::Source {
+            analyzer: "usnjrnl-forensic".to_string(),
+            scope: "$UsnJrnl".to_string(),
+            version: None,
+        });
+        assert_eq!(f.code, "USN-SUSPICIOUS-EXTENSION");
+        assert_eq!(f.severity, Some(Severity::High));
+        assert!(f.evidence.iter().any(|e| e.field == "filename"));
+    }
+
+    #[test]
     fn test_rule_no_match_returns_empty() {
         let rule = Rule {
             name: "exe_only".into(),
