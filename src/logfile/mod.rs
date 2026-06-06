@@ -57,10 +57,7 @@ pub fn parse_logfile(data: &[u8]) -> Result<LogFileSummary> {
     for page_idx in 0..page_count {
         let page_offset = page_idx * LOG_PAGE_SIZE;
 
-        if page_offset + 4 > data.len() {
-            break;
-        }
-
+        // page_count = data.len() / LOG_PAGE_SIZE guarantees a full page fits here.
         let sig = &data[page_offset..page_offset + 4];
 
         if sig == RSTR_SIGNATURE {

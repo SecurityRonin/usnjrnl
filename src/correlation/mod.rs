@@ -696,6 +696,66 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_timestamp_conflicts_keeps_earliest_create() {
+        // Two FILE_CREATE records for entry 100; the second is earlier, exercising
+        // the and_modify path that keeps the earliest USN create timestamp.
+        let mut entry = mft_entry(100, 1, 50, "evil.exe", false);
+        entry.si_created = Some(DateTime::from_timestamp(1700000000, 0).unwrap());
+        let usn_records = vec![
+            usn(
+                100,
+                1,
+                50,
+                2000,
+                1700000500,
+                "evil.exe",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000300,
+                "evil.exe",
+                UsnReason::FILE_CREATE,
+            ),
+        ];
+        let engine = CorrelationEngine::new();
+        let conflicts = engine.find_timestamp_conflicts(&usn_records, &[entry]);
+        // Earliest create (1700000300) is used; si_created (1700000000) predates it.
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(
+            conflicts[0].usn_timestamp,
+            DateTime::from_timestamp(1700000300, 0).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_timestamp_conflicts_skip_paths() {
+        // Exercises the non-conflict skip branches: a non-FILE_CREATE record, an
+        // entry whose si_created is None, and an entry with no matching USN create.
+        let mut e_no_si = mft_entry(100, 1, 50, "a.txt", false);
+        e_no_si.si_created = None;
+        let e_no_create = mft_entry(200, 1, 50, "b.txt", false); // si_created None, entry 200 has no USN create
+        let usn_records = vec![
+            usn(
+                100,
+                1,
+                50,
+                1000,
+                1700000500,
+                "a.txt",
+                UsnReason::FILE_CREATE,
+            ),
+            usn(100, 1, 50, 1100, 1700000600, "a.txt", UsnReason::CLOSE),
+        ];
+        let engine = CorrelationEngine::new();
+        let conflicts = engine.find_timestamp_conflicts(&usn_records, &[e_no_si, e_no_create]);
+        assert_eq!(conflicts.len(), 0);
+    }
+
     // ─── Test 8: No conflict when timestamps are consistent ──────────────
 
     #[test]

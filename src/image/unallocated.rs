@@ -333,6 +333,35 @@ mod tests {
     }
 
     #[test]
+    fn test_scan_chunk_size_zero_uses_default() {
+        // chunk_size 0 selects DEFAULT_CHUNK_SIZE.
+        let data = vec![0u8; 4096];
+        let mut cursor = Cursor::new(data);
+        let result =
+            scan_for_unallocated(&mut cursor, 0, 4096, &HashSet::new(), &HashSet::new(), 0)
+                .unwrap();
+        assert_eq!(result.usn_records.len(), 0);
+    }
+
+    #[test]
+    fn test_scan_partition_larger_than_data_stops_at_eof() {
+        // partition_size claims far more than the reader holds, so read_full hits
+        // EOF (0 => break) and a later read of 0 bytes stops the scan loop.
+        let data = vec![0u8; 4096];
+        let mut cursor = Cursor::new(data);
+        let result = scan_for_unallocated(
+            &mut cursor,
+            0,
+            1_000_000,
+            &HashSet::new(),
+            &HashSet::new(),
+            4096,
+        )
+        .unwrap();
+        assert_eq!(result.usn_records.len(), 0);
+    }
+
+    #[test]
     fn test_scan_finds_usn_records() {
         let (data, _, _) = build_partition_with_records();
         let part_size = data.len() as u64;
