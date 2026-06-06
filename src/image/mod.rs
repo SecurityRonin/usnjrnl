@@ -258,18 +258,68 @@ pub fn find_ntfs_partition<R: Read + Seek>(reader: &mut R) -> Result<PartitionEn
 pub fn extract_artifacts(image_path: &Path, output_dir: &Path) -> Result<ExtractedArtifacts> {
     info!("Opening disk image: {}", image_path.display());
     let reader = ewf::EwfReader::open(image_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open EWF image: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to open EWF image: {e}"))?;
     extract_artifacts_from_reader(reader, output_dir)
 }
 
 /// Extract the artifacts from any `Read + Seek` disk image — the testable core.
 #[cfg(feature = "image")]
 pub fn extract_artifacts_from_reader<R: Read + Seek>(
-    reader: R,
+    mut reader: R,
     output_dir: &Path,
 ) -> Result<ExtractedArtifacts> {
-    let _ = (reader, output_dir);
-    todo!("extract_artifacts_from_reader — GREEN step")
+    use std::io::Write;
+
+    std::fs::create_dir_all(output_dir)?;
+
+    let partition = find_ntfs_partition(&mut reader)?;
+    info!(
+        "NTFS partition at offset {} ({:.1} MB)",
+        partition.offset,
+        partition.size as f64 / 1_048_576.0
+    );
+
+    // Re-base the volume to offset 0 (bounded to the partition) and open it.
+    let part = ntfs_forensic::OffsetReader::new(reader, partition.offset, partition.size)
+        .map_err(|e| anyhow::anyhow!("partition window: {e}"))?;
+    let mut fs =
+        ntfs_forensic::NtfsFs::open(part).map_err(|e| anyhow::anyhow!("open NTFS volume: {e}"))?;
+
+    let write_artifact = |name: &str, bytes: &[u8]| -> Result<PathBuf> {
+        let path = output_dir.join(name);
+        File::create(&path)?.write_all(bytes)?;
+        info!("Extracted {name} ({} bytes)", bytes.len());
+        Ok(path)
+    };
+
+    let mft = write_artifact(
+        "$MFT",
+        &fs.read_file(r"\$MFT")
+            .map_err(|e| anyhow::anyhow!("read $MFT: {e}"))?,
+    )?;
+    let mftmirr = write_artifact(
+        "$MFTMirr",
+        &fs.read_file(r"\$MFTMirr")
+            .map_err(|e| anyhow::anyhow!("read $MFTMirr: {e}"))?,
+    )?;
+    let logfile = write_artifact(
+        "$LogFile",
+        &fs.read_file(r"\$LogFile")
+            .map_err(|e| anyhow::anyhow!("read $LogFile: {e}"))?,
+    )?;
+    // The USN change journal is the named $DATA stream $UsnJrnl:$J.
+    let usnjrnl = write_artifact(
+        "$UsnJrnl_$J",
+        &fs.read_named_stream(r"\$Extend\$UsnJrnl", "$J")
+            .map_err(|e| anyhow::anyhow!("read $UsnJrnl:$J: {e}"))?,
+    )?;
+
+    Ok(ExtractedArtifacts {
+        mft,
+        mftmirr,
+        logfile,
+        usnjrnl,
+    })
 }
 
 #[cfg(test)]
