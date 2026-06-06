@@ -63,6 +63,7 @@ pub fn format_reason_stats(records: &[UsnRecord]) -> String {
 pub fn write_reason_stats<W: Write>(records: &[UsnRecord], writer: &mut W) -> Result<()> {
     let stats = format_reason_stats(records);
     write!(writer, "{stats}")?;
+    writer.flush()?;
     Ok(())
 }
 
@@ -182,10 +183,16 @@ mod tests {
 
     #[test]
     fn test_write_reason_stats_write_error() {
-        struct FailWriter;
+        struct FailWriter {
+            fail_write: bool,
+        }
         impl std::io::Write for FailWriter {
-            fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-                Err(std::io::Error::other("fail"))
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                if self.fail_write {
+                    Err(std::io::Error::other("fail"))
+                } else {
+                    Ok(buf.len())
+                }
             }
             fn flush(&mut self) -> std::io::Result<()> {
                 Ok(())
@@ -193,7 +200,11 @@ mod tests {
         }
 
         let records = vec![make_record(UsnReason::FILE_CREATE, 2)];
-        let result = write_reason_stats(&records, &mut FailWriter);
+        // write fails -> error propagates
+        let result = write_reason_stats(&records, &mut FailWriter { fail_write: true });
         assert!(result.is_err());
+        // write succeeds -> reaches writer.flush(), exercising the mock flush
+        let result = write_reason_stats(&records, &mut FailWriter { fail_write: false });
+        assert!(result.is_ok());
     }
 }

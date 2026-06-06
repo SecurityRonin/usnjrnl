@@ -67,6 +67,7 @@ pub fn export_xml<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
         writeln!(writer, "  </record>")?;
     }
     writeln!(writer, "</usnjrnl>")?;
+    writer.flush()?;
     Ok(())
 }
 
@@ -394,6 +395,10 @@ mod tests {
         let mut writer = FailWriter { remaining: 50 };
         let result = export_xml(&resolved, &mut writer);
         assert!(result.is_err());
+
+        // Ample capacity: export succeeds and reaches writer.flush().
+        let mut ok_writer = FailWriter { remaining: 1 << 20 };
+        assert!(export_xml(&resolved, &mut ok_writer).is_ok());
     }
 
     /// Returns the byte position just after the given tag line ends in the XML output.

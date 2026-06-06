@@ -394,6 +394,7 @@ pub fn export_report<W: Write>(report_data: &ReportData, writer: &mut W) -> Resu
     let json = serde_json::to_string(report_data)?;
     let html = TEMPLATE.replace("{{DATA}}", &json);
     writer.write_all(html.as_bytes())?;
+    writer.flush()?;
     Ok(())
 }
 
@@ -1138,17 +1139,143 @@ mod tests {
         let questions = crate::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
-        struct FailWriter;
+        // Configurable writer to exercise the write-error, flush-error, and
+        // success branches of export_report (and of the writer's own methods).
+        struct FailWriter {
+            fail_write: bool,
+            fail_flush: bool,
+        }
         impl std::io::Write for FailWriter {
-            fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-                Err(std::io::Error::other("disk full"))
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                if self.fail_write {
+                    Err(std::io::Error::other("disk full"))
+                } else {
+                    Ok(buf.len())
+                }
             }
             fn flush(&mut self) -> std::io::Result<()> {
-                Err(std::io::Error::other("disk full"))
+                if self.fail_flush {
+                    Err(std::io::Error::other("disk full"))
+                } else {
+                    Ok(())
+                }
             }
         }
 
-        let result = export_report(&data, &mut FailWriter);
-        assert!(result.is_err());
+        // write fails -> error propagates from write_all
+        let mut w = FailWriter {
+            fail_write: true,
+            fail_flush: false,
+        };
+        assert!(export_report(&data, &mut w).is_err());
+
+        // write succeeds, flush fails -> error propagates from flush
+        let mut w = FailWriter {
+            fail_write: false,
+            fail_flush: true,
+        };
+        assert!(export_report(&data, &mut w).is_err());
+
+        // both succeed
+        let mut w = FailWriter {
+            fail_write: false,
+            fail_flush: false,
+        };
+        assert!(export_report(&data, &mut w).is_ok());
+    }
+
+    #[test]
+    fn test_report_populates_all_detections() {
+        use crate::analysis::{
+            RansomwareIndicator, SecureDeletionIndicator, SecureDeletionPattern, TimestompIndicator,
+        };
+        let (resolved, ghosts, clearing) = make_test_input();
+        let ts = DateTime::from_timestamp(1_700_000_000, 0).unwrap();
+        let timestomping = vec![
+            TimestompIndicator {
+                filename: "a.exe".into(),
+                mft_entry: 1,
+                change_timestamp: ts,
+                has_nearby_data_change: true,
+                confidence: 0.9,
+            },
+            TimestompIndicator {
+                filename: "b.exe".into(),
+                mft_entry: 2,
+                change_timestamp: ts,
+                has_nearby_data_change: false,
+                confidence: 0.5,
+            },
+        ];
+        let secure_deletion = vec![SecureDeletionIndicator {
+            pattern: SecureDeletionPattern::SDelete,
+            filenames: vec!["AAAA".into()],
+            time_start: ts,
+            time_end: ts,
+            confidence: 0.8,
+        }];
+        let ransomware = vec![RansomwareIndicator {
+            extension: ".locked".into(),
+            affected_count: 42,
+            sample_filenames: vec!["x.locked".into()],
+            time_start: ts,
+            time_end: ts,
+            confidence: 0.95,
+        }];
+        let input = ReportInput {
+            image_name: "test.E01",
+            resolved: &resolved,
+            mft_data: None,
+            timestomping: &timestomping,
+            secure_deletion: &secure_deletion,
+            ransomware: &ransomware,
+            journal_clearing: &clearing,
+            ghost_records: &ghosts,
+            carved_usn_count: 0,
+            carved_mft_count: 0,
+            carving_bytes_scanned: 0,
+            carving_chunks: 0,
+            carving_usn_dupes: 0,
+            carving_mft_dupes: 0,
+        };
+        let questions = crate::triage::queries::builtin_questions();
+        let data = build_report_data(&input, &questions);
+
+        assert_eq!(data.detections.timestomping.len(), 2);
+        assert!(data.detections.timestomping[0]
+            .detail
+            .contains("nearby data modification"));
+        assert!(data.detections.timestomping[1].detail.contains("Isolated"));
+        assert_eq!(data.detections.secure_deletion.len(), 1);
+        assert_eq!(data.detections.ransomware.len(), 1);
+        assert_eq!(data.detections.ransomware[0].extension, ".locked");
+    }
+
+    #[test]
+    fn test_report_empty_records_has_no_time_range() {
+        let clearing = JournalClearingResult {
+            clearing_detected: false,
+            first_usn: None,
+            timestamp_gaps: vec![],
+            confidence: 0.0,
+        };
+        let input = ReportInput {
+            image_name: "x",
+            resolved: &[],
+            mft_data: None,
+            timestomping: &[],
+            secure_deletion: &[],
+            ransomware: &[],
+            journal_clearing: &clearing,
+            ghost_records: &[],
+            carved_usn_count: 0,
+            carved_mft_count: 0,
+            carving_bytes_scanned: 0,
+            carving_chunks: 0,
+            carving_usn_dupes: 0,
+            carving_mft_dupes: 0,
+        };
+        let data = build_report_data(&input, &[]);
+        assert!(data.meta.time_range.is_none());
     }
 }
