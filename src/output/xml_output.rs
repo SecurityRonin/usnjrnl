@@ -424,6 +424,19 @@ mod tests {
     }
 
     #[test]
+    fn test_xml_fail_at_timestamp_line28() {
+        let resolved = make_test_record();
+        let mut buf = Vec::new();
+        export_xml(&resolved, &mut buf).unwrap();
+        let output = String::from_utf8(buf).unwrap();
+        // Fail right after the <record> line, so the timestamp writeln (line 28) errors.
+        let offset = byte_offset_after(&output, "  <record>");
+        let mut writer = FailWriter { remaining: offset };
+        let result = export_xml(&resolved, &mut writer);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_xml_fail_at_sequence_number_line34() {
         let resolved = make_test_record();
         let mut buf = Vec::new();
