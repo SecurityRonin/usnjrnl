@@ -1047,4 +1047,43 @@ mod tests {
         let mft_data = MftData::parse(&data).unwrap();
         let _ = mft_data.entries.len();
     }
+
+    #[test]
+    fn parse_skips_entry_with_fixup_mismatch() {
+        // Corrupt the update-sequence tail so apply_fixup rejects the record.
+        let mut e = build_mft_entry_bytes(202, 1, 5, 5, "x.txt", 0x01);
+        e[0x1FE] = 0xFF;
+        e[0x1FF] = 0xFF;
+        let m = MftData::parse(&e).unwrap();
+        assert!(m.entries.is_empty());
+    }
+
+    #[test]
+    fn parse_covers_filename_namespace_priorities() {
+        // name_type byte sits at a fixed offset (0xF1) for this fixture layout.
+        const NS_OFF: usize = 0xF1;
+
+        // namespace 2 (DOS) -> priority arm `2 => 1`
+        let mut dos = build_mft_entry_bytes(210, 1, 5, 5, "DOS~1.TXT", 0x01);
+        dos[NS_OFF] = 0x02;
+        let m = MftData::parse(&dos).unwrap();
+        assert_eq!(m.entries.len(), 1);
+        assert_eq!(m.entries[0].filename, "DOS~1.TXT");
+
+        // namespace 0 (POSIX) -> default arm `_ => 2`
+        let mut posix = build_mft_entry_bytes(211, 1, 5, 5, "posix.txt", 0x01);
+        posix[NS_OFF] = 0x00;
+        let m2 = MftData::parse(&posix).unwrap();
+        assert_eq!(m2.entries[0].filename, "posix.txt");
+    }
+
+    #[test]
+    fn parse_full_path_stops_on_missing_parent() {
+        // parent 999 is absent from the table, so resolve_full_path takes the
+        // `_ => break` arm of the parent-chain walk.
+        let e = build_mft_entry_bytes(300, 1, 999, 1, "orphan.txt", 0x01);
+        let m = MftData::parse(&e).unwrap();
+        assert_eq!(m.entries.len(), 1);
+        assert!(m.entries[0].full_path.contains("orphan.txt"));
+    }
 }
