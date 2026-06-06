@@ -1,0 +1,66 @@
+[package]
+name = "usnjrnl-forensic-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.usnjrnl-forensic]
+path = ".."
+
+[[bin]]
+name = "usn_record"
+path = "fuzz_targets/usn_record.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "usn_carve"
+path = "fuzz_targets/usn_carve.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "logfile"
+path = "fuzz_targets/logfile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "logfile_usn_extract"
+path = "fuzz_targets/logfile_usn_extract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mft_parse"
+path = "fuzz_targets/mft_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mft_carve"
+path = "fuzz_targets/mft_carve.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mftmirr"
+path = "fuzz_targets/mftmirr.rs"
+test = false
+doc = false
+bench = false
+
+[profile.release]
+debug = 1
