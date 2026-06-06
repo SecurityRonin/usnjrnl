@@ -69,15 +69,12 @@ mod tests {
         export_tln(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
         let fields: Vec<&str> = output.trim().split('|').collect();
-        assert_eq!(fields.len(), 5, "TLN must have 5 pipe-delimited fields");
-        assert_eq!(fields[0], "1700000000", "timestamp as Unix epoch");
-        assert_eq!(fields[1], "USN", "source");
-        assert_eq!(fields[2], "", "host is empty");
-        assert_eq!(fields[3], "", "user is empty");
-        assert_eq!(
-            fields[4], "USN: FILE_CREATE .\\temp\\test.exe",
-            "description"
-        );
+        assert_eq!(fields.len(), 5);
+        assert_eq!(fields[0], "1700000000");
+        assert_eq!(fields[1], "USN");
+        assert_eq!(fields[2], "");
+        assert_eq!(fields[3], "");
+        assert_eq!(fields[4], "USN: FILE_CREATE .\\temp\\test.exe");
     }
 
     #[test]
@@ -102,7 +99,7 @@ mod tests {
         export_tln(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
         let lines: Vec<&str> = output.trim().lines().collect();
-        assert_eq!(lines.len(), 2, "should have two TLN lines");
+        assert_eq!(lines.len(), 2);
         assert!(lines[0].contains("USN: FILE_CREATE .\\docs\\a.txt"));
         assert!(lines[1].contains("USN: DATA_EXTEND .\\logs\\b.log"));
     }
@@ -113,7 +110,7 @@ mod tests {
         let mut buf = Vec::new();
         export_tln(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
-        assert!(output.is_empty(), "empty input should produce empty output");
+        assert!(output.is_empty());
     }
 
     /// A writer that fails after writing a specified number of bytes.
@@ -146,7 +143,7 @@ mod tests {
         )];
         let mut writer = FailWriter { remaining: 5 };
         let result = export_tln(&resolved, &mut writer);
-        assert!(result.is_err(), "Should propagate write error");
+        assert!(result.is_err());
     }
 
     #[test]
@@ -163,7 +160,7 @@ mod tests {
         )];
         let mut writer = FailWriter { remaining: 0 };
         let result = export_tln(&resolved, &mut writer);
-        assert!(result.is_err(), "Should fail immediately on first write");
+        assert!(result.is_err());
     }
 
     #[test]

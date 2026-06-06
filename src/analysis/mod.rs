@@ -640,12 +640,9 @@ mod tests {
         ];
 
         let indicators = detect_secure_deletion(&records);
-        assert!(!indicators.is_empty(), "Should detect SDelete pattern");
+        assert!(!indicators.is_empty());
         assert_eq!(indicators[0].pattern, SecureDeletionPattern::SDelete);
-        assert!(
-            indicators[0].confidence >= 0.9,
-            "High confidence when both creates and deletes are present"
-        );
+        assert!(indicators[0].confidence >= 0.9);
     }
 
     #[test]
@@ -657,10 +654,7 @@ mod tests {
         ];
 
         let indicators = detect_secure_deletion(&records);
-        assert!(
-            indicators.is_empty(),
-            "Normal files should not trigger SDelete detection"
-        );
+        assert!(indicators.is_empty());
     }
 
     #[test]
@@ -677,7 +671,7 @@ mod tests {
         }
 
         let indicators = detect_secure_deletion(&records);
-        assert!(!indicators.is_empty(), "Should detect bulk .tmp deletion");
+        assert!(!indicators.is_empty());
         assert_eq!(
             indicators[0].pattern,
             SecureDeletionPattern::BulkTempDeletion
@@ -692,10 +686,7 @@ mod tests {
         ];
 
         let indicators = detect_secure_deletion(&records);
-        assert!(
-            indicators.is_empty(),
-            "Two .tmp deletions should not trigger bulk detection"
-        );
+        assert!(indicators.is_empty());
     }
 
     // ─── Journal Clearing Tests ──────────────────────────────────────────
@@ -720,10 +711,7 @@ mod tests {
         ];
 
         let result = detect_journal_clearing(&records);
-        assert!(
-            result.clearing_detected,
-            "High starting USN should indicate clearing"
-        );
+        assert!(result.clearing_detected);
         assert!(result.confidence >= 0.4);
         assert_eq!(result.first_usn, Some(2_000_000_000));
     }
@@ -743,10 +731,7 @@ mod tests {
         ];
 
         let result = detect_journal_clearing(&records);
-        assert!(
-            !result.timestamp_gaps.is_empty(),
-            "Should detect 48-hour timestamp gap"
-        );
+        assert!(!result.timestamp_gaps.is_empty());
         assert!(result.timestamp_gaps[0].gap_duration > Duration::hours(24));
     }
 
@@ -759,10 +744,7 @@ mod tests {
         ];
 
         let result = detect_journal_clearing(&records);
-        assert!(
-            !result.clearing_detected,
-            "Normal journal should not trigger clearing detection"
-        );
+        assert!(!result.clearing_detected);
         assert!(result.timestamp_gaps.is_empty());
     }
 
@@ -789,10 +771,7 @@ mod tests {
         }
 
         let indicators = detect_ransomware_patterns(&records);
-        assert!(
-            !indicators.is_empty(),
-            "Should detect .encrypted ransomware extension"
-        );
+        assert!(!indicators.is_empty());
         assert_eq!(indicators[0].extension, ".encrypted");
         assert_eq!(indicators[0].affected_count, 5);
     }
@@ -811,10 +790,7 @@ mod tests {
         }
 
         let indicators = detect_ransomware_patterns(&records);
-        assert!(
-            !indicators.is_empty(),
-            "Should detect mass rename to unknown extension"
-        );
+        assert!(!indicators.is_empty());
     }
 
     #[test]
@@ -826,10 +802,7 @@ mod tests {
         ];
 
         let indicators = detect_ransomware_patterns(&records);
-        assert!(
-            indicators.is_empty(),
-            "Normal file renames should not trigger ransomware detection"
-        );
+        assert!(indicators.is_empty());
     }
 
     #[test]
@@ -862,10 +835,7 @@ mod tests {
             .iter()
             .filter(|i| i.extension == ".locked")
             .collect();
-        assert!(
-            !locked_indicators.is_empty(),
-            "Should detect .locked ransomware pattern"
-        );
+        assert!(!locked_indicators.is_empty());
     }
 
     // ─── Timestomping Detection Tests ────────────────────────────────────
@@ -881,10 +851,7 @@ mod tests {
         )];
 
         let indicators = detect_timestomping(&records);
-        assert!(
-            !indicators.is_empty(),
-            "Isolated BASIC_INFO_CHANGE should be detected"
-        );
+        assert!(!indicators.is_empty());
         assert_eq!(indicators[0].filename, "suspicious.exe");
         assert!(!indicators[0].has_nearby_data_change);
         assert!(indicators[0].confidence >= 0.7);
@@ -904,10 +871,7 @@ mod tests {
         ];
 
         let indicators = detect_timestomping(&records);
-        assert!(
-            indicators.is_empty(),
-            "BASIC_INFO_CHANGE with nearby data change should not trigger timestomp detection"
-        );
+        assert!(indicators.is_empty());
     }
 
     #[test]
@@ -931,10 +895,7 @@ mod tests {
         ];
 
         let indicators = detect_timestomping(&records);
-        assert!(
-            !indicators.is_empty(),
-            "BASIC_INFO_CHANGE far from data changes should still be suspicious"
-        );
+        assert!(!indicators.is_empty());
     }
 
     #[test]
@@ -967,18 +928,9 @@ mod tests {
         let indicators = detect_timestomping(&records);
         // malware1.exe and malware2.dll should be flagged, normal.txt should not
         let flagged_files: Vec<&str> = indicators.iter().map(|i| i.filename.as_str()).collect();
-        assert!(
-            flagged_files.contains(&"malware1.exe"),
-            "malware1.exe should be flagged"
-        );
-        assert!(
-            flagged_files.contains(&"malware2.dll"),
-            "malware2.dll should be flagged"
-        );
-        assert!(
-            !flagged_files.contains(&"normal.txt"),
-            "normal.txt should not be flagged"
-        );
+        assert!(flagged_files.contains(&"malware1.exe"));
+        assert!(flagged_files.contains(&"malware2.dll"));
+        assert!(!flagged_files.contains(&"normal.txt"));
     }
 
     #[test]
@@ -996,10 +948,7 @@ mod tests {
         ];
 
         let indicators = detect_timestomping(&records);
-        assert!(
-            indicators.is_empty(),
-            "BASIC_INFO_CHANGE after FILE_CREATE should not be flagged"
-        );
+        assert!(indicators.is_empty());
     }
 
     // ─── Additional coverage tests ──────────────────────────────────────
@@ -1045,10 +994,7 @@ mod tests {
 
         let indicators = detect_secure_deletion(&records);
         assert!(!indicators.is_empty());
-        assert!(
-            indicators[0].confidence < 0.9,
-            "Create-only should have lower confidence than create+delete"
-        );
+        assert!(indicators[0].confidence < 0.9);
     }
 
     #[test]
@@ -1068,10 +1014,7 @@ mod tests {
             .iter()
             .filter(|i| i.pattern == SecureDeletionPattern::SDelete)
             .collect();
-        assert!(
-            sdelete_indicators.is_empty(),
-            "Two events per group should not trigger SDelete"
-        );
+        assert!(sdelete_indicators.is_empty());
     }
 
     #[test]
@@ -1104,7 +1047,7 @@ mod tests {
             .iter()
             .filter(|i| i.pattern == SecureDeletionPattern::BulkTempDeletion)
             .count();
-        assert_eq!(bulk, 0, "5 deletes per group is below 10 threshold");
+        assert_eq!(bulk, 0);
     }
 
     #[test]
@@ -1122,10 +1065,7 @@ mod tests {
         }
 
         let indicators = detect_ransomware_patterns(&records);
-        assert!(
-            indicators.is_empty(),
-            "Mass renames to .txt should not trigger ransomware"
-        );
+        assert!(indicators.is_empty());
     }
 
     #[test]
@@ -1148,10 +1088,7 @@ mod tests {
             .iter()
             .find(|i| i.extension == ".encrypted")
             .unwrap();
-        assert!(
-            encrypted_ind.confidence >= 0.95,
-            "20+ renames should have 0.95 confidence"
-        );
+        assert!(encrypted_ind.confidence >= 0.95);
     }
 
     #[test]
@@ -1173,11 +1110,7 @@ mod tests {
             .iter()
             .find(|i| i.extension == ".locked")
             .unwrap();
-        assert!(
-            (locked.confidence - 0.85).abs() < 0.01,
-            "10-19 renames should have 0.85 confidence, got {}",
-            locked.confidence
-        );
+        assert!((locked.confidence - 0.85).abs() < 0.01);
     }
 
     #[test]
@@ -1199,10 +1132,7 @@ mod tests {
             .iter()
             .filter(|i| i.extension == ".xyz_spread")
             .count();
-        assert_eq!(
-            spread, 0,
-            "Renames spread over > 10 minutes should not trigger mass-rename"
-        );
+        assert_eq!(spread, 0);
     }
 
     #[test]
@@ -1234,10 +1164,7 @@ mod tests {
         let indicators = detect_timestomping(&records);
         if !indicators.is_empty() {
             // If detected, confidence should be lower (0.5) because reason is not isolated
-            assert!(
-                indicators[0].confidence <= 0.5,
-                "Non-isolated BASIC_INFO_CHANGE should have lower confidence"
-            );
+            assert!(indicators[0].confidence <= 0.5);
         }
     }
 
@@ -1293,11 +1220,7 @@ mod tests {
             .iter()
             .filter(|i| i.pattern == SecureDeletionPattern::SDelete)
             .collect();
-        assert!(
-            !sdelete_indicators.is_empty(),
-            "Should detect SDelete groups split by time gap, got {} indicators",
-            sdelete_indicators.len()
-        );
+        assert!(!sdelete_indicators.is_empty());
     }
 
     #[test]
@@ -1345,11 +1268,7 @@ mod tests {
             .iter()
             .filter(|i| i.pattern == SecureDeletionPattern::BulkTempDeletion)
             .collect();
-        assert!(
-            !bulk_indicators.is_empty(),
-            "Should detect BulkTmpDeletion groups split by time gap, got {} indicators",
-            bulk_indicators.len()
-        );
+        assert!(!bulk_indicators.is_empty());
     }
 
     #[test]
@@ -1392,10 +1311,7 @@ mod tests {
         ];
 
         let indicators = detect_timestomping(&records);
-        assert!(
-            !indicators.is_empty(),
-            "Isolated BASIC_INFO_CHANGE with only non-data-change neighbors should be flagged"
-        );
+        assert!(!indicators.is_empty());
         assert_eq!(indicators[0].filename, "stomped.exe");
     }
 
@@ -1415,10 +1331,7 @@ mod tests {
 
         let indicators = detect_ransomware_patterns(&records);
         // Should not crash, and no indicator for files without extensions
-        assert!(
-            indicators.is_empty(),
-            "Files without extensions should not trigger mass-rename"
-        );
+        assert!(indicators.is_empty());
     }
 
     #[test]
@@ -1441,9 +1354,6 @@ mod tests {
         let indicators = detect_timestomping(&records);
         // The DATA_OVERWRITE is within 60 seconds and after the BASIC_INFO_CHANGE,
         // so it should NOT be flagged as timestomping.
-        assert!(
-            indicators.is_empty(),
-            "BASIC_INFO_CHANGE with nearby later data change should not trigger detection"
-        );
+        assert!(indicators.is_empty());
     }
 }

@@ -549,10 +549,7 @@ mod tests {
 
         let path = engine.resolve_path(&EntryKey::new(100, 1));
         // Should hit depth limit and return UNRESOLVED
-        assert!(
-            path.contains("UNRESOLVED"),
-            "Circular reference should hit depth limit"
-        );
+        assert!(path.contains("UNRESOLVED"));
     }
 
     #[test]
@@ -606,10 +603,7 @@ mod tests {
 
         // Resolving from the start of the chain should hit depth limit
         let path = engine.resolve_path(&EntryKey::new(1000, 1));
-        assert!(
-            path.contains("UNRESOLVED") || path.contains("UNKNOWN"),
-            "Should hit depth limit or reach unknown entry, got: {path}"
-        );
+        assert!(path.contains("UNRESOLVED") || path.contains("UNKNOWN"));
     }
 
     #[test]
@@ -654,11 +648,7 @@ mod tests {
         let resolved = engine.rewind(&records);
         assert_eq!(resolved.len(), 1);
         // The parent path should contain UNRESOLVED due to the circular chain
-        assert!(
-            resolved[0].parent_path.contains("UNRESOLVED"),
-            "Circular parent chain should produce UNRESOLVED, got: {}",
-            resolved[0].parent_path
-        );
+        assert!(resolved[0].parent_path.contains("UNRESOLVED"));
     }
 
     #[test]
@@ -693,11 +683,7 @@ mod tests {
 
         let resolved = engine.rewind(&records);
         assert_eq!(resolved.len(), 1);
-        assert!(
-            resolved[0].parent_path.contains("UNKNOWN(999:1)"),
-            "Parent should be UNKNOWN, got: {}",
-            resolved[0].parent_path
-        );
+        assert!(resolved[0].parent_path.contains("UNKNOWN(999:1)"));
     }
 
     #[test]
@@ -880,10 +866,7 @@ mod tests {
 
         let resolved = engine.rewind(&all_records);
         assert_eq!(resolved.len(), 1);
-        assert_eq!(
-            resolved[0].full_path, ".\\Users\\admin\\Temp\\malware.exe",
-            "Carved USN record should resolve via carved MFT directory tree"
-        );
+        assert_eq!(resolved[0].full_path, ".\\Users\\admin\\Temp\\malware.exe");
     }
 
     #[test]

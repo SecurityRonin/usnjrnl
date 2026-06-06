@@ -271,10 +271,7 @@ mod tests {
         );
 
         let analyzer = RefsAnalyzer::new(vec![refs_rec1]);
-        assert!(
-            analyzer.is_likely_refs(),
-            "V3 records with upper bits should be detected as ReFS"
-        );
+        assert!(analyzer.is_likely_refs());
 
         // Case 2: V3 records with upper bits all zero -> likely NTFS using V3 format
         let rec2 = make_v3_record(200, 5, UsnReason::FILE_CREATE, "ntfs_file.txt");
@@ -285,17 +282,11 @@ mod tests {
         );
 
         let analyzer2 = RefsAnalyzer::new(vec![refs_rec2]);
-        assert!(
-            !analyzer2.is_likely_refs(),
-            "V3 records with zero upper bits should not be flagged as ReFS"
-        );
+        assert!(!analyzer2.is_likely_refs());
 
         // Case 3: Empty records -> not ReFS
         let analyzer3 = RefsAnalyzer::new(vec![]);
-        assert!(
-            !analyzer3.is_likely_refs(),
-            "Empty set should not be detected as ReFS"
-        );
+        assert!(!analyzer3.is_likely_refs());
     }
 
     #[test]
@@ -324,17 +315,9 @@ mod tests {
         let analyzer = RefsAnalyzer::new(vec![rec1, rec2, rec3]);
         let groups = analyzer.group_by_file_id();
 
-        assert_eq!(groups.len(), 2, "Should have 2 distinct file IDs");
-        assert_eq!(
-            groups.get(&file_id_a).map(|v| v.len()),
-            Some(2),
-            "file_id_a should have 2 records"
-        );
-        assert_eq!(
-            groups.get(&file_id_b).map(|v| v.len()),
-            Some(1),
-            "file_id_b should have 1 record"
-        );
+        assert_eq!(groups.len(), 2);
+        assert_eq!(groups.get(&file_id_a).map(|v| v.len()), Some(2));
+        assert_eq!(groups.get(&file_id_b).map(|v| v.len()), Some(1));
 
         // Verify the grouped records have the right filenames
         let a_records = groups.get(&file_id_a).unwrap();
@@ -376,22 +359,14 @@ mod tests {
         // The file should be resolvable to its full path
         assert_eq!(
             paths.get(&file_id).map(|s| s.as_str()),
-            Some("Documents\\report.docx"),
-            "File path should be reconstructed from journal events alone"
+            Some("Documents\\report.docx")
         );
 
         // The directory itself should be resolvable
-        assert_eq!(
-            paths.get(&docs_id).map(|s| s.as_str()),
-            Some("Documents"),
-            "Directory path should be reconstructed"
-        );
+        assert_eq!(paths.get(&docs_id).map(|s| s.as_str()), Some("Documents"));
 
         // Root should not appear in reconstructed paths (it's the anchor)
-        assert!(
-            !paths.contains_key(&root_id),
-            "Root directory should not be in reconstructed paths"
-        );
+        assert!(!paths.contains_key(&root_id));
     }
 
     #[test]
@@ -482,8 +457,7 @@ mod tests {
         // The orphan should still get a path (just its own name)
         assert_eq!(
             paths.get(&orphan_id).map(|s| s.as_str()),
-            Some("orphan.txt"),
-            "Orphan file should resolve to just its filename"
+            Some("orphan.txt")
         );
     }
 
@@ -547,10 +521,7 @@ mod tests {
         );
 
         let analyzer = RefsAnalyzer::new(vec![refs_rec]);
-        assert!(
-            !analyzer.is_likely_refs(),
-            "Mixed v2/v3 should not be detected as ReFS"
-        );
+        assert!(!analyzer.is_likely_refs());
     }
 
     #[test]

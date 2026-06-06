@@ -594,7 +594,7 @@ mod tests {
             let hit = matches
                 .iter()
                 .any(|m| m.rule_name == "suspicious_executables");
-            assert!(hit, "Expected suspicious_executables to match '{name}'");
+            assert!(hit);
         }
 
         let safe = make_record("notepad.exe", UsnReason::FILE_CREATE);
@@ -602,10 +602,7 @@ mod tests {
         let hit = matches
             .iter()
             .any(|m| m.rule_name == "suspicious_executables");
-        assert!(
-            !hit,
-            "notepad.exe should NOT trigger suspicious_executables"
-        );
+        assert!(!hit);
     }
 
     #[test]
@@ -626,7 +623,7 @@ mod tests {
             let hit = matches
                 .iter()
                 .any(|m| m.rule_name == "ransomware_extensions");
-            assert!(hit, "Expected ransomware_extensions to match '{name}'");
+            assert!(hit);
         }
 
         let safe = make_record("report.pdf", UsnReason::RENAME_NEW_NAME);
@@ -634,7 +631,7 @@ mod tests {
         let hit = matches
             .iter()
             .any(|m| m.rule_name == "ransomware_extensions");
-        assert!(!hit, "report.pdf should NOT trigger ransomware_extensions");
+        assert!(!hit);
     }
 
     #[test]
@@ -647,7 +644,7 @@ mod tests {
             let hit = matches
                 .iter()
                 .any(|m| m.rule_name == "secure_delete_pattern");
-            assert!(hit, "Expected secure_delete_pattern to match '{name}'");
+            assert!(hit);
         }
 
         let safe = make_record("ABCDEF.txt", UsnReason::RENAME_NEW_NAME);
@@ -655,7 +652,7 @@ mod tests {
         let hit = matches
             .iter()
             .any(|m| m.rule_name == "secure_delete_pattern");
-        assert!(!hit, "ABCDEF.txt should NOT trigger secure_delete_pattern");
+        assert!(!hit);
     }
 
     #[test]

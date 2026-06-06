@@ -333,10 +333,7 @@ mod tests {
         data.extend_from_slice(&make_rcrd_page(5000));
 
         let summary = parse_logfile(&data).unwrap();
-        assert!(
-            summary.has_gaps,
-            "Should detect gap at non-RCRD page after RCRD pages"
-        );
+        assert!(summary.has_gaps);
     }
 
     #[test]
@@ -349,10 +346,7 @@ mod tests {
         data.extend_from_slice(&vec![0u8; LOG_PAGE_SIZE]); // zeroed page
 
         let summary = parse_logfile(&data).unwrap();
-        assert!(
-            !summary.has_gaps,
-            "Zeroed pages should not be flagged as gaps"
-        );
+        assert!(!summary.has_gaps);
     }
 
     #[test]
@@ -438,10 +432,7 @@ mod tests {
         data.extend_from_slice(&garbage); // page 1
 
         let summary = parse_logfile(&data).unwrap();
-        assert!(
-            !summary.has_gaps,
-            "Gap should not be flagged in early pages (page_idx <= 2)"
-        );
+        assert!(!summary.has_gaps);
     }
 
     #[test]

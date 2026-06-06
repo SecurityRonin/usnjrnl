@@ -446,7 +446,7 @@ mod tests {
         let page = build_rcrd_page_with_usn_in_redo(&usn_bytes, 50000);
 
         let results = extract_usn_from_logfile(&page);
-        assert!(!results.is_empty(), "Should find USN record in redo data");
+        assert!(!results.is_empty());
 
         let found = &results[0];
         assert_eq!(found.source, LogFileRecordSource::RedoData);
@@ -462,12 +462,12 @@ mod tests {
         let page = build_rcrd_page_with_usn_in_slack(&usn_bytes, 60000);
 
         let results = extract_usn_from_logfile(&page);
-        assert!(!results.is_empty(), "Should find USN record in page slack");
+        assert!(!results.is_empty());
 
         let found = results
             .iter()
             .find(|r| r.source == LogFileRecordSource::PageSlack);
-        assert!(found.is_some(), "Should identify source as PageSlack");
+        assert!(found.is_some());
         let found = found.unwrap();
         assert_eq!(found.record.mft_entry, 200);
         assert_eq!(found.record.filename, "deleted.doc");
@@ -487,11 +487,7 @@ mod tests {
         logfile_data.extend_from_slice(&page2);
 
         let results = extract_usn_from_logfile(&logfile_data);
-        assert!(
-            results.len() >= 2,
-            "Should find records from both pages, got {}",
-            results.len()
-        );
+        assert!(results.len() >= 2);
 
         let filenames: Vec<&str> = results.iter().map(|r| r.record.filename.as_str()).collect();
         assert!(filenames.contains(&"file1.txt"));
@@ -650,12 +646,12 @@ mod tests {
         let page = build_rcrd_page_with_usn_in_undo(&usn_bytes, 75000);
 
         let results = extract_usn_from_logfile(&page);
-        assert!(!results.is_empty(), "Should find USN record in undo data");
+        assert!(!results.is_empty());
 
         let found = results
             .iter()
             .find(|r| r.source == LogFileRecordSource::UndoData);
-        assert!(found.is_some(), "Should identify source as UndoData");
+        assert!(found.is_some());
         let found = found.unwrap();
         assert_eq!(found.record.mft_entry, 300);
         assert_eq!(found.record.filename, "undo_file.doc");
@@ -930,11 +926,8 @@ mod tests {
             .iter()
             .filter(|r| r.source == LogFileRecordSource::UndoData)
             .count();
-        assert!(redo_count >= 1, "Should find at least one record from redo");
-        assert_eq!(
-            undo_count, 0,
-            "Should not duplicate from undo when same region as redo"
-        );
+        assert!(redo_count >= 1);
+        assert_eq!(undo_count, 0);
     }
 
     #[test]

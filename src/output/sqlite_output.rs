@@ -361,9 +361,6 @@ mod tests {
                 row.get(0)
             })
             .unwrap();
-        assert_eq!(
-            ext, "",
-            "File without extension should have empty Extension"
-        );
+        assert_eq!(ext, "");
     }
 }

@@ -348,11 +348,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(
-            result.usn_records.len() >= 2,
-            "Should find at least 2 USN records, found {}",
-            result.usn_records.len()
-        );
+        assert!(result.usn_records.len() >= 2);
     }
 
     #[test]
@@ -371,11 +367,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(
-            result.mft_entries.len() >= 2,
-            "Should find at least 2 MFT entries, found {}",
-            result.mft_entries.len()
-        );
+        assert!(result.mft_entries.len() >= 2);
     }
 
     #[test]
@@ -478,16 +470,8 @@ mod tests {
         )
         .unwrap();
 
-        assert!(
-            result.usn_records.len() >= 2,
-            "Chunked scan should find USN records, found {}",
-            result.usn_records.len()
-        );
-        assert!(
-            result.mft_entries.len() >= 2,
-            "Chunked scan should find MFT entries, found {}",
-            result.mft_entries.len()
-        );
+        assert!(result.usn_records.len() >= 2);
+        assert!(result.mft_entries.len() >= 2);
         assert!(result.stats.chunks_processed >= 2);
     }
 
@@ -537,11 +521,7 @@ mod tests {
         let result =
             scan_for_unallocated(&mut cursor, 0, 4096, &HashSet::new(), &known_mft, 4096).unwrap();
 
-        assert_eq!(
-            result.mft_entries.len(),
-            1,
-            "Historical MFT entry (different sequence) should be kept"
-        );
+        assert_eq!(result.mft_entries.len(), 1);
         assert_eq!(result.mft_entries[0].sequence_number, 5);
         assert_eq!(result.stats.mft_duplicates_removed, 0);
     }

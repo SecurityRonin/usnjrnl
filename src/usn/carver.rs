@@ -359,11 +359,7 @@ mod tests {
         }
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(
-            records.len(),
-            0,
-            "Should not find any records in random data"
-        );
+        assert_eq!(records.len(), 0);
         assert_eq!(stats.bytes_scanned, 8192);
     }
 
@@ -384,7 +380,7 @@ mod tests {
 
         let (records, stats) = carve_usn_records(&data);
 
-        assert_eq!(records.len(), 1, "Should find exactly one record");
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].offset, record_offset);
         assert_eq!(records[0].record.filename, "carved_file.txt");
         assert_eq!(records[0].record.mft_entry, 42);
@@ -441,7 +437,7 @@ mod tests {
 
         let (records, stats) = carve_usn_records(&data);
 
-        assert_eq!(records.len(), 3, "Should find all three embedded records");
+        assert_eq!(records.len(), 3);
         assert_eq!(records[0].offset, r1_offset);
         assert_eq!(records[0].record.filename, "first.txt");
         assert_eq!(records[1].offset, r2_offset);
@@ -471,16 +467,9 @@ mod tests {
 
         let (records, stats) = carve_usn_records(&data);
 
-        assert_eq!(
-            records.len(),
-            1,
-            "Should only find the record with valid timestamp"
-        );
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].record.filename, "valid.txt");
-        assert_eq!(
-            stats.rejected_timestamp, 2,
-            "Should reject two records with invalid timestamps"
-        );
+        assert_eq!(stats.rejected_timestamp, 2);
     }
 
     #[test]
@@ -490,7 +479,7 @@ mod tests {
         let truncated = &record[..record.len() / 2];
 
         let (records, _stats) = carve_usn_records(truncated);
-        assert_eq!(records.len(), 0, "Should not carve truncated records");
+        assert_eq!(records.len(), 0);
     }
 
     #[test]
@@ -538,7 +527,7 @@ mod tests {
         data[0x3A..0x3C].copy_from_slice(&0x40u16.to_le_bytes());
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(records.len(), 0, "Wrong filename offset should be rejected");
+        assert_eq!(records.len(), 0);
         assert!(stats.rejected_structure > 0);
     }
 
@@ -549,7 +538,7 @@ mod tests {
         data[0x38..0x3A].copy_from_slice(&0u16.to_le_bytes());
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(records.len(), 0, "Zero filename length should be rejected");
+        assert_eq!(records.len(), 0);
         assert!(stats.rejected_structure > 0);
     }
 
@@ -560,7 +549,7 @@ mod tests {
         data[0x38..0x3A].copy_from_slice(&5u16.to_le_bytes());
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(records.len(), 0, "Odd filename length should be rejected");
+        assert_eq!(records.len(), 0);
         assert!(stats.rejected_structure > 0);
     }
 
@@ -571,11 +560,7 @@ mod tests {
         data[0x38..0x3A].copy_from_slice(&500u16.to_le_bytes());
 
         let (records, stats) = carve_usn_records(&data);
-        assert_eq!(
-            records.len(),
-            0,
-            "Filename exceeding record should be rejected"
-        );
+        assert_eq!(records.len(), 0);
         assert!(stats.rejected_structure > 0);
     }
 
@@ -723,10 +708,7 @@ mod tests {
 
         // Outer record_len = 0x50, but internal says 0x20 -> parse_usn_record_v2 bails
         let result = try_carve_v2(&data, 0, 0x50, &mut stats);
-        assert!(
-            result.is_none(),
-            "Should fail because internal record_len is invalid"
-        );
+        assert!(result.is_none());
         assert!(stats.rejected_structure > 0);
     }
 
@@ -747,10 +729,7 @@ mod tests {
 
         // Call try_carve_v3 with outer record_len=0x60 but data says 0x30 internally
         let result = try_carve_v3(&data, 0, 0x60, &mut stats);
-        assert!(
-            result.is_none(),
-            "Should fail because internal record_len is invalid for V3"
-        );
+        assert!(result.is_none());
         assert!(stats.rejected_structure > 0);
     }
 

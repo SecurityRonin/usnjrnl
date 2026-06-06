@@ -613,14 +613,14 @@ mod tests {
         let html = String::from_utf8(buf).unwrap();
 
         // Template must contain Story/Explore tab structure
-        assert!(html.contains("Story"), "missing Story tab");
-        assert!(html.contains("Explore"), "missing Explore tab");
+        assert!(html.contains("Story"));
+        assert!(html.contains("Explore"));
         // Template must contain stat cards
-        assert!(html.contains("stat-card"), "missing stat cards");
+        assert!(html.contains("stat-card"));
         // Template must contain the dark theme
-        assert!(html.contains("#0d1117"), "missing dark theme background");
+        assert!(html.contains("#0d1117"));
         // Template must contain sparkline canvas
-        assert!(html.contains("sparkline"), "missing sparkline");
+        assert!(html.contains("sparkline"));
     }
 
     #[test]
@@ -650,15 +650,9 @@ mod tests {
         let html = String::from_utf8(buf).unwrap();
 
         // The injected JSON must contain triage question data
-        assert!(
-            html.contains("malware_deployed"),
-            "missing malware triage question"
-        );
-        assert!(
-            html.contains("lateral_movement"),
-            "missing lateral movement question"
-        );
-        assert!(html.contains("What Happened"), "missing triage category");
+        assert!(html.contains("malware_deployed"));
+        assert!(html.contains("lateral_movement"));
+        assert!(html.contains("What Happened"));
     }
 
     #[test]
@@ -798,11 +792,8 @@ mod tests {
             .find(|t| t.id == "recovered_evidence")
             .expect("missing recovered_evidence triage result");
 
-        assert!(recovered.has_hits, "should have hits from carved record");
-        assert_eq!(
-            recovered.hit_count, 1,
-            "only the carved record should match"
-        );
+        assert!(recovered.has_hits);
+        assert_eq!(recovered.hit_count, 1);
     }
 
     #[test]

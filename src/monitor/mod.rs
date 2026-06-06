@@ -528,11 +528,7 @@ mod tests {
             .iter()
             .filter(|e| matches!(e, MonitorEvent::NewRecord(_)))
             .collect();
-        assert_eq!(
-            new_records.len(),
-            0,
-            "Garbage data should produce no records"
-        );
+        assert_eq!(new_records.len(), 0);
     }
 
     #[test]

@@ -1042,7 +1042,7 @@ mod tests {
         data2[0x3A..0x3C].copy_from_slice(&0x3Cu16.to_le_bytes()); // filename_offset
 
         let records = parse_usn_journal(&data2).unwrap();
-        assert_eq!(records.len(), 1, "Minimal valid V2 record should parse");
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].filename, "");
     }
 
@@ -1076,7 +1076,7 @@ mod tests {
         data2[0x4A..0x4C].copy_from_slice(&0x4Cu16.to_le_bytes()); // filename_offset
 
         let records = parse_usn_journal(&data2).unwrap();
-        assert_eq!(records.len(), 1, "Minimal valid V3 record should parse");
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].filename, "");
     }
 
@@ -1116,7 +1116,7 @@ mod tests {
         data.extend_from_slice(&extending);
 
         let records = parse_usn_journal(&data).unwrap();
-        assert_eq!(records.len(), 0, "No valid records in this data");
+        assert_eq!(records.len(), 0);
     }
 
     #[test]
@@ -1126,14 +1126,14 @@ mod tests {
         data[0..4].copy_from_slice(&(0x3Cu32).to_le_bytes());
         data[4..6].copy_from_slice(&2u16.to_le_bytes());
         let result = parse_usn_record_v2(&data);
-        assert!(result.is_ok(), "record_len == data.len() should succeed");
+        assert!(result.is_ok());
 
         // Now test where record_len > data.len()
         let mut data2 = vec![0u8; 0x3C];
         data2[0..4].copy_from_slice(&(0x3Du32).to_le_bytes()); // 1 byte more than available
         data2[4..6].copy_from_slice(&2u16.to_le_bytes());
         let result2 = parse_usn_record_v2(&data2);
-        assert!(result2.is_err(), "record_len > data.len() should fail");
+        assert!(result2.is_err());
     }
 
     #[test]
@@ -1145,20 +1145,20 @@ mod tests {
         data[0..4].copy_from_slice(&(0x4Bu32).to_le_bytes()); // 1 below V3_MIN
         data[4..6].copy_from_slice(&3u16.to_le_bytes());
         let result = parse_usn_record_v3(&data);
-        assert!(result.is_err(), "V3 record_len < V3_MIN should fail");
+        assert!(result.is_err());
 
         // And record_len > USN_MAX_RECORD_SIZE:
         let mut data2 = vec![0u8; 0x4C];
         data2[0..4].copy_from_slice(&(65537u32).to_le_bytes());
         data2[4..6].copy_from_slice(&3u16.to_le_bytes());
         let result2 = parse_usn_record_v3(&data2);
-        assert!(result2.is_err(), "V3 record_len > max should fail");
+        assert!(result2.is_err());
 
         // Test data.len() < V3_MIN:
         let mut data3 = vec![0u8; 0x4B]; // 1 byte short
         data3[0..4].copy_from_slice(&(0x4Cu32).to_le_bytes());
         data3[4..6].copy_from_slice(&3u16.to_le_bytes());
         let result3 = parse_usn_record_v3(&data3);
-        assert!(result3.is_err(), "V3 data too short should fail");
+        assert!(result3.is_err());
     }
 }

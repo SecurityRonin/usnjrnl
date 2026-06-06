@@ -416,7 +416,7 @@ mod tests {
             data[i] = (i % 256) as u8;
         }
         let (entries, _) = carve_mft_entries(&data);
-        assert_eq!(entries.len(), 0, "Should not find entries in garbage data");
+        assert_eq!(entries.len(), 0);
     }
 
     // ─── Test: single valid entry ────────────────────────────────────────────
@@ -426,7 +426,7 @@ mod tests {
         let entry = build_mft_entry(42, 3, 5, 1, "malware.exe", 0x01);
         let (entries, stats) = carve_mft_entries(&entry);
 
-        assert_eq!(entries.len(), 1, "Should find exactly one entry");
+        assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].entry_number, 42);
         assert_eq!(entries[0].sequence_number, 3);
         assert_eq!(entries[0].filename, "malware.exe");
@@ -570,7 +570,7 @@ mod tests {
         data[16..18].copy_from_slice(&1u16.to_le_bytes());
 
         let (entries, _) = carve_mft_entries(&data);
-        assert_eq!(entries.len(), 0, "Should not carve from truncated data");
+        assert_eq!(entries.len(), 0);
     }
 
     // ─── Test: non-aligned FILE signature ignored ────────────────────────────
@@ -583,7 +583,7 @@ mod tests {
         data[516..518].copy_from_slice(&1u16.to_le_bytes()); // fake sequence
 
         let (entries, _) = carve_mft_entries(&data);
-        assert_eq!(entries.len(), 0, "Non-aligned FILE should be ignored");
+        assert_eq!(entries.len(), 0);
     }
 
     // ─── Test: Win32 name preferred over DOS name ────────────────────────────
@@ -625,10 +625,7 @@ mod tests {
 
         let (entries, _) = carve_mft_entries(&buf);
         assert_eq!(entries.len(), 1);
-        assert_eq!(
-            entries[0].filename, "Important Spreadsheet.xlsx",
-            "Should prefer Win32 name over DOS name"
-        );
+        assert_eq!(entries[0].filename, "Important Spreadsheet.xlsx");
     }
 
     // ─── Test: stats tracking ────────────────────────────────────────────────
@@ -689,7 +686,7 @@ mod tests {
         buf[60..64].copy_from_slice(&4u32.to_le_bytes()); // attr_len = 4 < 8
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(entries.len(), 0, "Corrupt attr chain should reject entry");
+        assert_eq!(entries.len(), 0);
         assert!(stats.rejected > 0);
     }
 
@@ -717,7 +714,7 @@ mod tests {
         buf[60..64].copy_from_slice(&2000u32.to_le_bytes()); // attr_len > remaining space
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(entries.len(), 0, "Attr exceeding entry should reject");
+        assert_eq!(entries.len(), 0);
         assert!(stats.rejected > 0);
     }
 
@@ -753,7 +750,7 @@ mod tests {
         buf[end_off..end_off + 4].copy_from_slice(&ATTR_END_MARKER.to_le_bytes());
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(entries.len(), 0, "Non-resident FILE_NAME should be skipped");
+        assert_eq!(entries.len(), 0);
         assert!(stats.rejected > 0);
     }
 
@@ -791,11 +788,7 @@ mod tests {
         buf[end_off..end_off + 4].copy_from_slice(&ATTR_END_MARKER.to_le_bytes());
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(
-            entries.len(),
-            0,
-            "FILE_NAME with content < 66 should be rejected"
-        );
+        assert_eq!(entries.len(), 0);
         assert!(stats.rejected > 0);
     }
 
@@ -844,11 +837,7 @@ mod tests {
         }
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(
-            entries.len(),
-            0,
-            "FILE_NAME with zero name length should be rejected"
-        );
+        assert_eq!(entries.len(), 0);
         assert!(stats.rejected > 0);
     }
 
@@ -894,11 +883,7 @@ mod tests {
         }
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(
-            entries.len(),
-            0,
-            "Filename exceeding attr boundary should be rejected"
-        );
+        assert_eq!(entries.len(), 0);
         assert!(stats.rejected > 0);
     }
 
@@ -938,10 +923,7 @@ mod tests {
 
         let (entries, _) = carve_mft_entries(&buf);
         assert_eq!(entries.len(), 1);
-        assert_eq!(
-            entries[0].filename, "LongFileName.xlsx",
-            "Win32 name should be kept over DOS name"
-        );
+        assert_eq!(entries[0].filename, "LongFileName.xlsx");
     }
 
     // ─── Test: preserves all fields ──────────────────────────────────────────

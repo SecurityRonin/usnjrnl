@@ -223,32 +223,17 @@ mod tests {
         let parallel = parse_usn_journal_parallel(&data).unwrap();
 
         // Same number of records
-        assert_eq!(
-            sequential.len(),
-            parallel.len(),
-            "Record counts differ: sequential={}, parallel={}",
-            sequential.len(),
-            parallel.len()
-        );
+        assert_eq!(sequential.len(), parallel.len());
 
         // Same content in same order
-        for (i, (s, p)) in sequential.iter().zip(parallel.iter()).enumerate() {
-            assert_eq!(s.mft_entry, p.mft_entry, "mft_entry mismatch at index {i}");
-            assert_eq!(
-                s.mft_sequence, p.mft_sequence,
-                "mft_sequence mismatch at index {i}"
-            );
-            assert_eq!(
-                s.parent_mft_entry, p.parent_mft_entry,
-                "parent_mft_entry mismatch at index {i}"
-            );
-            assert_eq!(s.usn, p.usn, "usn mismatch at index {i}");
-            assert_eq!(s.filename, p.filename, "filename mismatch at index {i}");
-            assert_eq!(s.reason, p.reason, "reason mismatch at index {i}");
-            assert_eq!(
-                s.major_version, p.major_version,
-                "major_version mismatch at index {i}"
-            );
+        for (s, p) in sequential.iter().zip(parallel.iter()) {
+            assert_eq!(s.mft_entry, p.mft_entry);
+            assert_eq!(s.mft_sequence, p.mft_sequence);
+            assert_eq!(s.parent_mft_entry, p.parent_mft_entry);
+            assert_eq!(s.usn, p.usn);
+            assert_eq!(s.filename, p.filename);
+            assert_eq!(s.reason, p.reason);
+            assert_eq!(s.major_version, p.major_version);
         }
     }
 
@@ -256,7 +241,7 @@ mod tests {
     fn test_parallel_parse_empty_data() {
         let data: &[u8] = &[];
         let records = parse_usn_journal_parallel(data).unwrap();
-        assert!(records.is_empty(), "Empty input should return empty vec");
+        assert!(records.is_empty());
     }
 
     #[test]
@@ -272,7 +257,7 @@ mod tests {
         );
 
         let records = parse_usn_journal_parallel(&data).unwrap();
-        assert_eq!(records.len(), 1, "Should parse exactly one record");
+        assert_eq!(records.len(), 1);
 
         let rec = &records[0];
         assert_eq!(rec.mft_entry, 42);
@@ -300,11 +285,7 @@ mod tests {
         assert_eq!(records.len(), 3);
 
         // Should be sorted by USN offset
-        assert!(
-            records.windows(2).all(|w| w[0].usn <= w[1].usn),
-            "Records should be sorted by USN offset, got: {:?}",
-            records.iter().map(|r| r.usn).collect::<Vec<_>>()
-        );
+        assert!(records.windows(2).all(|w| w[0].usn <= w[1].usn));
     }
 
     #[test]
@@ -334,28 +315,17 @@ mod tests {
         // For 1MB chunk, we need ~13,000+ records to exceed one chunk.
         // Use 20,000 to guarantee multi-chunk processing.
         let data = build_multi_record_data(20_000);
-        assert!(
-            data.len() > CHUNK_SIZE,
-            "Test data should exceed chunk size: {} <= {}",
-            data.len(),
-            CHUNK_SIZE
-        );
+        assert!(data.len() > CHUNK_SIZE);
 
         let sequential = parse_usn_journal(&data).unwrap();
         let parallel = parse_usn_journal_parallel(&data).unwrap();
 
-        assert_eq!(
-            sequential.len(),
-            parallel.len(),
-            "Multi-chunk: record counts differ: seq={}, par={}",
-            sequential.len(),
-            parallel.len()
-        );
+        assert_eq!(sequential.len(), parallel.len());
 
         // Verify ordering matches
-        for (i, (s, p)) in sequential.iter().zip(parallel.iter()).enumerate() {
-            assert_eq!(s.filename, p.filename, "filename mismatch at index {i}");
-            assert_eq!(s.usn, p.usn, "usn mismatch at index {i}");
+        for (s, p) in sequential.iter().zip(parallel.iter()) {
+            assert_eq!(s.filename, p.filename);
+            assert_eq!(s.usn, p.usn);
         }
     }
 
@@ -372,10 +342,7 @@ mod tests {
             }
         }
         let result = find_first_record_boundary(&data, 0);
-        assert!(
-            result.is_none(),
-            "Should return None for data with no valid records"
-        );
+        assert!(result.is_none());
     }
 
     #[test]
@@ -383,7 +350,7 @@ mod tests {
         // All-zero data has no valid records (zero-filled regions are skipped)
         let data = vec![0u8; 1024];
         let result = find_first_record_boundary(&data, 0);
-        assert!(result.is_none(), "Should return None for all-zero data");
+        assert!(result.is_none());
     }
 
     #[test]
@@ -391,10 +358,7 @@ mod tests {
         // Data shorter than 8 bytes
         let data = vec![0xAA; 4];
         let result = find_first_record_boundary(&data, 0);
-        assert!(
-            result.is_none(),
-            "Should return None for data shorter than 8 bytes"
-        );
+        assert!(result.is_none());
     }
 
     #[test]
@@ -514,14 +478,10 @@ mod tests {
         }
         data.extend_from_slice(&garbage);
 
-        assert!(data.len() > CHUNK_SIZE, "Data should exceed chunk size");
+        assert!(data.len() > CHUNK_SIZE);
 
         let result = parse_usn_journal_parallel(&data).unwrap();
         // Should find all records from the first chunk
-        assert_eq!(
-            result.len(),
-            records_for_first_chunk,
-            "Should find records from first chunk even when second chunk has no valid boundaries"
-        );
+        assert_eq!(result.len(), records_for_first_chunk);
     }
 }

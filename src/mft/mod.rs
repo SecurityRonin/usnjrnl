@@ -347,15 +347,15 @@ mod tests {
         let mft = MftData::parse(&data).expect("parse");
         assert_eq!(mft.entries.len(), 1);
         let e = &mft.entries[0];
-        assert_eq!(e.entry_number, 100, "entry number from the record header");
+        assert_eq!(e.entry_number, 100);
         assert_eq!(e.sequence_number, 1);
         assert_eq!(e.filename, "testfile.txt");
         assert_eq!(e.parent_entry, 5);
         assert_eq!(e.parent_sequence, 5);
         assert!(!e.is_directory);
         assert!(e.is_in_use);
-        assert!(e.si_created.is_some(), "$SI timestamps parsed");
-        assert!(e.fn_created.is_some(), "$FN timestamps parsed");
+        assert!(e.si_created.is_some());
+        assert!(e.fn_created.is_some());
         assert!(!e.has_ads);
         assert!(mft.by_entry.contains_key(&100));
         assert!(mft.by_key.contains_key(&EntryKey::new(100, 1)));
@@ -599,10 +599,7 @@ mod tests {
         match result {
             Ok(Ok(mft_data)) => {
                 // All entries lack $FILE_NAME, so should be skipped via `continue`
-                assert!(
-                    mft_data.entries.is_empty(),
-                    "Corrupt entries without $FILE_NAME should be skipped"
-                );
+                assert!(mft_data.entries.is_empty());
             }
             Ok(Err(_)) => {} // Parse error is acceptable
             Err(_) => {}     // Panic from mft crate is acceptable (we caught it)
@@ -819,22 +816,16 @@ mod tests {
                     let e = &mft_data.entries[0];
                     assert_eq!(e.filename, "testfile.txt");
                     assert_eq!(e.parent_entry, 5);
-                    assert!(e.si_created.is_some(), "SI timestamps should be parsed");
-                    assert!(e.fn_created.is_some(), "FN timestamps should be parsed");
-                    assert!(!e.has_ads, "No ADS in this entry");
+                    assert!(e.si_created.is_some());
+                    assert!(e.fn_created.is_some());
+                    assert!(!e.has_ads);
                     // The mft crate may use position-based entry number (0)
                     // rather than the header field (100), so check by actual entry number
                     let entry_num = e.entry_number;
-                    assert!(
-                        mft_data.by_entry.contains_key(&entry_num),
-                        "by_entry should contain entry_number {entry_num}"
-                    );
-                    assert!(
-                        mft_data
-                            .by_key
-                            .contains_key(&EntryKey::new(entry_num, e.sequence_number)),
-                        "by_key should contain (entry_number, sequence)"
-                    );
+                    assert!(mft_data.by_entry.contains_key(&entry_num));
+                    assert!(mft_data
+                        .by_key
+                        .contains_key(&EntryKey::new(entry_num, e.sequence_number)));
                 }
             }
             Ok(Err(_)) => {} // Parse error acceptable for synthetic data
@@ -1000,10 +991,7 @@ mod tests {
         match result {
             Ok(Ok(mft_data)) => {
                 // Entry without $FILE_NAME should be skipped (line 104-105)
-                assert!(
-                    mft_data.entries.is_empty(),
-                    "Entry without $FILE_NAME should be skipped"
-                );
+                assert!(mft_data.entries.is_empty());
             }
             Ok(Err(_)) => {}
             Err(_) => {}

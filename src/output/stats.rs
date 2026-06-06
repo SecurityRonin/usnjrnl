@@ -160,7 +160,7 @@ mod tests {
         let stats = format_reason_stats(&records);
         let create_pos = stats.find("FILE_CREATE").unwrap();
         let delete_pos = stats.find("FILE_DELETE").unwrap();
-        assert!(create_pos < delete_pos, "Higher count should appear first");
+        assert!(create_pos < delete_pos);
     }
 
     #[test]

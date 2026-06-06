@@ -224,7 +224,7 @@ mod tests {
         let output = String::from_utf8(buf).unwrap();
         // Count record tags - should be exactly 2
         let record_count = output.matches("<record>").count();
-        assert_eq!(record_count, 2, "should have two <record> elements");
+        assert_eq!(record_count, 2);
         assert!(output.contains("<filename>a.txt</filename>"));
         assert!(output.contains("<filename>b.log</filename>"));
     }
@@ -238,7 +238,7 @@ mod tests {
         assert!(output.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
         assert!(output.contains("<usnjrnl>"));
         assert!(output.contains("</usnjrnl>"));
-        assert!(!output.contains("<record>"), "no records for empty input");
+        assert!(!output.contains("<record>"));
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
         // Allow just enough bytes for the XML header but fail mid-record
         let mut writer = FailWriter { remaining: 50 };
         let result = export_xml(&resolved, &mut writer);
-        assert!(result.is_err(), "Should propagate write error");
+        assert!(result.is_err());
     }
 
     /// Returns the byte position just after the given tag line ends in the XML output.
@@ -428,10 +428,7 @@ mod tests {
         let offset = byte_offset_after(&output, "<entry_number>");
         let mut writer = FailWriter { remaining: offset };
         let result = export_xml(&resolved, &mut writer);
-        assert!(
-            result.is_err(),
-            "Should fail at sequence_number writeln (line 34)"
-        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -444,10 +441,7 @@ mod tests {
         let offset = byte_offset_after(&output, "<sequence_number>");
         let mut writer = FailWriter { remaining: offset };
         let result = export_xml(&resolved, &mut writer);
-        assert!(
-            result.is_err(),
-            "Should fail at parent_entry_number writeln (line 39)"
-        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -460,10 +454,7 @@ mod tests {
         let offset = byte_offset_after(&output, "<parent_entry_number>");
         let mut writer = FailWriter { remaining: offset };
         let result = export_xml(&resolved, &mut writer);
-        assert!(
-            result.is_err(),
-            "Should fail at parent_sequence_number writeln (line 44)"
-        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -476,10 +467,7 @@ mod tests {
         let offset = byte_offset_after(&output, "<parent_sequence_number>");
         let mut writer = FailWriter { remaining: offset };
         let result = export_xml(&resolved, &mut writer);
-        assert!(
-            result.is_err(),
-            "Should fail at parent_path writeln (line 49)"
-        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -492,10 +480,7 @@ mod tests {
         let offset = byte_offset_after(&output, "<extension>");
         let mut writer = FailWriter { remaining: offset };
         let result = export_xml(&resolved, &mut writer);
-        assert!(
-            result.is_err(),
-            "Should fail at file_attributes writeln (line 57)"
-        );
+        assert!(result.is_err());
     }
 
     #[test]
@@ -508,10 +493,7 @@ mod tests {
         let offset = byte_offset_after(&output, "<security_id>");
         let mut writer = FailWriter { remaining: offset };
         let result = export_xml(&resolved, &mut writer);
-        assert!(
-            result.is_err(),
-            "Should fail at major_version writeln (line 65)"
-        );
+        assert!(result.is_err());
     }
 
     #[test]

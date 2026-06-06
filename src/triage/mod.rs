@@ -372,7 +372,7 @@ mod tests {
         }];
 
         let results = run_triage(&questions, &records);
-        assert_eq!(results[0].hit_count, 1, "only carved record should match");
+        assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![1]);
     }
 
@@ -412,7 +412,7 @@ mod tests {
         }];
 
         let results = run_triage(&questions, &records);
-        assert_eq!(results[0].hit_count, 2, "carved + ghost should match");
+        assert_eq!(results[0].hit_count, 2);
         assert_eq!(results[0].record_indices, vec![1, 2]);
     }
 
@@ -450,10 +450,7 @@ mod tests {
         }];
 
         let results = run_triage(&questions, &records);
-        assert_eq!(
-            results[0].hit_count, 2,
-            "empty filter should match all sources"
-        );
+        assert_eq!(results[0].hit_count, 2);
     }
 
     #[test]
@@ -467,10 +464,7 @@ mod tests {
             .expect("missing recovered_evidence");
 
         // Verify the query actually has a source filter
-        assert!(
-            !q.query.source_filter.is_empty(),
-            "recovered_evidence must have a source_filter"
-        );
+        assert!(!q.query.source_filter.is_empty());
 
         let records = vec![
             make_resolved_with_source(
@@ -495,7 +489,7 @@ mod tests {
 
         let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
-        assert_eq!(results[0].hit_count, 2, "carved + ghost should match");
+        assert_eq!(results[0].hit_count, 2);
     }
 
     // ─── Tests for expanded triage question set ────────────────────────────
@@ -503,19 +497,14 @@ mod tests {
     #[test]
     fn test_builtin_questions_returns_12() {
         let questions = crate::triage::queries::builtin_questions();
-        assert_eq!(
-            questions.len(),
-            12,
-            "expected 12 triage questions, got {}",
-            questions.len()
-        );
+        assert_eq!(questions.len(), 12);
     }
 
     #[test]
     fn test_builtin_has_execution_evidence_question() {
         let questions = crate::triage::queries::builtin_questions();
         let q = questions.iter().find(|q| q.id == "execution_evidence");
-        assert!(q.is_some(), "missing execution_evidence question");
+        assert!(q.is_some());
     }
 
     #[test]
@@ -540,7 +529,7 @@ mod tests {
         ];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(results[0].has_hits, "prefetch creation should be detected");
+        assert!(results[0].has_hits);
         assert_eq!(results[0].hit_count, 2);
     }
 
@@ -567,10 +556,7 @@ mod tests {
 
         let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
-        assert_eq!(
-            results[0].hit_count, 1,
-            "only the user-dir archive should match"
-        );
+        assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![0]);
     }
 
@@ -595,10 +581,7 @@ mod tests {
 
         let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
-        assert_eq!(
-            results[0].hit_count, 1,
-            "should only match the config\\SAM path, not random 'sam' user dir"
-        );
+        assert_eq!(results[0].hit_count, 1);
     }
 
     #[test]
@@ -624,10 +607,7 @@ mod tests {
 
         let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
-        assert_eq!(
-            results[0].hit_count, 2,
-            "both evtx and pf deletion should match"
-        );
+        assert_eq!(results[0].hit_count, 2);
     }
 
     #[test]
@@ -653,7 +633,7 @@ mod tests {
 
         let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
-        assert_eq!(results[0].hit_count, 1, "only ADS operation should match");
+        assert_eq!(results[0].hit_count, 1);
     }
 
     #[test]
@@ -679,10 +659,7 @@ mod tests {
 
         let results = run_triage(std::slice::from_ref(q), &records);
         assert!(results[0].has_hits);
-        assert_eq!(
-            results[0].hit_count, 1,
-            "only the Downloads drop should match, not System32"
-        );
+        assert_eq!(results[0].hit_count, 1);
     }
 
     #[test]
@@ -855,7 +832,7 @@ mod tests {
         }];
 
         let results = run_triage(&questions, &records);
-        assert_eq!(results[0].hit_count, 1, "only ghost record should match");
+        assert_eq!(results[0].hit_count, 1);
         assert_eq!(results[0].record_indices, vec![2]);
     }
 
@@ -949,10 +926,7 @@ mod tests {
             },
         }];
         let results = run_triage(&questions, &records);
-        assert_eq!(
-            results[0].hit_count, 0,
-            "source filter should be case-sensitive"
-        );
+        assert_eq!(results[0].hit_count, 0);
     }
 
     #[test]
@@ -1031,15 +1005,12 @@ mod tests {
             .unwrap();
 
         // systemprofile record should NOT match
-        assert!(
-            !cred.record_indices.contains(&0),
-            "config\\systemprofile should not trigger credential_access"
-        );
+        assert!(!cred.record_indices.contains(&0));
         // Real hive records SHOULD match
-        assert!(cred.record_indices.contains(&1), "SAM should match");
-        assert!(cred.record_indices.contains(&2), "SAM.LOG1 should match");
-        assert!(cred.record_indices.contains(&3), "SYSTEM should match");
-        assert!(cred.record_indices.contains(&4), "SECURITY should match");
+        assert!(cred.record_indices.contains(&1));
+        assert!(cred.record_indices.contains(&2));
+        assert!(cred.record_indices.contains(&3));
+        assert!(cred.record_indices.contains(&4));
     }
 
     #[test]
@@ -1064,14 +1035,8 @@ mod tests {
         let results = run_triage(&questions, &records);
         let ts = results.iter().find(|r| r.id == "timestomping").unwrap();
 
-        assert!(
-            !ts.record_indices.contains(&0),
-            "WindowsApps DLL should not trigger timestomping"
-        );
-        assert!(
-            ts.record_indices.contains(&1),
-            "User Downloads exe should trigger timestomping"
-        );
+        assert!(!ts.record_indices.contains(&0));
+        assert!(ts.record_indices.contains(&1));
     }
 
     #[test]
@@ -1101,18 +1066,9 @@ mod tests {
         let results = run_triage(&questions, &records);
         let sd = results.iter().find(|r| r.id == "sensitive_data").unwrap();
 
-        assert!(
-            !sd.record_indices.contains(&0),
-            "Edge package temp should not trigger sensitive_data"
-        );
-        assert!(
-            !sd.record_indices.contains(&1),
-            "Search package temp should not trigger sensitive_data"
-        );
-        assert!(
-            sd.record_indices.contains(&2),
-            "User Documents xlsx should trigger sensitive_data"
-        );
+        assert!(!sd.record_indices.contains(&0));
+        assert!(!sd.record_indices.contains(&1));
+        assert!(sd.record_indices.contains(&2));
     }
 
     // ─── FN reduction: expanded reason flags ─────────────────────────────
@@ -1134,10 +1090,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "RENAME_NEW_NAME exe in Temp should trigger malware_deployed"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1157,10 +1110,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "SECURITY_CHANGE dll in ProgramData should trigger malware_deployed"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1176,10 +1126,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "RENAME_NEW_NAME zip on Desktop should trigger data_staging"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1195,10 +1142,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "FILE_DELETE rar in Downloads should trigger data_staging"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1214,10 +1158,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "FILE_CREATE docx in Documents should trigger sensitive_data"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1233,10 +1174,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "RENAME_NEW_NAME xlsx on Desktop should trigger sensitive_data"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1252,10 +1190,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "FILE_DELETE kdbx in Documents should trigger sensitive_data"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1278,10 +1213,7 @@ mod tests {
         ];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert_eq!(
-            results[0].hit_count, 2,
-            "zip and lnk should both trigger sensitive_data"
-        );
+        assert_eq!(results[0].hit_count, 2);
     }
 
     #[test]
@@ -1300,10 +1232,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "DATA_OVERWRITE on evtx should trigger evidence_destruction"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1322,10 +1251,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "FILE_CREATE pf in Prefetch should trigger evidence_destruction"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1341,10 +1267,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "RENAME_NEW_NAME exe in Downloads should trigger initial_access"
-        );
+        assert!(results[0].has_hits);
     }
 
     // ─── FP reduction: exclusion patterns ──────────────────────────────
@@ -1365,10 +1288,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "OneDrive DLL should NOT trigger malware_deployed"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1387,10 +1307,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "NativeImages DLL in AppData should NOT trigger malware_deployed"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1409,10 +1326,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "Store Packages exe should NOT trigger malware_deployed"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1422,10 +1336,7 @@ mod tests {
         let questions = queries::builtin_questions();
         let q = questions.iter().find(|q| q.id == "initial_access").unwrap();
 
-        assert!(
-            !q.query.extension_filter.contains(&"js"),
-            "initial_access should not include 'js' in extension_filter"
-        );
+        assert!(!q.query.extension_filter.contains(&"js"));
     }
 
     #[test]
@@ -1440,10 +1351,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "OneDrive exe should NOT trigger initial_access"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1458,10 +1366,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "Edge Packages hta should NOT trigger initial_access"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1477,10 +1382,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "assembly NativeImages ADS should NOT trigger file_disguise"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1495,10 +1397,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "WindowsApps ADS should NOT trigger file_disguise"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1513,10 +1412,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "Program Files ADS should NOT trigger file_disguise"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1531,10 +1427,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "SoftwareDistribution ADS should NOT trigger file_disguise"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1550,10 +1443,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            results[0].has_hits,
-            "User Documents ADS should still trigger file_disguise"
-        );
+        assert!(results[0].has_hits);
     }
 
     #[test]
@@ -1564,10 +1454,7 @@ mod tests {
 
         // Verify "Start Menu" is NOT in path_patterns (only "Startup" should be)
         let has_start_menu = q.query.path_patterns.contains(&"Start Menu");
-        assert!(
-            !has_start_menu,
-            "persistence should not have bare 'Start Menu' in path_patterns"
-        );
+        assert!(!has_start_menu);
     }
 
     #[test]
@@ -1582,10 +1469,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "Windows\\Temp exe should NOT trigger timestomping"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1600,10 +1484,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "SoftwareDistribution exe should NOT trigger timestomping"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1619,10 +1500,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "AppData csv should NOT trigger sensitive_data"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1642,10 +1520,7 @@ mod tests {
         )];
 
         let results = run_triage(std::slice::from_ref(q), &records);
-        assert!(
-            !results[0].has_hits,
-            "DATA_TRUNCATION on pf should NOT trigger evidence_destruction (normal churn)"
-        );
+        assert!(!results[0].has_hits);
     }
 
     #[test]
@@ -1672,13 +1547,7 @@ mod tests {
             .find(|r| r.id == "evidence_destruction")
             .unwrap();
 
-        assert!(
-            !ed.record_indices.contains(&0),
-            "Windows Update log rotation should not trigger evidence_destruction"
-        );
-        assert!(
-            ed.record_indices.contains(&1),
-            "Security.evtx deletion should trigger evidence_destruction"
-        );
+        assert!(!ed.record_indices.contains(&0));
+        assert!(ed.record_indices.contains(&1));
     }
 }

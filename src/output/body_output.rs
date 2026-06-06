@@ -71,22 +71,18 @@ mod tests {
         export_body(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
         let fields: Vec<&str> = output.trim().split('|').collect();
-        assert_eq!(
-            fields.len(),
-            11,
-            "bodyfile must have 11 pipe-delimited fields"
-        );
-        assert_eq!(fields[0], "0", "MD5 is always 0");
-        assert_eq!(fields[1], ".\\temp\\test.exe", "full_path");
-        assert_eq!(fields[2], "100", "mft_entry");
-        assert_eq!(fields[3], "0", "mode");
-        assert_eq!(fields[4], "0", "UID");
-        assert_eq!(fields[5], "0", "GID");
-        assert_eq!(fields[6], "0", "file_size");
-        assert_eq!(fields[7], "1700000000", "atime");
-        assert_eq!(fields[8], "1700000000", "mtime");
-        assert_eq!(fields[9], "1700000000", "ctime");
-        assert_eq!(fields[10], "1700000000", "crtime");
+        assert_eq!(fields.len(), 11);
+        assert_eq!(fields[0], "0");
+        assert_eq!(fields[1], ".\\temp\\test.exe");
+        assert_eq!(fields[2], "100");
+        assert_eq!(fields[3], "0");
+        assert_eq!(fields[4], "0");
+        assert_eq!(fields[5], "0");
+        assert_eq!(fields[6], "0");
+        assert_eq!(fields[7], "1700000000");
+        assert_eq!(fields[8], "1700000000");
+        assert_eq!(fields[9], "1700000000");
+        assert_eq!(fields[10], "1700000000");
     }
 
     #[test]
@@ -113,7 +109,7 @@ mod tests {
         export_body(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
         let lines: Vec<&str> = output.trim().lines().collect();
-        assert_eq!(lines.len(), 2, "should have two bodyfile lines");
+        assert_eq!(lines.len(), 2);
         assert!(lines[0].contains(".\\docs\\a.txt"));
         assert!(lines[1].contains(".\\logs\\b.log"));
         assert!(lines[1].contains("1700001000"));
@@ -125,7 +121,7 @@ mod tests {
         let mut buf = Vec::new();
         export_body(&resolved, &mut buf).unwrap();
         let output = String::from_utf8(buf).unwrap();
-        assert!(output.is_empty(), "empty input should produce empty output");
+        assert!(output.is_empty());
     }
 
     /// A writer that fails after writing a specified number of bytes.
@@ -159,7 +155,7 @@ mod tests {
         )];
         let mut writer = FailWriter { remaining: 5 };
         let result = export_body(&resolved, &mut writer);
-        assert!(result.is_err(), "Should propagate write error");
+        assert!(result.is_err());
     }
 
     #[test]
@@ -177,7 +173,7 @@ mod tests {
         )];
         let mut writer = FailWriter { remaining: 0 };
         let result = export_body(&resolved, &mut writer);
-        assert!(result.is_err(), "Should fail immediately on first write");
+        assert!(result.is_err());
     }
 
     #[test]

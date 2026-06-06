@@ -458,12 +458,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
         // Should find all records from both sides of the buffer boundary
-        assert!(
-            records.len() >= num_records_to_fill + 5,
-            "Expected at least {} records, got {}",
-            num_records_to_fill + 5,
-            records.len()
-        );
+        assert!(records.len() >= num_records_to_fill + 5);
     }
 
     #[test]
@@ -509,10 +504,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
         // The last record "boundary.txt" should be found
-        assert!(
-            records.iter().any(|r| r.filename == "boundary.txt"),
-            "Should find the record at the buffer boundary"
-        );
+        assert!(records.iter().any(|r| r.filename == "boundary.txt"));
     }
 
     #[test]
@@ -555,10 +547,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
         // The straddling record should be found
-        assert!(
-            records.iter().any(|r| r.filename == "straddle.txt"),
-            "Should find the record that straddles the buffer boundary"
-        );
+        assert!(records.iter().any(|r| r.filename == "straddle.txt"));
     }
 
     #[test]
@@ -581,11 +570,7 @@ mod tests {
         let cursor = Cursor::new(data);
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
-        assert_eq!(
-            records.len(),
-            total_records,
-            "Should parse all {total_records} records across multiple buffer fills"
-        );
+        assert_eq!(records.len(), total_records);
     }
 
     // ─── Coverage tests for uncovered lines ────────────────────────────
@@ -705,12 +690,10 @@ mod tests {
         assert!(result.is_some());
         let err = result.unwrap();
         assert!(err.is_err());
-        assert!(
-            err.unwrap_err()
-                .to_string()
-                .contains("simulated read error"),
-            "Should propagate the IO error"
-        );
+        assert!(err
+            .unwrap_err()
+            .to_string()
+            .contains("simulated read error"));
     }
 
     #[test]
@@ -729,7 +712,7 @@ mod tests {
         let result = reader.next();
         assert!(result.is_some());
         let err = result.unwrap();
-        assert!(err.is_err(), "Should propagate skip_zeros error (line 111)");
+        assert!(err.is_err());
     }
 
     #[test]
@@ -780,10 +763,7 @@ mod tests {
         // buf_offset + 8 > buf_len, fill_buffer is called but there's no more data.
         // Lines 116-118 trigger the `_ => return None` path.
         let result = reader.next();
-        assert!(
-            result.is_none(),
-            "Should return None when header is incomplete (lines 116-118)"
-        );
+        assert!(result.is_none());
     }
 
     #[test]
@@ -802,10 +782,7 @@ mod tests {
         let mut reader = UsnJournalReader::new(cursor).unwrap();
 
         let result = reader.next();
-        assert!(
-            result.is_none(),
-            "Should return None when record data is insufficient (lines 138-140)"
-        );
+        assert!(result.is_none());
     }
 
     #[test]
@@ -839,11 +816,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
 
-        assert_eq!(
-            records.len(),
-            1,
-            "Should skip bad V2 and find valid record (line 155)"
-        );
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].filename, "after_bad_v2.txt");
     }
 
@@ -874,11 +847,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
 
-        assert_eq!(
-            records.len(),
-            1,
-            "Should skip bad V3 and find valid record (line 159)"
-        );
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].filename, "after_bad_v3.txt");
     }
 
@@ -901,11 +870,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
 
-        assert_eq!(
-            records.len(),
-            1,
-            "Should find record after many buffers of zeros (line 72)"
-        );
+        assert_eq!(records.len(), 1);
         assert_eq!(records[0].filename, "after_many_zeros.txt");
     }
 
@@ -920,11 +885,7 @@ mod tests {
         let reader = UsnJournalReader::new(cursor).unwrap();
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
 
-        assert_eq!(
-            records.len(),
-            0,
-            "All zeros should produce no records (line 84)"
-        );
+        assert_eq!(records.len(), 0);
     }
 
     #[test]
@@ -970,9 +931,6 @@ mod tests {
         let records: Vec<_> = reader.filter_map(|r| r.ok()).collect();
 
         // Should have found the fill records but skipped the truncated one
-        assert!(
-            records.len() >= records_to_fill,
-            "Should find fill records and skip truncated one (lines 138-140)"
-        );
+        assert!(records.len() >= records_to_fill);
     }
 }

@@ -234,11 +234,11 @@ mod tests {
             assert!(!result.is_consistent);
             for j in 0..MIRROR_ENTRY_COUNT {
                 if j == entry_idx {
-                    assert!(!result.matches[j], "Entry {j} should not match");
+                    assert!(!result.matches[j]);
                     assert_eq!(result.diff_offsets[j].len(), 1);
                     assert_eq!(result.diff_offsets[j][0], 100);
                 } else {
-                    assert!(result.matches[j], "Entry {j} should match");
+                    assert!(result.matches[j]);
                 }
             }
         }
