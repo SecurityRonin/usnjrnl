@@ -10,14 +10,14 @@ repos:
 
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo clippy --all-targets -- -D warnings
+        entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
         types: [rust]
         pass_filenames: false
 
       - id: cargo-test
-        name: cargo test (unit)
-        entry: cargo test --lib
+        name: cargo test
+        entry: cargo test --all-features
         language: system
         types: [rust]
         pass_filenames: false
@@ -28,3 +28,8 @@ repos:
         language: system
         files: (Cargo\.toml|Cargo\.lock|deny\.toml)
         pass_filenames: false
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

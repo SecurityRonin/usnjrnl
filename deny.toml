@@ -1,30 +1,21 @@
+# cargo-deny configuration — supply-chain and licence gate.
+[graph]
+all-features = false
+
 [advisories]
-yanked = "warn"
-ignore = [
-    # encoding is unmaintained, but it's a transitive dep via mft 0.6
-    { id = "RUSTSEC-2021-0153", reason = "transitive dep via mft crate; no alternative available" },
-]
+version = 2
+yanked = "deny"
 
 [licenses]
-allow = [
-    "MIT",
-    "Apache-2.0",
-    "Apache-2.0 WITH LLVM-exception",
-    "BSD-2-Clause",
-    "BSL-1.0",
-    "CC0-1.0",
-    "ISC",
-    "Unicode-3.0",
-    "Unlicense",
-    "Zlib",
-]
+version = 2
+# This crate is Apache-2.0; permit only permissive, non-copyleft licences in the tree.
+allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "Unicode-3.0", "ISC", "Zlib"]
+confidence-threshold = 0.9
 
 [bans]
 multiple-versions = "warn"
-wildcards = "allow"
+wildcards = "deny"
 
 [sources]
-unknown-registry = "warn"
-unknown-git = "warn"
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = []
+unknown-registry = "deny"
+unknown-git = "deny"

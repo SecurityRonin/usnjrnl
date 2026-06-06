@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: -Dwarnings
+  RUSTFLAGS: -D warnings
 
 jobs:
   fmt:
@@ -29,21 +29,93 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
-      - run: cargo clippy --all-targets -- -D warnings
+      - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
+      - run: cargo clippy --all-targets --all-features -- -D warnings
 
   test:
-    name: Test
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
+      - run: cargo test --all-features
+
+  msrv:
+    name: MSRV (1.85)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@1.85
+      - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
+      - run: cargo build
+
+  coverage:
+    name: Coverage (100% lines)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
-      - run: cargo test --lib
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
+      - uses: taiki-e/install-action@59012be0884e296ca2da49b530610e72c49039ad # v2.81.6
+        with:
+          tool: cargo-llvm-cov
+      # The library's I/O is generic over the reader, so each error closure is
+      # monomorphized per reader type — making cargo-llvm-cov's region/function
+      # metrics structurally < 100%. The meaningful, monomorphization-robust
+      # invariant is that every executable source line is hit at least once;
+      # this gate fails if lcov records any zero-hit line.
+      - name: Generate lcov
+        run: cargo llvm-cov --all-features --lib --lcov --output-path lcov.info
+      - name: Enforce 100% line coverage
+        run: |
+          if grep -qE '^DA:[0-9]+,0$' lcov.info; then
+            echo "::error::Uncovered lines found:"
+            awk -F: '/^SF:/{f=$2} /^DA:[0-9]+,0$/{split($2,a,","); print f":"a[1]}' lcov.info
+            exit 1
+          fi
+          echo "All executable lines covered."
 
   deny:
-    name: Cargo Deny
+    name: cargo-deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: EmbarkStudios/cargo-deny-action@3fd3802e88374d3fe9159b834c7714ec57d6c979 # v2.0.15
+        with:
+          command: check
+
+  fuzz:
+    name: Fuzz targets (nightly)
+    runs-on: ubuntu-latest
+    # cargo-fuzz builds with the host nightly; warnings in its own deps must not
+    # fail the install, so this job does not deny warnings.
+    env:
+      RUSTFLAGS: ""
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
+      - run: cargo install cargo-fuzz
+      - name: Build all fuzz targets
+        run: cargo +nightly fuzz check
+      - name: Smoke-fuzz each target (30s)
+        run: |
+          for f in fuzz/fuzz_targets/*.rs; do
+            t="$(basename "$f" .rs)"
+            cargo +nightly fuzz run "$t" -- -max_total_time=30 -rss_limit_mb=4096
+          done
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@9bdad043e88c75890e36ad3bbc8d27f0090dd609 # v2.7.8
+      - run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
