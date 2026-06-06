@@ -9,15 +9,9 @@ use crate::usn::{UsnReason, UsnRecord};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-/// Severity level for a matched rule.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Severity {
-    Info,
-    Low,
-    Medium,
-    High,
-    Critical,
-}
+/// The canonical 5-level severity scale, shared across every SecurityRonin
+/// analyzer via [`forensicnomicon::report`].
+pub use forensicnomicon::report::Severity;
 
 /// How to match a filename.
 #[derive(Debug, Clone)]
@@ -271,6 +265,31 @@ impl RuleSet {
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
+
+
+impl RuleMatch {
+    /// Convert this rule match into a canonical [`forensicnomicon::report::Finding`].
+    #[must_use]
+    pub fn to_finding(&self, source: forensicnomicon::report::Source) -> forensicnomicon::report::Finding {
+        use forensicnomicon::report::{Category, Finding, Location};
+        let code = format!(
+            "USN-{}",
+            self.rule_name.to_uppercase().replace([' ', '_'], "-")
+        );
+        let category = Category::from_code(&code);
+        Finding::observation(self.severity, category, code)
+            .note(self.description.clone())
+            .source(source)
+            .evidence_at(
+                "filename",
+                self.record.filename.clone(),
+                Location::Path(self.record.filename.clone()),
+            )
+            .evidence("reason", format!("{:?}", self.record.reason))
+            .evidence("timestamp", self.record.timestamp.to_rfc3339())
+            .build()
+    }
+}
 
 #[cfg(test)]
 mod tests {
