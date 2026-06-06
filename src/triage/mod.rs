@@ -1025,7 +1025,10 @@ mod tests {
 
         let questions = queries::builtin_questions();
         let results = run_triage(&questions, &records);
-        let cred = results.iter().find(|r| r.id == "credential_access").unwrap();
+        let cred = results
+            .iter()
+            .find(|r| r.id == "credential_access")
+            .unwrap();
 
         // systemprofile record should NOT match
         assert!(
@@ -1164,10 +1167,7 @@ mod tests {
     fn test_data_staging_catches_rename_new_name() {
         // Archives moved to staging directories via rename.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "data_staging")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "data_staging").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Desktop\exfil.zip",
@@ -1186,10 +1186,7 @@ mod tests {
     fn test_data_staging_catches_file_delete() {
         // Archive deleted after exfiltration — still relevant staging evidence.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "data_staging")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "data_staging").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Downloads\loot.rar",
@@ -1208,10 +1205,7 @@ mod tests {
     fn test_sensitive_data_catches_file_create() {
         // Sensitive files being created (e.g. copied/extracted) is relevant.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "sensitive_data")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "sensitive_data").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Documents\secrets.docx",
@@ -1230,10 +1224,7 @@ mod tests {
     fn test_sensitive_data_catches_rename_new_name() {
         // Sensitive files moved to new location (staging for exfil).
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "sensitive_data")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "sensitive_data").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Desktop\financials.xlsx",
@@ -1252,10 +1243,7 @@ mod tests {
     fn test_sensitive_data_catches_file_delete() {
         // Sensitive file deletion — potential evidence destruction.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "sensitive_data")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "sensitive_data").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Documents\passwords.kdbx",
@@ -1274,10 +1262,7 @@ mod tests {
     fn test_sensitive_data_catches_zip_and_lnk() {
         // Archives and shortcuts to sensitive files are relevant indicators.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "sensitive_data")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "sensitive_data").unwrap();
 
         let records = vec![
             make_resolved(
@@ -1347,10 +1332,7 @@ mod tests {
     fn test_initial_access_catches_rename_new_name() {
         // Files moved into Downloads/Temp via rename (e.g. browser download complete).
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "initial_access")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "initial_access").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Downloads\exploit.exe",
@@ -1438,10 +1420,7 @@ mod tests {
         // .js files cause too many FPs from system scripts.
         // The initial_access query should not include js.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "initial_access")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "initial_access").unwrap();
 
         assert!(
             !q.query.extension_filter.contains(&"js"),
@@ -1452,10 +1431,7 @@ mod tests {
     #[test]
     fn test_initial_access_excludes_onedrive() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "initial_access")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "initial_access").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\AppData\Local\Microsoft\OneDrive\21.150\OneDriveStandaloneUpdater.exe",
@@ -1473,10 +1449,7 @@ mod tests {
     #[test]
     fn test_initial_access_excludes_packages() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "initial_access")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "initial_access").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\AppData\Local\Packages\Microsoft.MicrosoftEdge_8we\AC\script.hta",
@@ -1495,10 +1468,7 @@ mod tests {
     fn test_file_disguise_excludes_assembly() {
         // .NET assembly ADS operations are system noise.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "file_disguise")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "file_disguise").unwrap();
 
         let records = vec![make_resolved(
             r".\Windows\assembly\NativeImages_v4.0.30319_64\System.Xml\foo.dll",
@@ -1516,10 +1486,7 @@ mod tests {
     #[test]
     fn test_file_disguise_excludes_windowsapps() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "file_disguise")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "file_disguise").unwrap();
 
         let records = vec![make_resolved(
             r".\Program Files\WindowsApps\Microsoft.Windows.Photos_2020\PhotosApp.dll",
@@ -1537,10 +1504,7 @@ mod tests {
     #[test]
     fn test_file_disguise_excludes_program_files() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "file_disguise")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "file_disguise").unwrap();
 
         let records = vec![make_resolved(
             r".\Program Files\SomeApp\helper.dll",
@@ -1558,10 +1522,7 @@ mod tests {
     #[test]
     fn test_file_disguise_excludes_software_distribution() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "file_disguise")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "file_disguise").unwrap();
 
         let records = vec![make_resolved(
             r".\Windows\SoftwareDistribution\Download\abc123\update.exe",
@@ -1580,10 +1541,7 @@ mod tests {
     fn test_file_disguise_still_catches_user_ads() {
         // ADS in user directories should still be flagged.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "file_disguise")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "file_disguise").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\Documents\resume.docx",
@@ -1602,17 +1560,10 @@ mod tests {
     fn test_persistence_excludes_start_menu_non_startup() {
         // "Start Menu" (not Startup) matches too broadly — normal shortcuts.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "persistence")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "persistence").unwrap();
 
         // Verify "Start Menu" is NOT in path_patterns (only "Startup" should be)
-        let has_start_menu = q
-            .query
-            .path_patterns
-            .iter()
-            .any(|p| *p == "Start Menu");
+        let has_start_menu = q.query.path_patterns.contains(&"Start Menu");
         assert!(
             !has_start_menu,
             "persistence should not have bare 'Start Menu' in path_patterns"
@@ -1622,10 +1573,7 @@ mod tests {
     #[test]
     fn test_timestomping_excludes_windows_temp() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "timestomping")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "timestomping").unwrap();
 
         let records = vec![make_resolved(
             r".\Windows\Temp\setup_patch.exe",
@@ -1643,10 +1591,7 @@ mod tests {
     #[test]
     fn test_timestomping_excludes_software_distribution() {
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "timestomping")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "timestomping").unwrap();
 
         let records = vec![make_resolved(
             r".\Windows\SoftwareDistribution\Download\abc\update.exe",
@@ -1665,10 +1610,7 @@ mod tests {
     fn test_sensitive_data_excludes_appdata() {
         // AppData contains app caches with .txt/.csv etc — not user-sensitive.
         let questions = queries::builtin_questions();
-        let q = questions
-            .iter()
-            .find(|q| q.id == "sensitive_data")
-            .unwrap();
+        let q = questions.iter().find(|q| q.id == "sensitive_data").unwrap();
 
         let records = vec![make_resolved(
             r".\Users\admin\AppData\Local\SomeApp\cache.csv",
@@ -1725,7 +1667,10 @@ mod tests {
 
         let questions = queries::builtin_questions();
         let results = run_triage(&questions, &records);
-        let ed = results.iter().find(|r| r.id == "evidence_destruction").unwrap();
+        let ed = results
+            .iter()
+            .find(|r| r.id == "evidence_destruction")
+            .unwrap();
 
         assert!(
             !ed.record_indices.contains(&0),

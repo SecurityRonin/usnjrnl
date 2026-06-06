@@ -1,0 +1,100 @@
+# Implementation Scaffold outputs for usnjrnl-forensic v0.6.0
+# Generated: 2026-03-09
+
+scaffold:
+  language: Rust
+  edition: "2021"
+  build_system: Cargo
+
+  directory_structure:
+    src_modules:
+      - usn        # USN Journal V2/V3/V4 parsing
+      - mft        # MFT parsing and correlation
+      - rewind     # CyberCX Rewind path reconstruction
+      - triage     # 12 business-oriented forensic queries
+      - output     # 7 output formats (csv, json, jsonl, body, tln, xml, sqlite) + HTML report
+      - analysis   # Timestomping, ransomware, secure deletion, journal clearing detection
+      - correlation # Ghost record detection (USN-MFT cross-ref)
+      - image      # E01/raw disk image support (feature-gated)
+      - logfile    # $LogFile gap analysis
+      - mftmirr    # $MFTMirr integrity checking
+      - monitor    # Live USN monitoring (future)
+      - refs       # Parent reference chain helpers
+      - rules      # Pattern-matching detection rules
+    test_files:
+      - image_integration.rs
+      - precision_recall.rs
+      - report_integration.rs
+    test_data_dir: tests/data/  # gitignored
+
+  feature_flags:
+    default: []
+    image:
+      deps: ["ewf 0.1", "ntfs 0.4"]
+      purpose: "E01/raw disk image opening and NTFS artifact extraction"
+
+  dependencies:
+    cli: "clap 4 (derive)"
+    parsing: "mft 0.6"
+    timestamps: "chrono 0.4 (serde)"
+    path_display: "shrinkpath 0.1"
+    serialization: "serde 1, serde_json 1"
+    csv: "csv 1"
+    flags: "bitflags 2"
+    patterns: "regex 1"
+    parallelism: "rayon 1.10"
+    errors: "anyhow 1"
+    logging: "log 0.4, env_logger 0.11"
+    database: "rusqlite 0.32 (bundled)"
+    temp_files: "tempfile 3"
+
+  build_commands:
+    default: "cargo build --release"
+    with_image: "cargo build --release --features image"
+    test_unit: "cargo test --lib"
+    test_all: "cargo test --features image"
+    lint: "cargo clippy --all-targets -- -D warnings"
+    format: "cargo fmt --check"
+    audit: "cargo deny check"
+
+  ci_cd:
+    ci_workflow: ".github/workflows/ci.yml"
+    ci_jobs:
+      - name: Format
+        command: "cargo fmt --check"
+      - name: Clippy
+        command: "cargo clippy --all-targets -- -D warnings"
+      - name: Test
+        command: "cargo test --lib"
+      - name: Deny
+        command: "cargo-deny-action"
+    release_workflow: ".github/workflows/release.yml"
+    release_trigger: "tag push v*"
+    release_targets:
+      - platform: "x86_64-pc-windows-msvc"
+        artifacts: ["zip", "msi"]
+        provenance: true
+    pages_workflow: ".github/workflows/pages.yml"
+    pages_trigger: "docs/ or triage.html changes on main"
+
+  coding_conventions:
+    error_handling: "anyhow::Result with .context() everywhere"
+    no_unwrap_on_forensic_data: true
+    logging: "env_logger controlled by RUST_LOG"
+    feature_gating: "cfg(feature) with bail!() stub for disabled features"
+    output_pattern: "&[ResolvedRecord] + impl Write"
+    html_reports: "include_str! template with serde_json injection"
+    parallel_parsing: "rayon for USN journal chunk processing"
+
+  license: "Apache-2.0"
+  license_audit: "cargo-deny with deny.toml"
+  allowed_licenses:
+    - MIT
+    - Apache-2.0
+    - BSD-2-Clause
+    - BSL-1.0
+    - CC0-1.0
+    - ISC
+    - Unicode-3.0
+    - Unlicense
+    - Zlib

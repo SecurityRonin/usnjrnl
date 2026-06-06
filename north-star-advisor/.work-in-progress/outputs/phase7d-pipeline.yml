@@ -1,0 +1,276 @@
+# Pipeline Orchestration — Extracted Outputs
+# usnjrnl-forensic forensic data processing pipeline
+# Generated: 2026-03-09
+
+pipeline_type: sequential_single_threaded
+target_latency_seconds: 35
+peak_memory_mb: 700
+
+stages:
+  - id: image_access
+    name: "Image Access & Artifact Extraction"
+    stage_number: 1
+    conditional: true
+    gate: "--image flag present"
+    budget_seconds: "3-5"
+    inputs: ["E01 or raw disk image path"]
+    outputs: ["ExtractedArtifacts (journal, mft, logfile, mftmirr paths)"]
+    critical: true
+    failure_mode: "Fatal: pipeline aborts"
+
+  - id: usn_parse
+    name: "USN Journal Parse"
+    stage_number: 2
+    conditional: false
+    gate: "always (journal is required input)"
+    budget_seconds: "1-2"
+    inputs: ["$UsnJrnl:$J file"]
+    outputs: ["Vec<UsnRecord> (V2/V3/V4)"]
+    critical: true
+    failure_mode: "Fatal: no journal = no analysis"
+
+  - id: mft_parse
+    name: "MFT Parse"
+    stage_number: 3
+    conditional: true
+    gate: "mft_path resolved (--mft or --image)"
+    budget_seconds: "1-2"
+    inputs: ["$MFT file"]
+    outputs: ["MftData (entries + timestamp index)"]
+    critical: false
+    failure_mode: "Warn + skip: paths unresolved"
+
+  - id: rewind
+    name: "Rewind (Path Resolution)"
+    stage_number: 4
+    conditional: true
+    gate: "mft_data.is_some()"
+    budget_seconds: "2-3"
+    inputs: ["MftData", "Vec<UsnRecord>"]
+    outputs: ["Vec<ResolvedRecord> with full_path + parent_path"]
+    critical: false
+    failure_mode: "Empty engine: all paths = empty string"
+
+  - id: logfile_parse
+    name: "$LogFile Parse"
+    stage_number: "5a"
+    conditional: true
+    gate: "logfile_path resolved"
+    budget_seconds: "0.5-1"
+    inputs: ["$LogFile"]
+    outputs: ["LogFileSummary", "Vec<UsnRecord> from LogFile"]
+    critical: false
+    failure_mode: "Skip: no ghost recovery"
+
+  - id: ghost_recovery
+    name: "Ghost Record Recovery"
+    stage_number: "5b"
+    conditional: true
+    gate: "logfile_usn_records non-empty"
+    budget_seconds: "<0.5"
+    inputs: ["LogFile USN records", "allocated USN HashSet"]
+    outputs: ["Vec<GhostRecord>"]
+    critical: false
+    failure_mode: "Skip: ghost_records = empty"
+
+  - id: mftmirr_check
+    name: "$MFTMirr Integrity Verification"
+    stage_number: "5c"
+    conditional: true
+    gate: "mftmirr_path resolved"
+    budget_seconds: "<0.1"
+    inputs: ["$MFTMirr data", "MftData"]
+    outputs: ["MftMirrIntegrityResult"]
+    critical: false
+    failure_mode: "Skip: no integrity verification"
+
+  - id: unallocated_carving
+    name: "Unallocated Space Carving"
+    stage_number: 6
+    conditional: true
+    gate: "--carve-unallocated AND --image"
+    budget_seconds: "15-20"
+    inputs: ["image path", "allocated record dedup sets"]
+    outputs: ["carved USN records", "carved MFT entries", "CarvingStats"]
+    critical: false
+    failure_mode: "Warn + partial results"
+    notes: "Dominates total runtime. 4MB overlapping chunks. Triggers re-Rewind pass."
+
+  - id: analysis
+    name: "Analysis / Detection"
+    stage_number: 7
+    conditional: false
+    gate: "always runs; individual detectors gate on data availability"
+    budget_seconds: "1-2"
+    inputs: ["Vec<ResolvedRecord>", "MftData", "LogFileSummary", "ghost records"]
+    outputs:
+      - "Vec<TimestompIndicator>"
+      - "Vec<SecureDeletionIndicator>"
+      - "Vec<RansomwareIndicator>"
+      - "JournalClearingResult"
+    critical: false
+    failure_mode: "Individual detector returns empty; others unaffected"
+
+  - id: triage
+    name: "Triage (12 Business Questions)"
+    stage_number: 8
+    conditional: false
+    gate: "always"
+    budget_seconds: "<0.5"
+    inputs: ["Vec<ResolvedRecord>"]
+    outputs: ["Vec<TriageResult>"]
+    critical: false
+    failure_mode: "Questions without matching data return no-evidence"
+
+  - id: output
+    name: "Output Writers"
+    stage_number: 9
+    conditional: true
+    gate: "at least one output flag set"
+    budget_seconds: "1-3 per writer"
+    inputs: ["all accumulated pipeline state"]
+    outputs: ["files on disk"]
+    critical: false
+    failure_mode: "Per-writer error; others unaffected"
+
+degradation_levels:
+  - name: QuadLink
+    artifacts: ["$UsnJrnl", "$MFT", "$LogFile", "$MFTMirr"]
+    artifact_count: 4
+    capabilities: "Full correlation, ghost recovery, integrity verification, all detections"
+    path_resolution: "100%"
+
+  - name: TriForce
+    artifacts: ["$UsnJrnl", "$MFT", "$LogFile"]
+    artifact_count: 3
+    capabilities: "Ghost recovery, gap analysis, timestomping detection"
+    path_resolution: "100%"
+
+  - name: Dual
+    artifacts: ["$UsnJrnl", "$MFT"]
+    artifact_count: 2
+    capabilities: "Path resolution, timestomping detection"
+    path_resolution: "100%"
+
+  - name: USN-only
+    artifacts: ["$UsnJrnl"]
+    artifact_count: 1
+    capabilities: "Record parsing, pattern-based detection (ransomware, secure deletion)"
+    path_resolution: "0%"
+
+output_formats:
+  - id: csv
+    flag: "--csv"
+    module: "output::csv_output"
+    description: "MFTECmd-compatible columns"
+
+  - id: jsonl
+    flag: "--jsonl"
+    module: "output::json_output"
+    description: "One JSON object per line"
+
+  - id: sqlite
+    flag: "--sqlite"
+    module: "output::sqlite_output"
+    description: "Indexed database with USNJRNL_FullPaths and MFT tables"
+
+  - id: body
+    flag: "--body"
+    module: "output::body_output"
+    description: "Sleuthkit pipe-delimited for mactime/log2timeline"
+
+  - id: tln
+    flag: "--tln"
+    module: "output::tln_output"
+    description: "5-field pipe-delimited timeline format"
+
+  - id: xml
+    flag: "--xml"
+    module: "output::xml_output"
+    description: "Structured XML with full record fields"
+
+  - id: report
+    flag: "--report"
+    module: "output::report"
+    description: "Self-contained HTML triage report with Story + Explore tabs"
+
+triage_questions:
+  - id: initial_access
+    category: "What Happened"
+    question: "How was the system compromised?"
+
+  - id: malware_deployed
+    category: "What Happened"
+    question: "What malware or tools are on the system?"
+
+  - id: execution_evidence
+    category: "What Happened"
+    question: "What programs did the attacker run?"
+
+  - id: sensitive_data
+    category: "Business Impact"
+    question: "Was sensitive data accessed?"
+
+  - id: data_staging
+    category: "Business Impact"
+    question: "Was data staged for theft?"
+
+  - id: credential_access
+    category: "Business Impact"
+    question: "Were credentials compromised?"
+
+  - id: persistence
+    category: "Ongoing Risk"
+    question: "Do backdoors or persistence mechanisms remain?"
+
+  - id: lateral_movement
+    category: "Ongoing Risk"
+    question: "Did the attacker move to other systems?"
+
+  - id: evidence_destruction
+    category: "Cover-Up"
+    question: "Did the attacker destroy evidence?"
+
+  - id: timestomping
+    category: "Cover-Up"
+    question: "Were file timestamps manipulated?"
+
+  - id: file_disguise
+    category: "Cover-Up"
+    question: "Were files disguised or hidden?"
+
+  - id: recovered_evidence
+    category: "Recovery"
+    question: "What did we recover that the attacker deleted?"
+
+record_sources:
+  - tag: "allocated"
+    enum_variant: "RecordSource::Allocated"
+    meaning: "From the live $UsnJrnl"
+
+  - tag: "ghost"
+    enum_variant: "RecordSource::Ghost"
+    meaning: "Recovered from $LogFile (not present in $UsnJrnl)"
+
+  - tag: "entry-carved"
+    enum_variant: "RecordSource::Carved"
+    meaning: "Recovered from unallocated disk space"
+
+performance_budget:
+  total_no_carving_seconds: "11-15"
+  total_with_carving_seconds: "28-35"
+  bottleneck: "Stage 6 (Unallocated Carving) — I/O bound, 15-20s for 30GB"
+  peak_memory_mb: 700
+  typical_workload: "800K USN records, 112K MFT entries, 30GB partition"
+
+error_model:
+  framework: "anyhow::Result with ? operator"
+  fatal_stages: ["image_access (if --image)", "usn_parse"]
+  recoverable_stages: ["mft_parse", "logfile_parse", "mftmirr_check", "carving", "analysis", "output"]
+  validation_gates:
+    - "CLI constraint: --detect-timestomping requires --mft or --image"
+    - "Journal minimum size: 8 bytes"
+    - "MFT entry FILE magic signature"
+    - "USN record 8-byte alignment"
+    - "Carving timestamp sanity: 2000-2030"
+    - "Rewind cycle detection: max 256 parent hops"

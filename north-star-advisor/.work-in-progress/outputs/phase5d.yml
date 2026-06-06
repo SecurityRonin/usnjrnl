@@ -1,0 +1,93 @@
+wireframes:
+  surfaces:
+    - "CLI terminal"
+    - "HTML report"
+
+  cli_screens:
+    - "Startup banner"
+    - "Progress display"
+    - "Completion summary"
+    - "Error output"
+
+  html_sections:
+    - "Header"
+    - "Stat bar"
+    - "Tab bar"
+    - "Story tab (12 triage question cards in 5 categories)"
+    - "Explore tab (full evidence table with search, sort, filter)"
+    - "Print view (light theme for court exhibits)"
+
+  components_used:
+    - "stat-card"
+    - "triage-card"
+    - "triage-badge (YES / NO / INFO)"
+    - "source-pill (ALLOCATED / ENTRY-CARVED / GHOST)"
+    - "tab-bar (Story / Explore)"
+    - "evidence-table"
+    - "search-input"
+    - "reason-flag-filter"
+    - "source-filter"
+    - "sparkline"
+    - "pagination"
+
+  triage_categories:
+    - name: "What Happened"
+      questions: ["initial_access", "malware_deployed", "execution_evidence"]
+    - name: "Business Impact"
+      questions: ["sensitive_data", "data_staging", "credential_access"]
+    - name: "Ongoing Risk"
+      questions: ["persistence", "lateral_movement"]
+    - name: "Cover-Up"
+      questions: ["evidence_destruction", "timestomping", "file_disguise"]
+    - name: "Recovery"
+      questions: ["recovered_evidence"]
+
+  implementation_priority:
+    p0_mvp:
+      - "CLI startup banner"
+      - "CLI progress bars (indicatif)"
+      - "CLI completion summary"
+      - "CLI structured error messages"
+      - "HTML header with case metadata"
+      - "HTML stat bar (5 cards)"
+      - "HTML Story tab (12 triage cards in 5 categories)"
+      - "HTML Explore tab (table + search + pagination)"
+      - "HTML tab switching"
+      - "Source pills in all tables"
+    p1_core:
+      - "Reason flag filters"
+      - "Source filters"
+      - "Sparkline histogram"
+      - "Column sorting"
+      - "Print theme for court exhibits"
+      - "Non-TTY CLI fallback"
+      - "NO_COLOR support"
+      - "Keyboard navigation"
+    p2_polish:
+      - "Reduced motion support"
+      - "High contrast mode"
+      - "Responsive breakpoints"
+      - "TERM=dumb degradation"
+      - "Explore tab pre-filtering from triage cards"
+
+  accessibility_highlights:
+    cli:
+      - "TTY detection gates all ANSI output"
+      - "NO_COLOR env var respected"
+      - "Non-TTY mode: plain [INFO] prefixed lines"
+      - "TERM=dumb: simplest line-by-line output"
+    html:
+      - "Semantic landmarks (banner, main, contentinfo)"
+      - "Skip link to triage results"
+      - "ARIA tablist/tab/tabpanel pattern"
+      - "Stat cards: role=group with aria-label"
+      - "Triage cards: role=article with aria-expanded"
+      - "Evidence table: th scope=col, aria-sort"
+      - "Live region for filter result counts"
+      - "Sparkline: role=img with descriptive aria-label"
+    print:
+      - "Light theme (#ffffff bg, #1a1a1a text)"
+      - "All interactive elements hidden"
+      - "Story tab forced visible with all cards expanded"
+      - "break-inside: avoid on triage cards"
+      - "Grayscale-safe badge text"

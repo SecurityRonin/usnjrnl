@@ -1,0 +1,142 @@
+# Competitive Landscape outputs for cross-referencing
+# Generated: 2026-03-10
+# Source: north-star-advisor/docs/COMPETITIVE_LANDSCAPE.md
+
+competitive:
+  category: "Digital Forensics and Incident Response (DFIR) tooling — forensic triage and artifact analysis"
+
+  market_shifts:
+    - name: "Ransomware Volume Outpaces Analyst Capacity"
+      impact: "35-second triage multiplies analyst throughput 3-5x on triage phase"
+      timeline: "Already in effect; accelerating through 2027"
+    - name: "Open-Source DFIR Tooling Maturation"
+      impact: "Apache-2.0 open-core model aligns with practitioner expectations"
+      timeline: "Mainstream now; default expectation by 2028"
+    - name: "Cloud Evidence and Remote Collection Demand"
+      impact: "Katana positions as best analysis engine downstream of collection tools"
+      timeline: "Remote collection mainstream now; integrated pipelines expected by 2027"
+    - name: "AI-Assisted Forensic Analysis Hype Cycle"
+      impact: "Resist AI label; own deterministic accuracy as ground truth AI must beat"
+      timeline: "Hype peak 2025-2026; productive adoption by 2028"
+
+  competitors:
+    direct:
+      - name: "Velociraptor"
+        type: "Open Source, Go"
+        threat_level: "High"
+        strengths: "Free, powerful VQL, single binary, active community, collection agent"
+        weaknesses: "File-based datastore scaling limit, Go GC pauses, weaponized as C2 (CVE-2025-6264), no triage questions"
+      - name: "Magnet AXIOM"
+        type: "Commercial, ~$2,995/yr"
+        threat_level: "Medium"
+        strengths: "800+ artifact types, computer+mobile, polished GUI, Magnet.AI"
+        weaknesses: "Expensive, Windows-only, slow full-disk analysis, GUI-dependent, closed-source"
+      - name: "KAPE"
+        type: "Free, .NET"
+        threat_level: "Medium"
+        strengths: "Fast collection, target/module system, SANS standard, free"
+        weaknesses: "Collection-only, no analysis, Windows-only, no ghost recovery or carving"
+      - name: "X-Ways Forensics"
+        type: "Commercial, ~$850/yr"
+        threat_level: "Medium"
+        strengths: "Fast, lightweight, hex/disk depth, affordable, good carving"
+        weaknesses: "Steep learning curve, Windows-only, single-user, dated UI, no triage questions"
+      - name: "Autopsy/The Sleuth Kit"
+        type: "Open Source, Java"
+        threat_level: "Low"
+        strengths: "Free, extensible modules, PostgreSQL multi-user, educational standard"
+        weaknesses: "Slow, Java overhead, limited timeline, no triage questions, no ghost recovery"
+
+    category_adjacent:
+      - name: "Timesketch"
+        category: "Collaborative timeline analysis"
+        relationship: "Complementary — Katana produces output Timesketch ingests"
+      - name: "Binalyze AIR"
+        category: "Cloud-first DFIR platform"
+        relationship: "Complementary — Katana analyzes AIR-collected artifacts"
+      - name: "CrowdStrike Falcon Forensics"
+        category: "EDR-integrated forensic triage"
+        relationship: "Competitive for enterprise, irrelevant for community/solo segment"
+
+    emerging_threats:
+      - name: "CrowdStrike (expanded Falcon Forensics)"
+        timeline: "12-18 months"
+      - name: "Microsoft (Defender for Endpoint forensics)"
+        timeline: "18-24 months"
+      - name: "Elastic (Security forensic module)"
+        timeline: "12-18 months"
+
+  differentiators:
+    - name: "Ghost record recovery from $LogFile"
+      impact: "Recovers evidence attackers thought destroyed; 771 ghost records on Szechuan Sauce CTF"
+    - name: "Unallocated space carving"
+      impact: "Recovers USN records and MFT entries from unallocated clusters"
+    - name: "Zero-UNKNOWN path resolution (Rewind)"
+      impact: "Eliminates 40%+ UNKNOWN paths that plague MFTECmd"
+    - name: "12 automated IR triage questions"
+      impact: "Answers incident commander needs in 35 seconds vs. 45-90 minutes manual"
+    - name: "QuadLink 4-artifact correlation"
+      impact: "Cross-references UsnJrnl + MFT + LogFile + MFTMirr with provenance tagging"
+    - name: "35-second wall-clock triage"
+      impact: "CI-validated benchmark on 40GB E01 with 847K records"
+
+  whitespace:
+    - name: "The triage standard"
+      description: "No vendor owns 'triage' as primary positioning; Katana defines the category"
+    - name: "Court-defensible open-source forensics"
+      description: "Open-source tools lack courtroom polish; commercial tools lack source transparency"
+    - name: "Parser at the end of every collection pipeline"
+      description: "Universal downstream analyzer for KAPE, Velociraptor, Binalyze AIR collections"
+
+  underserved_segments:
+    - name: "Solo DFIR consultants"
+      pain: "Overpay for suites or stitch 4+ tools manually"
+    - name: "MSSP Level 2 analysts"
+      pain: "Volume makes manual correlation unsustainable"
+    - name: "Defense attorneys and civil litigators"
+      pain: "Need auditable tool output for Daubert compliance"
+    - name: "Government/defense IR teams"
+      pain: "Cannot use cloud-dependent tools on classified networks"
+
+  forward_opportunities:
+    six_month:
+      - "Velociraptor artifact import"
+      - "SANS CTF walkthrough + instructor outreach"
+      - "Precision/recall benchmark publication"
+      - "KAPE module for Katana"
+    twelve_to_eighteen_month:
+      - "Multi-artifact triage (Event Logs, Prefetch, Registry)"
+      - "Batch processing with aggregate reporting"
+      - "Structured API for SOAR integration"
+
+  strategic_moves:
+    offensive:
+      - "Conference circuit blitz (SANS DFIR Summit, OSDFCon, BSides)"
+      - "MFTECmd graduation content campaign"
+      - "Velociraptor integration module"
+      - "KAPE target + module contribution"
+    defensive:
+      - "Publish ghost recovery methodology paper"
+      - "CI benchmark transparency dashboard"
+      - "Community advisory board (5-7 practitioners)"
+
+  rejected_moves:
+    - name: "Build a collection agent"
+      reason: "Collection is solved; splits focus; introduces security liability (CVE-2025-6264)"
+    - name: "Add AI-powered triage summaries"
+      reason: "Non-deterministic, non-reproducible, non-court-defensible; contradicts Belief 5"
+    - name: "Build a GUI desktop application"
+      reason: "HTML report is the visual interface; GUI adds maintenance without serving CLI users"
+    - name: "Pursue VC funding"
+      reason: "Growth expectations distort product decisions; bootstrapped open-core is sustainable"
+    - name: "Add mobile forensics"
+      reason: "Different domain; violates depth-over-breadth; established competitors have decade head start"
+
+  novelty_validation:
+    conclusion: "Competitive differentiation with category-creation elements — no tool combines ghost recovery, unallocated carving, zero-UNKNOWN paths, and automated IR triage in a single 35-second CLI execution"
+    positioning_shorthand: "MFTECmd's analysis depth meets KAPE's collection speed — plus ghost recovery, 12 IR questions, zero-unknown paths. One Rust binary, 35 seconds, Apache-2.0."
+
+  positioning_matrix:
+    x_axis: "Depth of Recovery (allocated-only to ghost+carving+anti-forensics)"
+    y_axis: "Speed-to-Answers (hours to seconds)"
+    katana_position: "Upper-right quadrant — uncontested"

@@ -1,0 +1,104 @@
+agent_prompts:
+  total_modules: 11
+  modules:
+    - name: "CLI Orchestrator"
+      purpose_summary: "Parse arguments, resolve artifacts, orchestrate 6-stage pipeline, dispatch output"
+      time_budget: "<1s overhead"
+      source: "src/main.rs"
+
+    - name: "Image Access Module"
+      purpose_summary: "Open EWF/raw images, discover NTFS partitions, extract forensic artifacts"
+      time_budget: "<1s open + ~5s unallocated scan"
+      source: "src/image/mod.rs, src/image/unallocated.rs"
+
+    - name: "USN Journal Parser"
+      purpose_summary: "Parse $UsnJrnl:$J V2/V3/V4 records with parallel chunk processing via rayon"
+      time_budget: "~5s"
+      source: "src/usn/"
+
+    - name: "MFT Parser"
+      purpose_summary: "Parse $MFT entries, build parent-child maps, extract SI/FN timestamps, carve from unallocated"
+      time_budget: "~3-4s (within MFT+Rewind 10s budget)"
+      source: "src/mft/mod.rs, src/mft/carver.rs"
+
+    - name: "LogFile Parser & Ghost Extractor"
+      purpose_summary: "Parse $LogFile RCRD pages, extract embedded USN records absent from live journal"
+      time_budget: "~2s"
+      source: "src/logfile/mod.rs, src/logfile/usn_extractor.rs"
+
+    - name: "Unallocated Carver"
+      purpose_summary: "Scan free clusters for deleted USN records and MFT entries with structural validation"
+      time_budget: "~5s"
+      source: "src/image/unallocated.rs, src/usn/carver.rs, src/mft/carver.rs"
+
+    - name: "Rewind Engine"
+      purpose_summary: "CyberCX Rewind algorithm: reverse-chronological path reconstruction for 100% resolution"
+      time_budget: "~6-7s (within MFT+Rewind 10s budget)"
+      source: "src/rewind/mod.rs"
+
+    - name: "Correlation Engine"
+      purpose_summary: "TriForce/QuadLink cross-correlation of USN+MFT+LogFile+Unallocated into unified timeline"
+      time_budget: "~1s"
+      source: "src/correlation/mod.rs"
+
+    - name: "Analysis Engine"
+      purpose_summary: "Detect timestomping, ransomware patterns, secure deletion, and journal clearing"
+      time_budget: "~2s"
+      source: "src/analysis/mod.rs"
+
+    - name: "Triage Engine"
+      purpose_summary: "Evaluate 12 IR questions against resolved records using regex/extension/flag matching"
+      time_budget: "~3s"
+      source: "src/triage/mod.rs, src/triage/queries.rs"
+
+    - name: "Output Router & Format Writers"
+      purpose_summary: "Dispatch to 7 formats (CSV, JSONL, SQLite, Body, TLN, XML, HTML report) plus stats"
+      time_budget: "~2s"
+      source: "src/output/"
+
+  key_contracts:
+    - contract: "UsnRecord -> ResolvedRecord"
+      from: "USN Parser"
+      to: "Rewind Engine"
+      description: "Every parsed USN record gets a fully resolved file path via reverse-chronological MFT walk"
+
+    - contract: "MftData seed -> RewindEngine lookup table"
+      from: "MFT Parser"
+      to: "Rewind Engine"
+      description: "Current MFT state seeds the (entry, sequence) -> (name, parent) HashMap"
+
+    - contract: "LogFileUsnRecord -> GhostRecord"
+      from: "LogFile Parser"
+      to: "Correlation Engine"
+      description: "USN records found in $LogFile but absent from $UsnJrnl become ghost records"
+
+    - contract: "CarvedMftEntry -> RewindEngine supplement"
+      from: "Unallocated Carver"
+      to: "Rewind Engine"
+      description: "Carved MFT entries expand the lookup table for better path resolution of old records"
+
+    - contract: "ResolvedRecord -> TriageResult"
+      from: "Rewind Engine"
+      to: "Triage Engine"
+      description: "Resolved records with full paths evaluated against 12 IR questions via cached regex"
+
+    - contract: "All pipeline outputs -> ReportData"
+      from: "All modules"
+      to: "HTML Report Generator"
+      description: "Records, detections, ghost records, carving stats, and triage results bundled into self-contained HTML"
+
+    - contract: "Graceful degradation chain"
+      from: "CLI Orchestrator"
+      to: "All modules"
+      description: "QuadLink (4 artifacts) -> TriForce (3) -> Dual (2) -> USN-only (1) -> Error"
+
+  performance_budget:
+    total: "35s"
+    target_image: "40GB E01 with ~500K USN records"
+
+  forensic_guarantees:
+    - "Never panic, never silently drop data"
+    - "Deterministic output for identical input"
+    - "Read-only access to all evidence"
+    - "Every module returns Result<T, anyhow::Error> with context"
+    - "Exit codes: 0 (success), 1 (fatal), 2 (CLI error)"

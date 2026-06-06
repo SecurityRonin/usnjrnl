@@ -1,0 +1,89 @@
+# Phase 9: Architecture Decision Records
+# Generated: 2026-03-09
+
+document_type: adr
+document_path: north-star-advisor/docs/ADR.md
+adr_count: 10
+
+decisions:
+  - id: "ADR-0001"
+    title: "Rust over Python/Go"
+    status: accepted
+    category: language
+    summary: "Memory safety + C-comparable performance for binary forensic data processing"
+    alternatives_rejected: [Python, Go, "C/C++"]
+
+  - id: "ADR-0002"
+    title: "Apache-2.0 License"
+    status: accepted
+    category: licensing
+    summary: "Patent protection, no copyleft, government/enterprise friendly, open-core compatible"
+    alternatives_rejected: [MIT, GPL-3.0, BSL, "Dual MIT/Apache-2.0"]
+
+  - id: "ADR-0003"
+    title: "CLI-First, No GUI"
+    status: accepted
+    category: interface
+    summary: "Scriptable, composable, minimal attack surface, works over SSH and in containers"
+    alternatives_rejected: ["Electron/Tauri GUI", "TUI (ratatui)", "Web dashboard"]
+
+  - id: "ADR-0004"
+    title: "CyberCX Rewind Algorithm"
+    status: accepted
+    category: algorithm
+    summary: "Reverse-chronological journal processing for near-100% path resolution despite MFT reallocation"
+    alternatives_rejected: ["Forward-only MFT resolution", "$LogFile correlation only", "SQLite-backed historical MFT"]
+
+  - id: "ADR-0005"
+    title: "Seven Output Formats"
+    status: accepted
+    category: output
+    summary: "CSV, JSONL, SQLite, XML, Body, TLN, HTML for maximum DFIR tool interoperability"
+    alternatives_rejected: ["Single format with converters", "Plugin-based output", "Protobuf/Parquet"]
+
+  - id: "ADR-0006"
+    title: "Feature Flags for Optional Dependencies"
+    status: accepted
+    category: build
+    summary: "ewf/ntfs behind --features image for minimal default binary"
+    alternatives_rejected: ["Always include all deps", "Separate binary", "Dynamic loading"]
+
+  - id: "ADR-0007"
+    title: "Open-Core Business Model"
+    status: accepted
+    category: business
+    summary: "Free CLI covers 100% of individual needs; enterprise features via paid Cargo feature flags"
+    alternatives_rejected: [SaaS, "Support-only", "Dual GPL/commercial", "Freemium cloud"]
+
+  - id: "ADR-0008"
+    title: "12 Business-Oriented Triage Questions"
+    status: accepted
+    category: triage
+    summary: "Ordered by incident commander urgency, not artifact type; bridges technical-to-business gap"
+    alternatives_rejected: ["Artifact-type organization", "MITRE ATT&CK ordering", "YARA/Sigma rules", "User-defined only"]
+
+  - id: "ADR-0009"
+    title: "Single-File HTML Report"
+    status: accepted
+    category: output
+    summary: "Self-contained, offline-capable, court-exhibit-friendly with inlined CSS/JS/data"
+    alternatives_rejected: ["PDF generation", "Multi-file HTML", "Markdown report", "Web application"]
+
+  - id: "ADR-0010"
+    title: "Deterministic Output"
+    status: accepted
+    category: correctness
+    summary: "Same input always produces byte-identical output for court admissibility and reproducibility"
+    alternatives_rejected: ["Non-deterministic with hash manifest", "Timestamp-stamped output"]
+
+cross_references:
+  brand: "BRAND_GUIDELINES.md"
+  northstar: "NORTHSTAR.md"
+  architecture: "ARCHITECTURE_BLUEPRINT.md"
+  competitive: "COMPETITIVE_LANDSCAPE.md"
+
+key_themes:
+  - forensic_correctness: "Determinism, memory safety, and reproducibility are non-negotiable for court admissibility"
+  - practitioner_workflow: "CLI-first, multiple output formats, and scriptability match how DFIR teams actually work"
+  - open_core_sustainability: "Apache-2.0 + feature flags enable free individual use with enterprise revenue"
+  - algorithmic_innovation: "Rewind algorithm is the primary technical differentiator"

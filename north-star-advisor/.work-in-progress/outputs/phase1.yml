@@ -1,0 +1,50 @@
+brand:
+  name: "usnjrnl-forensic"
+  positioning: >-
+    For solo DFIR consultants and incident response teams who waste hours
+    stitching together fragmented tools or overpay for monolithic forensic
+    suites, usnjrnl-forensic is the Rust-powered CLI that delivers end-to-end
+    NTFS journal triage -- from E01 disk image to 12 answered IR questions --
+    in 35 seconds.
+  tagline: "35-second NTFS forensic triage -- from disk image to incident response answers"
+  beliefs:
+    - "Speed-to-Answers Is a Forensic Imperative"
+    - "Deleted Evidence Is Still Evidence"
+    - "Practitioners Deserve Tools, Not Platforms"
+    - "Open Source Earns Trust, Trust Earns Adoption"
+    - "Evidence Drives Decisions, Not Intuition"
+  kill_list:
+    - "Monolithic forensic suite"
+    - "GUI-first application"
+    - "Enterprise-only product"
+    - "Closed-source binary"
+    - "Feature-checkbox tool"
+    - "Real-time monitoring agent"
+    - "Memory forensics tool"
+    - "Case management system"
+  voice_traits:
+    - "Practitioner-to-practitioner"
+    - "Technically precise"
+    - "Confident but honest"
+    - "Speed-conscious"
+    - "Evidence-driven"
+  license: "Apache-2.0"
+  pillars:
+    - name: "Speed"
+      meaning: "35 seconds from E01 to answered questions"
+    - name: "Depth"
+      meaning: "Ghost recovery, unallocated carving, QuadLink correlation, anti-forensics detection"
+    - name: "Trust"
+      meaning: "Apache-2.0 source, precision/recall benchmarks, reproducible results"
+  color_tokens:
+    bg_primary: "#0d1117"
+    bg_surface: "#161b22"
+    accent: "#58a6ff"
+    critical: "#f85149"
+    recovered: "#bc8cff"
+  design_principles:
+    - "One Command, First Answers"
+    - "Progressive Disclosure"
+    - "Forensic Fidelity Over Convenience"
+    - "Interoperability Is a Feature"
+    - "Errors Are Part of the Investigation"

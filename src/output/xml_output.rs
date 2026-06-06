@@ -534,13 +534,13 @@ mod tests {
         let output = String::from_utf8(buf.into_inner().unwrap()).unwrap();
 
         // Verify every XML element that corresponds to the uncovered writeln! lines
-        assert!(output.contains("<sequence_number>5</sequence_number>"));       // line 34
+        assert!(output.contains("<sequence_number>5</sequence_number>")); // line 34
         assert!(output.contains("<parent_entry_number>33</parent_entry_number>")); // line 39
         assert!(output.contains("<parent_sequence_number>2</parent_sequence_number>")); // line 44
-        assert!(output.contains("<parent_path>.\\case</parent_path>"));         // line 49
+        assert!(output.contains("<parent_path>.\\case</parent_path>")); // line 49
         assert!(output.contains("<file_attributes>ARCHIVE</file_attributes>")); // line 57
-        assert!(output.contains("<major_version>2</major_version>"));           // line 65
-        // Also verify the surrounding fields for completeness
+        assert!(output.contains("<major_version>2</major_version>")); // line 65
+                                                                      // Also verify the surrounding fields for completeness
         assert!(output.contains("<entry_number>77</entry_number>"));
         assert!(output.contains("<usn>54321</usn>"));
         assert!(output.contains("<full_path>.\\case\\report.pdf</full_path>"));

@@ -753,11 +753,7 @@ mod tests {
         buf[end_off..end_off + 4].copy_from_slice(&ATTR_END_MARKER.to_le_bytes());
 
         let (entries, stats) = carve_mft_entries(&buf);
-        assert_eq!(
-            entries.len(),
-            0,
-            "Non-resident FILE_NAME should be skipped"
-        );
+        assert_eq!(entries.len(), 0, "Non-resident FILE_NAME should be skipped");
         assert!(stats.rejected > 0);
     }
 
@@ -785,9 +781,9 @@ mod tests {
         buf[56..60].copy_from_slice(&ATTR_FILE_NAME.to_le_bytes());
         buf[60..64].copy_from_slice(&attr_size.to_le_bytes());
         buf[64] = 0; // resident
-        // content_size at attr_offset + 16
+                     // content_size at attr_offset + 16
         buf[72..76].copy_from_slice(&30u32.to_le_bytes()); // content_size = 30 < 66
-        // content_offset at attr_offset + 20
+                                                           // content_offset at attr_offset + 20
         buf[76..78].copy_from_slice(&24u16.to_le_bytes());
 
         // End marker
@@ -825,7 +821,7 @@ mod tests {
         // FILE_NAME attribute with content_size >= 66 but name_len_chars = 0
         let content_offset: u16 = 24;
         let content_size = 66u32; // exactly minimum
-        let attr_size = ((content_offset as u32 + content_size + 7) & !7) as u32;
+        let attr_size = (content_offset as u32 + content_size + 7) & !7;
         buf[56..60].copy_from_slice(&ATTR_FILE_NAME.to_le_bytes());
         buf[60..64].copy_from_slice(&attr_size.to_le_bytes());
         buf[64] = 0; // resident
@@ -878,7 +874,7 @@ mod tests {
         // FILE_NAME attribute where filename extends past attr boundary
         let content_offset: u16 = 24;
         let content_size = 70u32; // enough for header but filename will exceed
-        let attr_size = ((content_offset as u32 + content_size + 7) & !7) as u32;
+        let attr_size = (content_offset as u32 + content_size + 7) & !7;
         buf[56..60].copy_from_slice(&ATTR_FILE_NAME.to_le_bytes());
         buf[60..64].copy_from_slice(&attr_size.to_le_bytes());
         buf[64] = 0; // resident

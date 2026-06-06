@@ -1,0 +1,591 @@
+# North Star Advisor - Progressive Strategic Context
+# This file is the single strategic reference for Claude Code before implementing features.
+# Updated after all 13 generation phases + deep templates.
+
+_meta:
+  generated_by: "north-star-advisor"
+  version: "1.0.0"
+  created_at: "2026-03-09T06:45:00+08:00"
+  last_updated: "2026-03-10T10:10:00+08:00"
+  phases_complete: [1, 2, 3, 4, "5a", "5b", "5c", 6, 7, 8, 9, 10, 11, 12, 13]
+  deep_templates_complete: ["PIPELINE_ORCHESTRATION", "RESILIENCE_PATTERNS", "IMPLEMENTATION_SCAFFOLD", "OBSERVABILITY", "TESTING_STRATEGY", "HANDOFF_PROTOCOL"]
+  rethink_from: "usnjrnl-forensic-northstar-2026-03-08"
+
+project:
+  name: "Security Ronin Katana"
+  company: "Security Ronin"
+  product_family: ["Security Ronin General (CISO sidekick)", "Security Ronin Katana (forensic triage)"]
+  description: "Precision DFIR triage — from disk image to incident response answers in 35 seconds"
+  version: "0.6.0"
+  target_users: "Solo DFIR consultants (community tier), MSSP analysts and enterprise IR teams (enterprise tier)"
+  core_problem: "DFIR practitioners waste hours stitching multiple tools or overpay for monolithic suites to answer basic incident response questions from forensic evidence"
+  differentiator: "End-to-end USN journal triage with ghost recovery, unallocated carving, path reconstruction, and 12 automated IR questions — no other tool does this in 35 seconds"
+  success_metric: "First 50 paying enterprise customers generating real revenue"
+  tech_stack: "Rust CLI, Apache-2.0 (community) + Proprietary (enterprise), EWF/NTFS image support, SQLite/JSONL/CSV/XML/TLN/HTML outputs"
+
+  tiers:
+    community:
+      license: "Apache-2.0"
+      repo: "katana (public)"
+      features:
+        - "USN Journal parsing + ghost recovery + unallocated carving"
+        - "MFT parsing + CyberCX Rewind path reconstruction"
+        - "QuadLink 4-artifact correlation"
+        - "12 automated IR triage questions"
+        - "Single-device E01/raw image examination"
+        - "7 output formats (SQLite, JSONL, CSV, XML, TLN, HTML, body)"
+    enterprise:
+      license: "Proprietary"
+      repo: "katana-pro (private)"
+      phase_1: "RBAC, multi-device examination, Velociraptor/Binalyze import, live triage"
+      phase_2: "PCAP/NetFlow, collaborative investigation"
+      phase_3: "Targeted collection agent"
+
+# ── Phase 1: Brand ──────────────────────────────────────────────────
+
+brand:
+  voice: "Precise, technical, no-nonsense. Practitioner-to-practitioner — like a senior forensic examiner briefing a peer. Direct, factual, court-ready. Numbers over adjectives."
+  positioning: "Precision DFIR triage — from disk image to incident response answers in 35 seconds"
+  tagline: "35-second NTFS forensic triage — from disk image to incident response answers."
+  pillars: ["Speed", "Depth", "Trust"]
+
+# ── Phase 1-4: Strategy ─────────────────────────────────────────────
+
+strategy:
+  beliefs:
+    - "Forensic integrity is non-negotiable — every output must be deterministic, verifiable, and court-admissible"
+    - "Speed-to-answers is a forensic imperative — the first 60 minutes determine containment success"
+    - "Deleted evidence is still evidence — recovery is the baseline, not a premium feature"
+    - "Practitioners deserve tools, not platforms — CLI-first, no vendor lock-in"
+    - "Open source earns trust, trust earns adoption — auditable code is court-defensible code"
+
+  kill_list:
+    - "GUI-first application"
+    - "Plugin/extension system"
+    - "Cloud-based processing"
+    - "AI/ML-based triage classification"
+    - "Database-first architecture"
+    - "Memory forensics"
+    - "Real-time monitoring"
+    - "Case management system"
+
+  north_star_metric:
+    name: "Number of Paying Enterprise Customers"
+    definition: "Organizations with at least one active paid seat ($99-149/month) that processed at least one case in trailing 30 days"
+    target: "50 paying enterprise customers within 12 months of enterprise tier launch"
+
+  measurement:
+    community:
+      - { metric: "GitHub stars", target: "200+ in first 90 days" }
+      - { metric: "Monthly active users", target: "500" }
+    enterprise:
+      - { metric: "Seats sold", target: "ramp to 200+" }
+      - { metric: "Net revenue retention", target: ">110%" }
+    product:
+      - { metric: "Time-to-first-answer (P95)", target: "<35 seconds" }
+      - { metric: "False positive rate", target: "<5%" }
+      - { metric: "Ghost recovery rate", target: ">95%" }
+      - { metric: "Path resolution completeness", target: "100% (zero UNKNOWN)" }
+
+  personas:
+    - name: "Alex Chen"
+      role: "Solo DFIR Consultant"
+      tier: "community"
+      caseload: "3-5 cases/month"
+      revenue_role: "Evangelist — discovers, validates, recommends"
+      switching_trigger: "Saves >30 min/case AND doesn't miss evidence"
+    - name: "Sarah Okonkwo"
+      role: "MSSP Lead Analyst"
+      tier: "enterprise"
+      caseload: "20-30 cases/month across clients"
+      revenue_role: "Champion — drives team purchase decision"
+      switching_trigger: "Multi-device correlation + RBAC + Velociraptor import"
+    - name: "James Whitfield"
+      role: "Enterprise IR Director"
+      tier: "enterprise"
+      caseload: "Manages team of 8-12 analysts"
+      revenue_role: "High-value account — 8-12+ seats, marquee reference"
+
+  axioms:
+    - { id: 1, name: "Forensic Integrity > Feature Velocity", shorthand: "When speed of shipping and accuracy conflict, choose accuracy" }
+    - { id: 2, name: "Practitioner Autonomy > Platform Lock-in", shorthand: "Community CLI works fully offline, no accounts, no internet" }
+    - { id: 3, name: "35-Second Answers > Comprehensive Coverage", shorthand: "Answer 12 questions well, not 100 questions poorly" }
+    - { id: 4, name: "Open Core Trust > Revenue Extraction", shorthand: "Community features never move to enterprise; trust is the moat" }
+    - { id: 5, name: "Assume Breach > Assume Safety", shorthand: "Agent compromise must never mean server compromise" }
+  conflict_hierarchy: "Axiom 1 > Axiom 2 > Axiom 3 > Axiom 4 > Axiom 5"
+
+  non_goals:
+    features: ["GUI-first application", "Plugin/extension system", "Cloud-based processing", "AI/ML-based triage classification", "Database-first architecture", "Memory forensics", "Real-time monitoring", "Case management system"]
+    never:
+      - "Move community features to enterprise"
+      - "Require internet for forensic analysis"
+      - "Silently modify evidence or input data"
+      - "Ship without test corpus verification"
+      - "Accept non-deterministic output"
+      - "Use unsafe without documented justification"
+      - "Ship unsigned enterprise binaries"
+      - "Silently drop records during parsing"
+
+  constraints:
+    team: "Solo developer building two products (Katana + General)"
+    financial: "$10K SAFE, 4-month self-sustaining timeline"
+    competitive_window: "12-18 months before CrowdStrike/Microsoft/Elastic enter triage"
+
+  recommended_path:
+    name: "Path C: Staged Open Core"
+    confidence: "Medium (60%)"
+    thesis: "Parallel community polish + enterprise build with phased rollout"
+    time_to_revenue: "5-6 months"
+    primary_risk: "Solo developer execution capacity"
+    focus_areas:
+      - { area: "Ship community v1.0 with benchmark transparency", timeline: "Months 1-2" }
+      - { area: "Build enterprise RBAC + SSO + Velociraptor import", timeline: "Months 3-5" }
+      - { area: "Conference circuit for pipeline creation", timeline: "Months 2-6" }
+    avoid_list:
+      - "Building a collection agent before Phase 3"
+      - "Adding AI-powered triage summaries"
+      - "Building a GUI desktop application"
+      - "Pursuing VC funding"
+      - "Moving community features to enterprise tier"
+
+  trade_offs:
+    paths_rejected:
+      - { id: "A", name: "Community First", score: 2.65, rejected_because: "Revenue delayed too long for SAFE timeline" }
+      - { id: "B", name: "Enterprise Fast Track", score: 3.05, rejected_because: "Solo developer spread too thin; community trust damage" }
+    chosen: { id: "C", name: "Staged Open Core", score: 3.50 }
+    risks:
+      - { name: "MFTECmd adds automated triage", probability: "Medium (30-40%)", impact: "High" }
+      - { name: "Zero paying customers after 12 months", probability: "Medium (40-50%)", impact: "Critical" }
+      - { name: "Solo developer burnout", probability: "High (60-70%)", impact: "Critical" }
+    decision_points:
+      - { trigger: "Community v1.0 <50 GitHub stars in 30 days", options: ["Increase marketing", "Pivot to direct enterprise", "Reassess PMF"] }
+      - { trigger: "10th paying customer OR 3 deals stall on SOC 2", options: ["Start SOC 2", "Offer roadmap commitment", "Partner with compliant hosting"] }
+      - { trigger: "Revenue >$15K MRR OR bug backlog >2 weeks", options: ["Part-time Rust contributor", "DevRel hire", "Continue solo"] }
+
+# ── Phase 3: Market ─────────────────────────────────────────────────
+
+market:
+  competitors:
+    direct:
+      - { name: "Velociraptor", type: "Open Source (Go)", threat: "High", weakness: "File-based datastore scaling, Go GC pauses" }
+      - { name: "X-Ways Forensics", type: "Commercial", threat: "Medium", weakness: "Windows-only, expensive, steep learning curve" }
+      - { name: "EnCase Forensic", type: "Enterprise", threat: "Low-Medium", weakness: "Legacy codebase, expensive, slow innovation" }
+      - { name: "Autopsy/TSK", type: "Open Source (Java/C)", threat: "Medium", weakness: "Java dependency, slow on large datasets" }
+      - { name: "Magnet AXIOM", type: "Commercial", threat: "Medium", weakness: "Expensive, cloud-first direction, resource heavy" }
+    adjacent:
+      - { name: "MFTECmd (Eric Zimmerman)", relationship: "Complementary — parses MFT, doesn't do USN triage" }
+      - { name: "KAPE", relationship: "Complementary — collects artifacts, Katana analyzes them" }
+      - { name: "Binalyze AIR", relationship: "Complementary — Katana analyzes AIR-collected artifacts" }
+    emerging_threats:
+      - { name: "CrowdStrike (expanded Falcon Forensics)", timeline: "12-18 months" }
+      - { name: "Microsoft (Defender for Endpoint forensics)", timeline: "18-24 months" }
+      - { name: "Elastic (Security forensic module)", timeline: "12-18 months" }
+
+  differentiation:
+    - "Ghost record recovery from $LogFile (771 ghosts on Szechuan Sauce CTF)"
+    - "Unallocated space carving (structural validation)"
+    - "QuadLink 4-artifact cross-correlation with provenance tagging"
+    - "35-second wall-clock triage (CI-validated benchmark on 40GB E01)"
+
+  whitespace:
+    - "The triage standard — no vendor owns 'triage' as primary positioning"
+    - "Court-defensible open-source forensics — precision/recall per release"
+    - "Government/military sector — offline-capable, auditable open source"
+
+# ── Phase 5: Design ─────────────────────────────────────────────────
+
+design:
+  journeys:
+    - name: "First-Time User (Alex Chen)"
+      phases: ["Discovery (GitHub/conference)", "Install (cargo/binary)", "First Run (<35s triage)", "Validate (cross-reference tools)", "Share (blog/peer rec)"]
+      friction_points: ["Unclear differentiation from MFTECmd", "No output for several seconds during first run", "Binary not available for user's OS"]
+    - name: "MSSP Adoption (Sarah Okonkwo)"
+      phases: ["Evaluate (benchmark against current tools)", "Pilot (3 real cases)", "Approve (CISO sign-off)", "Deploy (team rollout)", "Expand (more analysts)"]
+    - name: "Enterprise Purchase (James Whitfield)"
+      phases: ["Discovery (sees MSSP using Katana)", "Evaluate (security review)", "Negotiate (pricing/SOC 2)", "Deploy (IT rollout)", "Reference (case study)"]
+
+  tokens:
+    theme: "dark (forensic analyst eye strain reduction)"
+    colors:
+      background: "#0d1117"
+      surface: "#161b22"
+      accent: "#58a6ff"
+      text_primary: "#e6edf3"
+      text_secondary: "#9da5b4"
+      critical: "#ff4757"
+      high: "#ff6b6b"
+      warning: "#d29922"
+      success: "#3fb950"
+      ghost: "#bc8cff"
+    typography:
+      display: "Inter, system-ui, sans-serif"
+      mono: "JetBrains Mono, Fira Code, Consolas, monospace"
+    surfaces: ["CLI terminal output", "HTML report", "Enterprise web UI (Axum + Askama)"]
+
+  accessibility:
+    target: "WCAG 2.1 Level AA"
+    cli_patterns:
+      - "NO_COLOR environment variable compliance"
+      - "TERM=dumb degradation"
+      - "Non-TTY pipe detection (strip ANSI)"
+      - "Text severity prefixes: [CRITICAL], [HIGH], [MEDIUM], [LOW], [INFO], [GHOST]"
+      - "16-color ANSI fallback from 256/truecolor"
+    html_patterns:
+      - "Semantic landmarks (header, main, footer)"
+      - "ARIA tabs pattern (Story/Explore)"
+      - "Skip link to triage results"
+      - "prefers-reduced-motion and prefers-color-scheme support"
+      - "Print theme for court exhibits"
+    enterprise_patterns:
+      - "Live regions for pipeline progress (5s coalesce)"
+      - "ARIA-compliant data tables with sorting"
+
+# ── Phase 6-7: Architecture ─────────────────────────────────────────
+
+architecture:
+  pattern: "sequential_pipeline_with_parallel_inner_stages"
+  description: "Memory-Mapped I/O Pipeline with 14 modules operating within a 35-second performance budget"
+
+  pipeline_stages:
+    - { id: "ewf_parser", crate: "katana-ewf", budget: "2s", parallelism: "single-threaded", job: "Read E01/raw disk images via libewf FFI" }
+    - { id: "ntfs_volume", crate: "katana-ntfs", budget: "1s", parallelism: "single-threaded", job: "Parse NTFS, extract $MFT/$UsnJrnl/$LogFile" }
+    - { id: "usn_parser", crate: "katana-core", budget: "5s", parallelism: "rayon", job: "Parse USN Journal records (V2/V3/V4)" }
+    - { id: "mft_parser", crate: "katana-core", budget: "5s", parallelism: "rayon", job: "Parse $MFT, extract timestamps/paths via Rewind", parallel_with: "usn_parser" }
+    - { id: "ghost_recovery", crate: "katana-core", budget: "3s", parallelism: "single-threaded", job: "Recover deleted USN records from journal sparse gaps" }
+    - { id: "logfile_parser", crate: "katana-core", budget: "3s", parallelism: "single-threaded", job: "Parse $LogFile for ghost record recovery" }
+    - { id: "carving", crate: "katana-core", budget: "5s", parallelism: "rayon", job: "Carve USN records from unallocated space" }
+    - { id: "rewind", crate: "katana-core", budget: "3s", parallelism: "single-threaded", job: "CyberCX Rewind path reconstruction" }
+    - { id: "correlation", crate: "katana-core", budget: "2s", parallelism: "single-threaded", job: "QuadLink 4-artifact cross-correlation" }
+    - { id: "anomaly_detection", crate: "katana-core", budget: "1s", parallelism: "single-threaded", job: "Timestomping and anti-forensics detection" }
+    - { id: "triage", crate: "katana-core", budget: "2s", parallelism: "single-threaded", job: "12 automated IR triage questions" }
+    - { id: "output_formatter", crate: "katana-formats", budget: "3s", parallelism: "single-threaded", job: "Emit CSV/JSONL/SQLite/XML/TLN/HTML/body" }
+
+  handoff_triggers:
+    - { from: "ewf_parser", to: "ntfs_volume", contract: "seekable volume byte stream" }
+    - { from: "ntfs_volume", to: "usn_parser + mft_parser (parallel)", contract: "raw artifact byte slices" }
+    - { from: "usn_parser + mft_parser", to: "ghost_recovery + logfile_parser + carving", contract: "parsed records + journal bounds" }
+    - { from: "all parsers", to: "rewind", contract: "MFT entries for path resolution" }
+    - { from: "rewind", to: "correlation + anomaly_detection", contract: "resolved records with full paths" }
+    - { from: "correlation", to: "triage", contract: "correlated evidence set" }
+    - { from: "triage", to: "output_formatter", contract: "triage results + all records" }
+
+  agents:
+    enterprise:
+      - { name: "Katana Server", crate: "katana-server", framework: "axum", components: ["REST API", "gRPC (tonic)", "RBAC middleware (Tower)", "WebSocket collaboration"] }
+      - { name: "Collection Agent", crate: "katana-agent", framework: "tonic gRPC", binary_size: "<5MB", cold_start: "<50ms" }
+      - { name: "PCAP/NetFlow Parser", crate: "katana-pcap", implements: "EvidenceSource trait" }
+      - { name: "Multi-Device Correlator", crate: "katana-multi", approach: "streaming" }
+      - { name: "Collaborative Engine", crate: "katana-collab", protocol: "WebSocket" }
+
+  tech_stack:
+    community:
+      - { layer: "Language", choice: "Rust 2021" }
+      - { layer: "CLI", choice: "clap 4.x" }
+      - { layer: "Parallelism", choice: "rayon 1.x" }
+      - { layer: "Memory-mapped I/O", choice: "memmap2" }
+      - { layer: "Zero-copy parsing", choice: "zerocopy" }
+      - { layer: "Serialization", choice: "serde + serde_json" }
+      - { layer: "EWF", choice: "libewf (FFI via bindgen)" }
+      - { layer: "Database", choice: "rusqlite (SQLite)" }
+      - { layer: "HTML templating", choice: "askama" }
+    enterprise:
+      - { layer: "HTTP", choice: "axum 0.8" }
+      - { layer: "gRPC", choice: "tonic 0.14+" }
+      - { layer: "TLS", choice: "rustls" }
+      - { layer: "Auth middleware", choice: "Tower" }
+      - { layer: "Database", choice: "PostgreSQL (sqlx)" }
+      - { layer: "Search", choice: "tantivy 0.22+" }
+      - { layer: "PCAP", choice: "pcap-parser + etherparse" }
+      - { layer: "NetFlow", choice: "netflow_parser 0.4+" }
+
+  agent_prompts:
+    summary: "14 pipeline modules with typed contracts between stages; linear execution with parallel inner stages (usn_parser || mft_parser)"
+    extension_traits: ["EvidenceSource", "TriageEngine", "OutputSink"]
+    linking: "path dependencies (dev) / git dependencies (CI)"
+
+  latency_budget:
+    community: { p95: "35s", target_image: "1GB E01", parse_rate: "100K+ events/second" }
+    enterprise: { core_triage: "same as community", network_overhead: "<500ms", agent_cold_start: "<50ms" }
+
+  circuit_breakers:
+    note: "Not applicable to community tier (offline CLI, no external services)"
+    enterprise:
+      - { component: "Agent connection", failure_threshold: "3 failures/30s", recovery: "15s", fallback: "Queue for retry" }
+      - { component: "Database", failure_threshold: "2 failures/30s", recovery: "60s", fallback: "Read-only cache" }
+
+  retry_policies:
+    community: "No retries — deterministic pipeline, fail fast on fatal errors"
+    enterprise_agent: "Exponential backoff with jitter (base 1s, max 60s, 5 attempts)"
+    enterprise_api: "Idempotent operations retry 3x; non-idempotent fail immediately"
+
+  fallback_strategies:
+    - { tier: "QuadLink", artifacts: ["$UsnJrnl", "$MFT", "$LogFile", "$MFTMirr"], capabilities: "Full path resolution, ghost records, integrity check, timestomping, full anti-forensics" }
+    - { tier: "TriForce+", artifacts: ["$UsnJrnl", "$MFT", "$LogFile"], capabilities: "Full path resolution, ghost records, timestomping", missing: "$MFTMirr" }
+    - { tier: "Dual", artifacts: ["$UsnJrnl", "$MFT"], capabilities: "Full path resolution, timestomping, sdelete/ransomware", missing: "$LogFile + $MFTMirr" }
+    - { tier: "USN-Only", artifacts: ["$UsnJrnl"], capabilities: "Filename-only, pattern-based detection", missing: "$MFT + $LogFile + $MFTMirr" }
+    - { tier: "Carve-Only", artifacts: ["unallocated_space"], capabilities: "Best-effort recovery", missing: "All primary artifacts" }
+
+  delegation_rules:
+    pipeline_model: "linear_staged_with_optional_bypass"
+    error_strategy: "log-and-skip (every anomaly is a finding, not a bug)"
+    corrupt_record: "Log warning, skip, increment counter, scan forward 8 bytes"
+    fatal_errors: ["No input file specified", "Image file unreadable", "No NTFS partition found"]
+    max_consecutive_corrupt: 1000
+
+  context_passing:
+    internal_contracts:
+      - { from: "USN Parser", to: "MFT Parser", type: "Vec<UsnRecord>", validation: "sorted by USN, deduplicated, V2/V3/V4 normalized" }
+      - { from: "MFT Parser", to: "Rewind Engine", type: "MftData (HashMap<u64, MftEntry>)", validation: "root entry 5 exists" }
+      - { from: "Rewind", to: "Correlation/Output", type: "Vec<ResolvedRecord>", validation: "all records have path resolution attempted" }
+    external_formats: ["CSV (16 columns)", "JSONL (nested JSON)", "bodyfile (pipe-delimited)", "TLN (5-field)", "XML (structured)", "SQLite (normalized)", "HTML Report (Story + Explore tabs)"]
+    integration_handoffs: ["KAPE Module", "Velociraptor VQL artifact", "Autopsy ingest module"]
+
+# ── Phase 8: Security ───────────────────────────────────────────────
+
+security:
+  threat_model: "Forensic Tool Threat Classification (FTTC) — 10 forensic-specific threats"
+  critical_threats:
+    - "FT-01: Evidence Tampering — SHA-256 hash verification at ingestion"
+    - "FT-02: Agent Weaponization — mTLS + cert pinning + code signing + assume-breach"
+    - "FT-03: Non-Deterministic Output — same input must produce identical output across runs/versions"
+    - "FT-06: Multi-Tenant Data Leak — schema-per-tenant isolation"
+    - "FT-10: Audit Trail Tampering — hash-chain append-only audit log"
+  all_threats:
+    - { id: "FT-01", name: "Evidence Tampering", severity: "critical" }
+    - { id: "FT-02", name: "Agent Weaponization", severity: "critical" }
+    - { id: "FT-03", name: "Non-Deterministic Output", severity: "critical" }
+    - { id: "FT-04", name: "Supply Chain Compromise", severity: "high" }
+    - { id: "FT-05", name: "Insider Result Manipulation", severity: "high" }
+    - { id: "FT-06", name: "Multi-Tenant Data Leak", severity: "critical" }
+    - { id: "FT-07", name: "Chain of Custody Break", severity: "high" }
+    - { id: "FT-08", name: "Privilege Escalation", severity: "medium" }
+    - { id: "FT-09", name: "Agent Credential Theft", severity: "high" }
+    - { id: "FT-10", name: "Audit Trail Tampering", severity: "critical" }
+
+  auth_pattern:
+    community: "none (fully offline, no network)"
+    enterprise_users: "JWT via SSO/SAML (WorkOS/Scalekit)"
+    enterprise_agents: "mTLS with certificate pinning (tonic + rustls)"
+    local_fallback: "Argon2id + TOTP 2FA"
+
+  guardrails:
+    rbac_roles: ["Admin", "Case Manager", "Examiner", "Reviewer", "Auditor"]
+    multi_tenancy: "schema-per-tenant (DuckDB/PostgreSQL), tenant ID in Tower middleware"
+    daubert_compliance: "public test corpus, deterministic output, precision/recall per release"
+    trust_boundaries:
+      - { name: "Community Tier", model: "fully offline, local filesystem only" }
+      - { name: "Agent-Server", model: "assume-breach, mTLS + cert pinning" }
+    agent_fleet:
+      enrollment: "single-use token (24h TTL), X.509 cert (90-day validity)"
+      update_strategy: "staged rollout (5% canary -> 25% -> 100%)"
+      kill_switches: ["agent_fleet_kill", "single_agent_kill (CRL)", "tenant_lockout", "evidence_quarantine", "emergency_shutdown"]
+    incident_response:
+      model: "solo developer (no on-call rotation)"
+      severities: ["SEV-1 (15min)", "SEV-2 (1hr)", "SEV-3 (4hr)", "SEV-4 (24hr)"]
+      escalation: "PagerDuty -> solo investigation -> contract consultant"
+
+  key_principles:
+    - "Forensic Integrity Above All (Axiom 1)"
+    - "Assume Breach (Axiom 5)"
+    - "Buy Auth, Build Forensics"
+    - "Blast Radius Containment"
+
+# ── Phase 9: Decisions ──────────────────────────────────────────────
+
+decisions:
+  - { id: "ADR-0001", title: "Two-Repo Open Core (Apache-2.0 + Proprietary)", category: "licensing", summary: "Separate public/private repos with independent Cargo workspaces" }
+  - { id: "ADR-0002", title: "Rust 2021 as Primary Language", category: "technology", summary: "Rust for all components; clap, rayon, memmap2, zerocopy, serde" }
+  - { id: "ADR-0003", title: "Trait-Based Extension Architecture", category: "architecture", summary: "EvidenceSource, TriageEngine, OutputSink traits; enterprise implements via dyn Trait" }
+  - { id: "ADR-0004", title: "Axum + Tonic for Enterprise Layer", category: "technology", summary: "Axum 0.8 (REST) + tonic 0.14+ (gRPC) on shared Tokio runtime; Tower middleware for RBAC" }
+  - { id: "ADR-0005", title: "Assume-Breach Collection Agent Security", category: "security", summary: "mTLS + cert pinning + code signing + unidirectional trust for katana-agent" }
+  - { id: "ADR-0006", title: "Hash-Chain Audit Trail", category: "security", summary: "Append-only SHA-256 hash chain; daily verification; PDF legal export with attestation" }
+  - { id: "ADR-0007", title: "Buyer-Based Open Core Tier Split", category: "business", summary: "Individual practitioner features = free; team/management features = enterprise" }
+  - { id: "ADR-0008", title: "NetFlow-First Network Forensics", category: "architecture", summary: "NetFlow first, PCAP second; integrate with Wireshark, don't compete" }
+  - { id: "ADR-0009", title: "SQLite (Community) / PostgreSQL + Tantivy (Enterprise)", category: "technology", summary: "SQLite for community zero-config; PostgreSQL + tantivy for enterprise search" }
+  - { id: "ADR-0010", title: "Buy SSO, Delay SOC 2", category: "business", summary: "WorkOS/Scalekit for SSO; delay SOC 2 until paying customers; Argon2id + TOTP fallback" }
+
+# ── Phase 10: Operations ────────────────────────────────────────────
+
+operations:
+  monitoring:
+    community: "GitHub Insights, crates.io stats, Docker Hub pulls"
+    enterprise: "Prometheus + Grafana + Loki + Jaeger (all self-hosted)"
+    cost_principle: "Self-host everything until revenue justifies managed services"
+    community_monthly: "$0"
+    enterprise_monthly: "$60-120"
+
+  health_checks:
+    community:
+      - { metric: "GitHub stars growth", healthy: ">5/week", degraded: "<2/week" }
+      - { metric: "Reference corpus pass rate", healthy: "100%", critical: "<100%" }
+      - { metric: "Issue response time", healthy: "<48h", degraded: ">72h" }
+    enterprise:
+      - { metric: "API availability", slo: ">99.5%" }
+      - { metric: "API latency P95", slo: "<500ms" }
+      - { metric: "Triage latency P95", slo: "<35s (1GB E01)" }
+      - { metric: "Agent connection success", slo: ">99%" }
+      - { metric: "Agent cold start", slo: "<50ms" }
+
+  alerts:
+    stack: "Grafana Alerting -> PagerDuty (free tier)"
+    severities: ["SEV-1 (15min)", "SEV-2 (1hr)", "SEV-3 (4hr)", "SEV-4 (24hr)"]
+    sev1_examples: "hash chain broken, evidence tampering, agent fleet compromise"
+    escalation: "PagerDuty -> solo investigation -> contract consultant"
+
+  logging_strategy:
+    framework: "env_logger 0.11"
+    control: "RUST_LOG environment variable"
+    stream_separation:
+      stdout: "Structured forensic output only (CSV, JSONL, bodyfile, TLN, XML)"
+      stderr: "Progress markers, statistics, warnings, errors, log output"
+    levels:
+      error: "Unrecoverable failures that abort the pipeline"
+      warn: "Recoverable issues affecting completeness"
+      info: "Pipeline stage transitions and summary counts"
+      debug: "Per-record decisions, rewind resolution steps"
+      trace: "Binary-level parser detail (byte offsets, headers)"
+
+  tracing:
+    philosophy: "100% offline, zero telemetry, zero network connections"
+    enterprise: "OpenTelemetry + Jaeger (self-hosted)"
+    audit_trail:
+      format: "JSON sidecar file"
+      flag: "--audit-log <path>"
+      fields: ["Tool version + CLI invocation", "SHA-256 hashes of all inputs", "Record counts per stage", "Anomaly detection results", "Per-stage and total timing"]
+
+  dashboards:
+    community: "GitHub Insights (stars, visitors, clones, downloads)"
+    enterprise: "Grafana — API latency, triage performance, agent fleet health, tenant usage"
+
+  database_ops:
+    postgresql:
+      backup: "daily full (02:00 UTC), continuous WAL, weekly per-tenant dump"
+      retention: "30-day full, 7-day WAL, 90-day logical"
+      storage: "Backblaze B2 (S3-compatible)"
+    audit_retention: "7 years"
+    evidence_retention: "case lifetime + 1 year"
+
+  checklists:
+    daily: ["Grafana dashboard", "PagerDuty alerts", "backup verification", "hash-chain integrity"]
+    weekly: ["GitHub Issues review", "dependency audit (cargo audit)", "metrics review"]
+
+# ── Phase 12: Roadmap ───────────────────────────────────────────────
+
+roadmap:
+  strategic_path: "Conference Circuit Community Builder"
+  day_1_definition: "The day the founder begins executing this roadmap"
+
+  phase_1:
+    name: "Establish Presence, Prove Value"
+    duration: "Days 1-30"
+    focus: ["KAPE Module PR submitted", "Benchmark methodology published", "First blog post + demo video", "DFIR Discord active membership", "CFP submitted"]
+    resource_split: { product: "40%", content: "30%", community: "20%", strategy: "10%" }
+    milestones: ["KAPE Module PR submitted", "Benchmark methodology published", "1 blog post live", "100+ GitHub unique visitors", "50+ downloads", "3+ organic mentions"]
+    gate: "If fewer than 3 of 9 criteria met, re-evaluate community-first strategy"
+
+  phase_2:
+    name: "Build Community, Ship Integrations"
+    duration: "Days 31-60"
+    focus: ["KAPE Module merged", "Velociraptor VQL artifact submitted", "Windows binary release", "2 blog posts total", "5+ beta tester contacts"]
+    resource_split: { product: "35%", content: "30%", community: "25%", enterprise_research: "10%" }
+    milestones: ["KAPE module merged", "Velociraptor artifact submitted", "200+ GitHub unique visitors", "150+ cumulative downloads", "5+ enterprise beta contacts"]
+    gate: "Proceed if KAPE merged and community growing; iterate if KAPE blocked"
+
+  phase_3:
+    name: "Monetize and Measure"
+    duration: "Days 61-90"
+    focus: ["3 enterprise features (batch, audit-log, rules)", "Enterprise landing page + payment (Stripe/Gumroad)", "First conference talk delivered", "Opt-in telemetry + Weekly Active Cases dashboard"]
+    resource_split: { product: "40%", content: "20%", community: "20%", go_to_market: "20%" }
+    milestones: ["3 enterprise features shipped", "Payment infrastructure live", "1+ paying customer (stretch: 5)", "1+ conference talk delivered", "300+ GitHub unique visitors", "300+ cumulative downloads"]
+
+# ── Phase 13: Implementation ────────────────────────────────────────
+
+implementation:
+  project_structure:
+    community_repo: "katana"
+    community_crates:
+      - { name: "katana-core", type: "library", purpose: "Shared types, traits (EvidenceSource, TriageEngine, OutputSink), parsers" }
+      - { name: "katana-cli", type: "binary", purpose: "Community CLI for forensic triage" }
+      - { name: "katana-formats", type: "library", purpose: "Output formatters (CSV, JSON, bodyfile, TLN, XML, SQLite, report)" }
+      - { name: "katana-ewf", type: "library", purpose: "E01/raw disk image handling via libewf FFI" }
+      - { name: "katana-ntfs", type: "library", purpose: "NTFS filesystem parsing ($MFT, $UsnJrnl, $LogFile)" }
+    enterprise_repo: "katana-pro"
+    enterprise_crates:
+      - { name: "katana-server", type: "binary", purpose: "Axum REST + tonic gRPC + WebSocket collaboration" }
+      - { name: "katana-agent", type: "binary", purpose: "Remote evidence collection agent (mTLS, <5MB)" }
+      - { name: "katana-pcap", type: "library", purpose: "PCAP/NetFlow parsing (impl EvidenceSource)" }
+      - { name: "katana-collab", type: "library", purpose: "Collaborative investigation (WebSocket)" }
+      - { name: "katana-import", type: "library", purpose: "Velociraptor/Binalyze/KAPE import adapters" }
+      - { name: "katana-multi", type: "library", purpose: "Multi-device correlation (streaming)" }
+
+  setup_scripts:
+    ci_community: ["fmt, clippy, test (3 OS), audit, deny, bench"]
+    ci_enterprise: ["ci.yml + agent-build.yml + deploy.yml (additional)"]
+    release: "6-target cross-compile, SHA256SUMS, GitHub Release"
+
+# ── Testing ─────────────────────────────────────────────────────────
+
+testing:
+  unit_coverage:
+    framework: "cargo test (Rust built-in #[test])"
+    total_tests: 571
+    coverage: "89.25%"
+    target: "90% module unit, 80% integration"
+    top_modules:
+      - { module: "triage_mod", tests: 60 }
+      - { module: "usn_record", tests: 54 }
+      - { module: "main", tests: 36 }
+      - { module: "analysis", tests: 35 }
+      - { module: "logfile_usn_extractor", tests: 33 }
+      - { module: "usn_reader", tests: 31 }
+      - { module: "usn_carving", tests: 28 }
+      - { module: "rewind", tests: 26 }
+      - { module: "mft", tests: 22 }
+
+  integration_tests:
+    tiers:
+      - { tier: 1, name: "Unit tests", command: "cargo test --lib", duration: "~10s", trigger: "every push" }
+      - { tier: 2, name: "Unit + synthetic integration", command: "cargo test", duration: "~15s", trigger: "PR to main" }
+      - { tier: 3, name: "E01 image integration", command: "cargo test --features image --test image_integration -- --ignored", duration: "~60s", trigger: "weekly" }
+      - { tier: 4, name: "Precision/recall benchmark", command: "cargo test --features image --release --test precision_recall -- --ignored --nocapture", duration: "~90s", trigger: "release tag" }
+      - { tier: 5, name: "Fuzz testing", command: "cargo +nightly fuzz run fuzz_usn_parse -- -max_total_time=3600", duration: "1-4 hours", trigger: "weekly" }
+
+  golden_datasets:
+    sources: ["NIST CFReDS forensic images", "Szechuan Sauce CTF image", "Hand-crafted synthetic journals"]
+    coverage_areas: ["Ghost extraction ($LogFile genuine records)", "Carving accuracy (structural validation)", "Triage correctness (12 IR questions)", "Timestomping detection (SI < FN anomalies)", "Rule matching (filename/reason patterns)", "Output fidelity (format correctness)"]
+    fuzz: { framework: "cargo-fuzz (libFuzzer)", coverage_tool: "cargo-llvm-cov" }
+
+# ── References ──────────────────────────────────────────────────────
+
+references:
+  docs:
+    tier_1_strategic:
+      - "BRAND_GUIDELINES.md"
+      - "NORTHSTAR.md"
+      - "COMPETITIVE_LANDSCAPE.md"
+      - "NORTHSTAR_EXTRACT.md"
+      - "STRATEGIC_RECOMMENDATION.md"
+      - "ACTION_ROADMAP.md"
+    tier_2_implementation:
+      - "ARCHITECTURE_BLUEPRINT.md"
+      - "architecture/AGENT_PROMPTS.md"
+      - "architecture/PIPELINE_ORCHESTRATION.md"
+      - "architecture/RESILIENCE_PATTERNS.md"
+      - "architecture/IMPLEMENTATION_SCAFFOLD.md"
+      - "architecture/OBSERVABILITY.md"
+      - "architecture/TESTING_STRATEGY.md"
+      - "architecture/HANDOFF_PROTOCOL.md"
+      - "SECURITY_ARCHITECTURE.md"
+      - "ADR.md"
+      - "POST_DEPLOYMENT.md"
+    tier_3_supporting:
+      - "design/USER_JOURNEYS.md"
+      - "design/UI_DESIGN_SYSTEM.md"
+      - "design/ACCESSIBILITY.md"
+      - "design/WIREFRAMES.md"
+    meta:
+      - "INDEX.md"
+    context_files:
+      - "../ai-context.yml"
+      - "../research/summary.md"
+  total_documents: 22

@@ -1,0 +1,97 @@
+journeys:
+  - name: "First-Time Triage"
+    persona: "Alex the Solo Consultant"
+    steps: 17
+    key_touchpoints:
+      - "GitHub README with live demo report"
+      - "Binary download and --help verification"
+      - "First --image run with progress output"
+      - "Zero unknown paths in stdout (wow moment)"
+      - "Ghost record count in stdout"
+      - "HTML report Story tab -- 12 IR questions answered"
+      - "Ghost records with purple GHOST pills"
+      - "Explore tab full timeline"
+      - "SQLite export for case archive"
+
+  - name: "Repeat Triage"
+    persona: "Alex the Solo Consultant"
+    steps: 8
+    key_touchpoints:
+      - "Command from memory -- no --help needed"
+      - "Record count mental benchmarking"
+      - "Story tab quick scan for case type"
+      - "SQLite export for cross-case queries"
+      - "Case artifact archival (HTML + SQLite)"
+
+  - name: "Batch Triage"
+    persona: "Sam the MSSP Analyst"
+    steps: 8
+    key_touchpoints:
+      - "Shell for-loop scripting across images"
+      - "JSONL concatenation for SOAR ingestion"
+      - "SQLite cross-image queries"
+      - "TheHive/SOAR pipeline integration"
+      - "Selective HTML report spot-checking"
+      - "Aggregate reporting to team lead"
+
+  - name: "Deep Dive After Triage"
+    persona: "Alex the Solo Consultant"
+    steps: 8
+    key_touchpoints:
+      - "Story tab specific question drill-down"
+      - "Explore tab search for IOCs"
+      - "CSV export for Timeline Explorer"
+      - "Body file for log2timeline super-timeline"
+      - "Court-defensible timeline construction"
+
+  - name: "Evaluation"
+    persona: "Alex the Solo Consultant"
+    steps: 9
+    key_touchpoints:
+      - "Conference hallway word-of-mouth"
+      - "GitHub README with published benchmarks"
+      - "Live Szechuan Sauce demo report"
+      - "Side-by-side comparison with MFTECmd"
+      - "CSV column compatibility check"
+      - "Real case validation run"
+      - "Adoption decision"
+
+error_types:
+  - "Invalid image format (truncated/corrupt)"
+  - "Missing NTFS partition"
+  - "Insufficient permissions"
+  - "Disk full during output"
+  - "Corrupt USN record"
+  - "No MFT for path resolution"
+  - "Empty journal (possible attacker wipe)"
+
+persona_variations:
+  - persona: "Alex the Solo Consultant"
+    key_differences:
+      - "Always uses --carve-unallocated"
+      - "Dual output: --report + --sqlite"
+      - "--detect-timestomping for APT cases"
+      - "Prioritizes Story tab"
+  - persona: "Sam the MSSP Analyst"
+    key_differences:
+      - "Scripts everything, never manual"
+      - "Prefers --jsonl over --csv"
+      - "Rarely opens HTML report"
+      - "Cross-image SQLite queries"
+      - "Pre-extracted artifact workflow with -j/-m flags"
+
+metrics:
+  - name: "Discovery to install"
+    target: "< 2 minutes"
+  - name: "Install to first answer"
+    target: "< 60 seconds"
+  - name: "First run to wow moment"
+    target: "< 40 seconds"
+  - name: "Report to case integration"
+    target: "< 5 minutes"
+  - name: "Batch throughput"
+    target: "> 100 images/hour"
+  - name: "Evaluation to adoption"
+    target: "< 2 cases"
+  - name: "Error to recovery"
+    target: "< 30 seconds"

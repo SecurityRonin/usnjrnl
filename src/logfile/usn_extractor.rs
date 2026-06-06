@@ -803,10 +803,10 @@ mod tests {
         // when called from extract_usn_from_logfile (which ensures page_data.len() >= LOG_PAGE_SIZE).
         // Call extract_from_rcrd_page directly with a short page:
         let page = vec![0u8; 0x18]; // Less than 0x20 but we still need >= RCRD_DATA_OFFSET
-        // This will return early on line 155 since len < RCRD_DATA_OFFSET.
-        // To test line 164, we need len >= RCRD_DATA_OFFSET but < 0x20, which is impossible
-        // since RCRD_DATA_OFFSET (0x40) > 0x20. So the else branch is unreachable.
-        // Just verify the short page returns empty:
+                                    // This will return early on line 155 since len < RCRD_DATA_OFFSET.
+                                    // To test line 164, we need len >= RCRD_DATA_OFFSET but < 0x20, which is impossible
+                                    // since RCRD_DATA_OFFSET (0x40) > 0x20. So the else branch is unreachable.
+                                    // Just verify the short page returns empty:
         let results = extract_from_rcrd_page(&page, 0);
         assert!(results.is_empty());
     }
@@ -907,16 +907,12 @@ mod tests {
         let shared_length = usn_bytes.len() as u16;
 
         // redo
-        page[data_offset + 0x34..data_offset + 0x36]
-            .copy_from_slice(&shared_offset.to_le_bytes());
-        page[data_offset + 0x36..data_offset + 0x38]
-            .copy_from_slice(&shared_length.to_le_bytes());
+        page[data_offset + 0x34..data_offset + 0x36].copy_from_slice(&shared_offset.to_le_bytes());
+        page[data_offset + 0x36..data_offset + 0x38].copy_from_slice(&shared_length.to_le_bytes());
 
         // undo - same offset and length as redo
-        page[data_offset + 0x38..data_offset + 0x3A]
-            .copy_from_slice(&shared_offset.to_le_bytes());
-        page[data_offset + 0x3A..data_offset + 0x3C]
-            .copy_from_slice(&shared_length.to_le_bytes());
+        page[data_offset + 0x38..data_offset + 0x3A].copy_from_slice(&shared_offset.to_le_bytes());
+        page[data_offset + 0x3A..data_offset + 0x3C].copy_from_slice(&shared_length.to_le_bytes());
 
         // Place USN data at the shared location
         let redo_start = data_offset + 0x30 + shared_offset as usize;
@@ -934,10 +930,7 @@ mod tests {
             .iter()
             .filter(|r| r.source == LogFileRecordSource::UndoData)
             .count();
-        assert!(
-            redo_count >= 1,
-            "Should find at least one record from redo"
-        );
+        assert!(redo_count >= 1, "Should find at least one record from redo");
         assert_eq!(
             undo_count, 0,
             "Should not duplicate from undo when same region as redo"

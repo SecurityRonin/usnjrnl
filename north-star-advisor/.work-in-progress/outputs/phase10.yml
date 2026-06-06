@@ -1,0 +1,116 @@
+ops:
+  release_process:
+    trigger: "git tag v* push"
+    pipeline: "GitHub Actions Release workflow"
+    targets:
+      - "x86_64-pc-windows-msvc (.zip + .msi)"
+      - "x86_64-unknown-linux-musl (.tar.gz, static)"
+      - "aarch64-apple-darwin (.tar.gz)"
+      - "x86_64-apple-darwin (.tar.gz)"
+    attestation: "sigstore build provenance via actions/attest-build-provenance"
+    ci_gates:
+      - "cargo fmt --check"
+      - "cargo clippy --all-targets"
+      - "cargo test --lib"
+      - "cargo-deny (license + advisory)"
+
+  version_strategy:
+    scheme: "semver 2.0.0"
+    current: "0.6.0"
+    breaking_change_policy: "Deprecate for one minor version before removal; forensic output changes require detailed CHANGELOG entry"
+
+  distribution_channels:
+    active:
+      - name: "GitHub Releases"
+        priority: "P0"
+        url: "https://github.com/SecurityRonin/usnjrnl-forensic/releases"
+      - name: "cargo install"
+        priority: "P0"
+        command: "cargo install usnjrnl-forensic"
+    planned:
+      - name: "Homebrew tap"
+        priority: "P1"
+        target: "post-v1.0"
+      - name: "SIFT Workstation"
+        priority: "P1"
+        target: "post-v1.0"
+      - name: "REMnux"
+        priority: "P2"
+        target: "post-v1.0"
+
+  community_support:
+    channels:
+      - name: "GitHub Issues"
+        response_target: "48 hours"
+        scope: "Bug reports, feature requests"
+      - name: "GitHub Discussions"
+        response_target: "72 hours"
+        scope: "Usage questions, ideas"
+      - name: "DFIR Discord"
+        response_target: "best effort"
+        scope: "Quick questions, community chat"
+
+  severity_levels:
+    - level: "SEV-0"
+      name: "Forensic Accuracy"
+      response: "24 hours, immediate patch release"
+    - level: "SEV-1"
+      name: "Data Loss / Crash"
+      response: "72 hours, patch within 1 week"
+    - level: "SEV-2"
+      name: "Regression"
+      response: "1 week, next minor release"
+    - level: "SEV-3"
+      name: "Minor"
+      response: "best effort"
+
+  security:
+    vulnerability_reporting: "GitHub private vulnerability reporting"
+    dependency_audit: "cargo-deny on every push + monthly manual cargo audit"
+    supply_chain:
+      - "sigstore attestation on release binaries"
+      - "GitHub Actions pinned to full SHA"
+      - "cargo-deny blocks GPL/AGPL/SSPL dependencies"
+
+  performance_monitoring:
+    benchmark_image: "Szechuan Sauce CTF E01 (40GB, 847K records)"
+    benchmark_tool: "hyperfine"
+    performance_ceiling: "35 seconds"
+    regression_threshold: "5% slowdown triggers investigation"
+    accuracy_targets:
+      precision: "> 90%"
+      recall: "> 95%"
+      unknown_paths: "0%"
+      ghost_recovery: "> 95%"
+
+  conference_circuit:
+    priority_targets:
+      - name: "SANS DFIR Summit"
+        timing: "June"
+        priority: "P0"
+        target_year: 2026
+      - name: "OSDFCon"
+        timing: "October"
+        priority: "P0"
+        target_year: 2026
+      - name: "DFRWS USA"
+        timing: "July"
+        priority: "P1"
+        target_year: 2027
+      - name: "DFRWS EU"
+        timing: "March"
+        priority: "P1"
+        target_year: 2027
+    demo_script: "E01 -> one command -> 35s timer -> HTML report -> comparison -> ghost records -> kill shot"
+
+  review_cadences:
+    daily: "Check GitHub Issues for P0 bugs, glance at DFIR Discord"
+    weekly: "Triage all issues, check cargo-deny advisories, review Discussions"
+    per_release: "Benchmarks, CHANGELOG, version bump, tag, verify binaries, announce"
+    quarterly: "Feedback review, kill list review, North Star update, conference planning"
+    annual: "Full dependency audit, SECURITY.md update, distribution channel review"
+
+  cost_model:
+    infrastructure: "Zero recurring cost (all free-tier: GitHub, crates.io, GitHub Pages)"
+    primary_spend: "Conference travel (variable, seasonal)"
+    maintainer_time: "15-22 hours/week (development, support, releases, docs)"

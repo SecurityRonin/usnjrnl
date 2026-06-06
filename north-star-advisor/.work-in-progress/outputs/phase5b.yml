@@ -1,0 +1,95 @@
+design_system:
+  surfaces:
+    - "CLI terminal output (stderr/stdout)"
+    - "HTML triage report (single-file, offline)"
+
+  color_tokens:
+    bg_primary: "#0d1117"
+    bg_surface: "#161b22"
+    bg_elevated: "#1c2129"
+    bg_overlay: "#21262d"
+    border_default: "#30363d"
+    border_strong: "#484f58"
+    border_subtle: "#21262d"
+    text_primary: "#e6edf3"
+    text_secondary: "#7d8590"
+    text_tertiary: "#484f58"
+    accent: "#58a6ff"
+    accent_subtle: "rgba(88, 166, 255, 0.15)"
+    critical: "#f85149"
+    critical_subtle: "rgba(248, 81, 73, 0.15)"
+    recovered: "#bc8cff"
+    recovered_subtle: "rgba(188, 140, 255, 0.15)"
+    success: "#3fb950"
+    warning: "#d29922"
+
+  cli_palette:
+    info: "ANSI Blue (\\x1b[34m) -- [*] prefix"
+    success: "ANSI Green (\\x1b[32m) -- [+] prefix"
+    warning: "ANSI Yellow (\\x1b[33m) -- [!] prefix"
+    error: "ANSI Red (\\x1b[31m) -- [-] prefix"
+    ghost: "ANSI Magenta (\\x1b[35m) -- carved/ghost evidence"
+    muted: "ANSI Bright Black (\\x1b[90m) -- paths, context"
+
+  typography:
+    mono: "ui-monospace, SFMono-Regular, Menlo, Consolas, Liberation Mono, monospace"
+    display: "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
+    base_size: "13px"
+    scale: ["11px", "12px", "13px", "14px", "16px", "18px", "22px", "28px"]
+
+  components:
+    - "Stat Cards (4-column grid, 4 color variants)"
+    - "Triage Cards (expandable, 4 semantic variants: threat/carved/info/empty)"
+    - "Triage Badges (pill-shaped, 4 color variants)"
+    - "Detection Badges (inline, 6 types: ghost/carved/timestomp/clearing/ransomware/secure-del)"
+    - "Tab Navigation (Story / Explore)"
+    - "Evidence Table (sortable, sticky headers, horizontal scroll)"
+    - "Search Input (full-width, Explore tab filter)"
+    - "Category Group Headers (5 forensic categories)"
+    - "Report Header (tool name, title, metadata, stat row)"
+    - "Loading Skeleton (shimmer animation)"
+
+  patterns:
+    - "Story Tab (12 triage questions grouped by 5 categories)"
+    - "Explore Tab (full timeline with search and sort)"
+    - "Progressive Disclosure (summary cards to expanded evidence)"
+    - "Stat Card Grid (4-up responsive to 2-up to 1-up)"
+    - "Sticky Table Headers (evidence table scrolling)"
+    - "Print Layout (expanded cards, light theme, no interactive elements)"
+    - "CLI Step Output (prefix-coded messages with indented details)"
+
+  triage_categories:
+    - name: "What Happened"
+      questions: 3
+      color_signal: "critical or accent"
+    - name: "Business Impact"
+      questions: 3
+      color_signal: "accent"
+    - name: "Ongoing Risk"
+      questions: 2
+      color_signal: "critical or recovered"
+    - name: "Cover-Up"
+      questions: 3
+      color_signal: "critical or recovered"
+    - name: "Recovery"
+      questions: 1
+      color_signal: "accent"
+
+  spacing_scale: ["4px", "8px", "12px", "16px", "20px", "24px", "32px", "40px", "48px"]
+
+  breakpoints:
+    sm: "640px"
+    md: "768px"
+    lg: "1024px"
+    xl: "1280px"
+
+  accessibility:
+    contrast: "WCAG AA on all foreground/background pairs"
+    focus: "2px solid #58a6ff with 2px offset"
+    motion: "prefers-reduced-motion disables all transitions"
+    aria: "tablist, tab, tabpanel, aria-expanded, aria-sort, aria-label"
+
+  exit_codes:
+    0: "Success"
+    1: "Runtime error"
+    2: "Invalid arguments"

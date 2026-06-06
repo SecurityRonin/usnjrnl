@@ -1,0 +1,31 @@
+brand:
+  name: "Security Ronin Katana"
+  company: "Security Ronin"
+  product_family:
+    - "Security Ronin General"
+    - "Security Ronin Katana"
+  voice: "Precise, technical, no-nonsense. Practitioner-to-practitioner -- like a senior forensic examiner briefing a peer. Direct, factual, court-ready. Numbers over adjectives. Evidence-driven claims with reproducible benchmarks."
+  beliefs:
+    - "Forensic integrity is non-negotiable -- every output must be deterministic, verifiable, and court-admissible"
+    - "Speed-to-answers is a forensic imperative -- the first 60 minutes determine containment success"
+    - "Deleted evidence is still evidence -- recovery is the baseline, not a premium feature"
+    - "Practitioners deserve tools, not platforms -- CLI-first, no vendor lock-in"
+    - "Open source earns trust, trust earns adoption -- auditable code is court-defensible code"
+  license:
+    community: "Apache-2.0"
+    enterprise: "Proprietary"
+  kill_list:
+    - "GUI-first application"
+    - "Plugin/extension system"
+    - "Cloud-based processing"
+    - "AI/ML-based triage classification"
+    - "Database-first architecture"
+    - "Memory forensics"
+    - "Real-time monitoring"
+    - "Case management system"
+  positioning: "Precision DFIR triage -- from disk image to incident response answers in 35 seconds"
+  tagline: "35-second NTFS forensic triage -- from disk image to incident response answers."
+  differentiator: "End-to-end USN journal triage with ghost recovery, unallocated carving, path reconstruction, and 12 automated IR questions in 35 seconds"
+  target_users:
+    community: "Solo DFIR consultants, 3-5 cases/month, CLI-native"
+    enterprise: "MSSP analysts and enterprise IR teams, 15-30 cases/month, need collaboration and multi-device"

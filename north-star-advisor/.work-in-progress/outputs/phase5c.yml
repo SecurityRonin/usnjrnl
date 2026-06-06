@@ -1,0 +1,105 @@
+accessibility:
+  wcag_level: "AA"
+  target_standard: "WCAG 2.1 AA"
+  output_surfaces:
+    - "CLI terminal (stderr/stdout)"
+    - "HTML report (single-file, offline)"
+
+  requirements:
+    - "All text meets WCAG AA 4.5:1 contrast ratio against dark backgrounds"
+    - "Color never sole indicator of meaning -- icons, labels, borders provide redundancy"
+    - "Full keyboard navigation for HTML report (Tab, Arrow, Enter, Space, Escape, j/k, /)"
+    - "Semantic HTML with ARIA roles for tabs, stat cards, triage cards, data tables"
+    - "prefers-reduced-motion respected -- all transitions suppressed"
+    - "Print media query inverts to light theme for court exhibits"
+    - "CLI suppresses ANSI when not a TTY or NO_COLOR is set"
+    - "Browser zoom and font size preferences respected (rem-based sizing)"
+    - "No flashing or blinking elements anywhere"
+    - "Progressive disclosure via expandable triage cards reduces cognitive load"
+    - "Skip link provided for screen reader users"
+    - "Live regions announce filter result count changes"
+
+  cli_considerations:
+    - "ANSI escape codes only when stderr.is_terminal() == true"
+    - "Respect NO_COLOR environment variable (no-color.org convention)"
+    - "TERM=dumb degrades to line-by-line status, no progress bar"
+    - "stdout never contains ANSI codes (pure data output for pipes)"
+    - "No carriage returns (\\r) when not a TTY -- new lines for each update"
+    - "Clear prefixes: [INFO], [WARN], [ERROR] on all status messages"
+    - "Completion summary in plain labeled text"
+
+  html_considerations:
+    - "role=tablist/tab/tabpanel for Story/Explore navigation"
+    - "aria-label on stat cards combining label and value"
+    - "role=article on triage cards with aria-label for question text"
+    - "role=status on triage badges with answer and confidence"
+    - "scope=col on all table headers, aria-sort on sortable columns"
+    - "aria-live=polite for filter result count announcements"
+    - "Skip link to triage results"
+    - ":focus-visible with 2px solid #58a6ff (5.5:1 contrast)"
+    - "@media print light theme for court exhibits"
+    - "@media (prefers-reduced-motion: reduce) suppresses all motion"
+    - "@media (forced-colors: active) for Windows High Contrast"
+    - "Responsive grid: 4 cols -> 2 cols -> 1 col at breakpoints"
+    - "Sparkline SVG has role=img with text summary aria-label"
+
+  color_contrast_verification:
+    - pair: "text-primary on bg-primary"
+      colors: "#e6edf3 on #0d1117"
+      ratio: "12.8:1"
+      passes: true
+    - pair: "text-secondary on bg-primary"
+      colors: "#7d8590 on #0d1117"
+      ratio: "4.9:1"
+      passes: true
+    - pair: "accent on bg-primary"
+      colors: "#58a6ff on #0d1117"
+      ratio: "5.5:1"
+      passes: true
+    - pair: "critical on bg-primary"
+      colors: "#f85149 on #0d1117"
+      ratio: "5.3:1"
+      passes: true
+    - pair: "recovered on bg-primary"
+      colors: "#bc8cff on #0d1117"
+      ratio: "5.6:1"
+      passes: true
+
+  implementation_priority:
+    p0_blocking:
+      - "ARIA roles on tabs (tablist, tab, tabpanel)"
+      - "aria-label on stat cards"
+      - "scope=col on table headers"
+      - "Skip link"
+      - "aria-live region for filter updates"
+      - "focus-visible styles"
+      - "NO_COLOR env var support in CLI"
+      - "TTY detection for ANSI suppression"
+    p1_next_release:
+      - "Arrow key tab navigation"
+      - "j/k keyboard shortcuts"
+      - "Print media query light theme"
+      - "prefers-reduced-motion support"
+      - "forced-colors support"
+      - "Responsive breakpoints"
+    p2_future:
+      - "TERM=dumb CLI degradation"
+      - "Automated pa11y CI testing"
+      - "Court exhibit page headers"
+
+  testing:
+    automated:
+      - "axe-core against generated HTML"
+      - "pa11y WCAG2AA standard"
+      - "Lighthouse accessibility audit (target 95+)"
+      - "html-validate for structure"
+    manual:
+      - "VoiceOver walkthrough on macOS Safari"
+      - "NVDA walkthrough on Windows"
+      - "Keyboard-only navigation"
+      - "200% and 400% browser zoom"
+      - "Grayscale filter test"
+      - "Print preview verification"
+      - "CLI pipe output (no ANSI)"
+      - "NO_COLOR=1 test"
+      - "TERM=dumb test"

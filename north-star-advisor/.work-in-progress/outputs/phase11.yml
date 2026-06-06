@@ -1,0 +1,133 @@
+# Phase 11: Strategic Recommendation Outputs
+# Generated: 2026-03-09
+# Source: STRATEGIC_RECOMMENDATION.md
+
+recommendation:
+  situation_summary:
+    market_position: "Only cross-platform, open-source NTFS triage tool with automated IR question-answering"
+    customer_need: "Solo DFIR consultants and MSSP analysts need E01-to-answers in minutes, not hours"
+    technical_reality: "Phase 1 MVP functionally complete; 35-second pipeline proven; 92.3% precision, 99.7% recall"
+    resource_constraints: "Solo founder; zero revenue; time split between product, community, and go-to-market"
+    key_risks:
+      - "MFTECmd adding triage features"
+      - "Magnet/OpenText acquiring niche tools"
+      - "Community adoption not materializing"
+      - "Enterprise features not justifying $99/month"
+
+  paths:
+    - name: "Conference Circuit Community Builder"
+      id: "path_a"
+      description: "Build adoption through DFIR conference circuit and open-source community, converting free users to paying enterprise customers"
+      time_to_first_revenue: "6-12 months"
+      time_to_50_customers: "12-18 months"
+      weighted_score: 71
+    - name: "Direct Enterprise Sales"
+      id: "path_b"
+      description: "Skip broad community building; go directly to MSSPs and enterprise IR teams with paid product and pilot programs"
+      time_to_first_revenue: "3-6 months"
+      time_to_50_customers: "9-15 months"
+      weighted_score: 50
+    - name: "Platform Integration Play"
+      id: "path_c"
+      description: "Focus on becoming a component within KAPE, Velociraptor, and Autopsy rather than building independent user base"
+      time_to_first_revenue: "6-12 months"
+      time_to_50_customers: "unclear"
+      weighted_score: 44
+
+  chosen_path: "path_a"
+  chosen_path_name: "Conference Circuit Community Builder"
+
+  focus_areas:
+    - area: "KAPE Module publication"
+      metric: "Module downloads / KAPE users running usnjrnl-forensic"
+      target: "500+ users in first quarter"
+    - area: "Benchmark suite publication"
+      metric: "Published benchmark report with precision/recall/speed"
+      target: "Report live within 3 months"
+    - area: "Conference circuit debut"
+      metric: "CFPs submitted and accepted; talks delivered"
+      target: "2-3 talks in first 6 months"
+    - area: "DFIR Discord/Slack community presence"
+      metric: "Community mentions; support questions answered"
+      target: "Active presence within 1 month"
+    - area: "Enterprise feature MVP"
+      metric: "Paying customers"
+      target: "First 10 within 9 months"
+
+  avoid_list:
+    - "Building a GUI"
+    - "Adding memory forensics"
+    - "Becoming a SaaS platform"
+    - "Pursuing law enforcement market first"
+    - "Chasing GitHub stars"
+
+  next_steps:
+    seven_day:
+      - "Draft KAPE Module YAML configuration"
+      - "Publish precision/recall benchmark methodology on GitHub"
+      - "Join DFIR Discord and introduce tool with technical post"
+      - "Submit CFP to next available DFIR conference"
+    thirty_day:
+      - "Submit KAPE Module PR to KapeFiles repository"
+      - "Publish first technical blog post on ghost record recovery"
+      - "Begin Velociraptor VQL artifact development"
+      - "Design enterprise feature tier spec"
+      - "Set up opt-in anonymous usage telemetry"
+
+  confidence:
+    overall: "Medium-High (70%)"
+    market_need_exists: "High (85%)"
+    product_ready: "High (90%)"
+    community_gtm_works: "High (80%)"
+    consultants_will_pay: "Medium (55%)"
+    fifty_customers_18mo: "Medium (50%)"
+
+  review_triggers:
+    - trigger: "MFTECmd adds automated triage questions"
+      response: "Reassess differentiation; accelerate ghost recovery and QuadLink messaging"
+    - trigger: "Zero paying customers after 12 months"
+      response: "Validate pricing; consider donation/sponsorship model"
+    - trigger: "Conference circuit produces no adoption (< 50 users after 3 talks)"
+      response: "Pivot to direct enterprise outreach"
+    - trigger: "Major DFIR vendor acquisition of niche NTFS tool"
+      response: "Assess competitive impact; accelerate enterprise features"
+    - trigger: "Critical Rust dependency abandoned"
+      response: "Evaluate fork viability; assess C FFI alternatives"
+
+  pricing:
+    model: "open-core freemium"
+    free_tier: "Full CLI with all forensic analysis capabilities"
+    enterprise_tier: "$99/month ($999/year)"
+    enterprise_features:
+      - "Batch processing"
+      - "Audit logging"
+      - "Custom report templates"
+      - "SOAR webhooks"
+      - "RBAC"
+      - "API access"
+    revenue_target: "$5,000 MRR from 50 customers"
+
+  integrations:
+    six_month:
+      - "KAPE Module YAML"
+      - "Velociraptor VQL artifact"
+    twelve_month:
+      - "Autopsy module"
+    ongoing:
+      - "SOAR pipeline (JSONL/SQLite)"
+      - "Timeline Explorer (CSV)"
+      - "Sleuthkit bodyfile format"
+
+  assumptions:
+    - assumption: "Solo consultants will pay $99/month for enterprise features"
+      confidence: "Medium (55%)"
+      validation: "15-20 user interviews at month 3-6"
+    - assumption: "DFIR conferences are effective discovery channel"
+      confidence: "High (80%)"
+      validation: "Track adoption after first 3 conference talks"
+    - assumption: "KAPE Module integration drives 500+ users"
+      confidence: "High (80%)"
+      validation: "Measure downloads/usage in first quarter after publication"
+    - assumption: "MFTECmd will not add triage features within 12 months"
+      confidence: "Medium (60%)"
+      validation: "Monitor MFTECmd releases weekly"

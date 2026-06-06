@@ -1,0 +1,142 @@
+# phase7d-resilience.yml
+# Extracted outputs from RESILIENCE_PATTERNS document generation
+# Cross-referenceable by other North Star documents
+
+resilience:
+  philosophy: "Log everything, crash nothing -- every anomaly is a forensic finding, not a bug"
+
+  error_recovery:
+    strategy: "log-and-skip"
+    corrupt_record_action: "Log warning, skip record, increment counter, scan forward 8 bytes"
+    zero_filled_handling: "Skip silently (normal sparse $UsnJrnl behavior)"
+    truncated_record_handling: "Log partial data, emit what was readable"
+    max_consecutive_corrupt: 1000
+    pipeline_fatal_errors:
+      - "No input file specified"
+      - "Image file unreadable"
+      - "No NTFS partition found"
+
+  fallback_chains:
+    - tier: "QuadLink"
+      artifacts: ["$UsnJrnl", "$MFT", "$LogFile", "$MFTMirr"]
+      capabilities: ["full_path_resolution", "ghost_records", "integrity_check", "timestomping", "full_anti_forensics"]
+    - tier: "TriForce+"
+      artifacts: ["$UsnJrnl", "$MFT", "$LogFile"]
+      capabilities: ["full_path_resolution", "ghost_records", "timestomping", "partial_anti_forensics"]
+      missing: "$MFTMirr"
+    - tier: "Dual"
+      artifacts: ["$UsnJrnl", "$MFT"]
+      capabilities: ["full_path_resolution", "timestomping", "sdelete_ransomware"]
+      missing: ["$LogFile", "$MFTMirr"]
+    - tier: "USN-Only"
+      artifacts: ["$UsnJrnl"]
+      capabilities: ["filename_only", "pattern_based_detection"]
+      missing: ["$MFT", "$LogFile", "$MFTMirr"]
+    - tier: "Carve-Only"
+      artifacts: ["unallocated_space"]
+      capabilities: ["best_effort_recovery"]
+      missing: ["$UsnJrnl", "$MFT", "$LogFile", "$MFTMirr"]
+    - tier: "Empty"
+      artifacts: []
+      capabilities: []
+      action: "Exit with clear diagnostic"
+
+  malformed_data_handling:
+    usn_records:
+      - type: "invalid_record_length"
+        detection: "length < 0x3C or > 65536"
+        recovery: "skip 8 bytes, scan for next valid header"
+      - type: "wrong_version"
+        detection: "major_version not in {2, 3}"
+        recovery: "skip record, advance by length"
+      - type: "truncated_filename"
+        detection: "filename_length + offset > record_length"
+        recovery: "log warning, use empty filename"
+      - type: "invalid_timestamp"
+        detection: "year < 2000 or > 2030"
+        recovery: "normalize to Unix epoch 0"
+      - type: "zero_filled_region"
+        detection: "4-byte zero check"
+        recovery: "skip silently"
+    mft_entries:
+      - type: "missing_FILE_signature"
+        recovery: "skip entry, advance 1024 bytes"
+      - type: "invalid_fixup_array"
+        recovery: "log warning, skip entry"
+      - type: "corrupted_attribute_chain"
+        recovery: "stop parsing entry, use partial data"
+    logfile:
+      - type: "invalid_RCRD_header"
+        recovery: "skip to next 4096-byte page boundary"
+      - type: "cleared_by_attacker"
+        recovery: "log warning, continue without ghost records"
+    mftmirr:
+      - type: "byte_mismatch"
+        recovery: "log detailed report, flag for review, continue pipeline"
+
+  timeout_handling:
+    rewind_depth_limit: 256
+    parallel_chunk_size: "1 MB"
+    carving_chunk_size: "4 MB"
+    sqlite_batch_size: 10000
+    triage_isolation: "per-question"
+
+  memory_management:
+    strategy: "streaming chunked processing"
+    mechanisms:
+      - "1 MB chunks for parallel USN parsing (rayon work-stealing)"
+      - "4 MB overlapping chunks for unallocated carving"
+      - "Entry-by-entry MFT parsing (1024 bytes each)"
+      - "BufWriter for all output formats"
+      - "HashMap bounded by unique (entry, sequence) pairs"
+    expected_profiles:
+      - image_size: "< 1 GB"
+        ram: "< 200 MB"
+        time: "seconds"
+      - image_size: "1-50 GB"
+        ram: "< 1 GB"
+        time: "minutes"
+      - image_size: "50-500 GB"
+        ram: "< 2 GB"
+        time: "10-60 minutes"
+      - image_size: "> 500 GB"
+        ram: "< 4 GB"
+        time: "hours"
+
+  determinism:
+    guarantees:
+      - "USN offset sorting for canonical record ordering"
+      - "Stable sort for tie-breaking"
+      - "No HashMap iteration in output paths"
+      - "UTC epoch 0 for invalid timestamps"
+      - "Deterministic carved record deduplication"
+      - "RecordSource provenance tagging on every record"
+
+  output_resilience:
+    isolation: "per-format independent"
+    pattern: "Failure in one output format does not affect others"
+    formats: ["CSV", "JSONL", "SQLite", "Body", "TLN", "XML", "HTML Report"]
+
+  triage_resilience:
+    isolation: "per-question independent"
+    total_questions: 12
+    error_handling: "Catch per question, return Inconclusive on failure"
+    source_awareness: ["Journal", "LogFile", "Carved", "Ghost"]
+
+  health_checks:
+    status_levels: ["Healthy", "Degraded", "Unhealthy"]
+    degraded_threshold: ">10% unresolved paths"
+    unhealthy_threshold: "more corrupt records than valid"
+    diagnostic_output: "stderr summary after every run"
+
+  forbidden_patterns:
+    - ".unwrap() in data-handling code"
+    - ".expect() in data-handling code"
+    - "panic!() in data-handling code"
+    - "unreachable!() in data-handling code"
+  allowed_exceptions:
+    - "Test code (#[cfg(test)])"
+    - "Proven-safe constant construction"
+    - "CLI argument validation (pre-analysis)"
+
+  error_framework: "anyhow::Result with .context() chains"

@@ -64,11 +64,7 @@ pub fn builtin_questions() -> Vec<TriageQuestion> {
                         | UsnReason::RENAME_NEW_NAME
                         | UsnReason::SECURITY_CHANGE,
                 ),
-                exclude_patterns: vec![
-                    r"OneDrive",
-                    r"NativeImages",
-                    r"\\Packages\\",
-                ],
+                exclude_patterns: vec![r"OneDrive", r"NativeImages", r"\\Packages\\"],
                 ..Default::default()
             },
         },
@@ -131,9 +127,7 @@ pub fn builtin_questions() -> Vec<TriageQuestion> {
                 ],
                 extension_filter: vec!["zip", "7z", "rar", "tar", "gz", "cab"],
                 reasons: Some(
-                    UsnReason::FILE_CREATE
-                        | UsnReason::RENAME_NEW_NAME
-                        | UsnReason::FILE_DELETE,
+                    UsnReason::FILE_CREATE | UsnReason::RENAME_NEW_NAME | UsnReason::FILE_DELETE,
                 ),
                 exclude_patterns: vec![r"Windows\\", r"Program Files"],
                 ..Default::default()
@@ -226,9 +220,7 @@ pub fn builtin_questions() -> Vec<TriageQuestion> {
             query: TriageQuery {
                 extension_filter: vec!["evtx", "pf", "log", "etl"],
                 reasons: Some(
-                    UsnReason::FILE_DELETE
-                        | UsnReason::DATA_OVERWRITE
-                        | UsnReason::FILE_CREATE,
+                    UsnReason::FILE_DELETE | UsnReason::DATA_OVERWRITE | UsnReason::FILE_CREATE,
                 ),
                 path_patterns: vec![r"winevt\\Logs", r"Prefetch", r"\\Logs\\"],
                 exclude_patterns: vec![r"WindowsUpdate"],

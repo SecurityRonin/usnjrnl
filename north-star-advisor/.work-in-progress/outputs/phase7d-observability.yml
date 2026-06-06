@@ -1,0 +1,107 @@
+observability:
+  philosophy: "100% offline, zero telemetry, zero network connections"
+
+  logging:
+    framework: "env_logger 0.11"
+    control: "RUST_LOG environment variable"
+    default_behavior: "eprintln! progress markers only (bypass env_logger)"
+    levels:
+      error: "Unrecoverable failures that abort the pipeline"
+      warn: "Recoverable issues affecting completeness (MFTMirr inconsistency, missing parents)"
+      info: "Pipeline stage transitions and summary counts"
+      debug: "Per-record decisions, rewind resolution steps"
+      trace: "Binary-level parser detail (byte offsets, headers)"
+
+  stream_separation:
+    stdout: "Structured forensic output only (CSV, JSONL, bodyfile, TLN, XML)"
+    stderr: "Progress markers, statistics, warnings, errors, log output"
+
+  progress_reporting:
+    current: "Prefixed eprintln! with [*]/[+]/[!]/[-] severity markers"
+    planned: "indicatif progress bars for long-running stages"
+    tty_detection: "Fall back to periodic eprintln! when stderr is not a TTY"
+
+  audit_trail:
+    format: "JSON sidecar file"
+    trigger: "--audit-log <path> flag (planned)"
+    fields:
+      - "Tool version and CLI invocation"
+      - "SHA-256 hashes of all input artifacts"
+      - "Record counts per pipeline stage"
+      - "USN version breakdown (V2/V3/V4)"
+      - "Anomaly detection results"
+      - "Rewind resolution coverage"
+      - "Rule match counts by severity"
+      - "Output files and record counts"
+      - "Per-stage and total timing"
+
+  statistics:
+    flag: "--stats (default: enabled)"
+    implementation: "src/output/stats.rs format_reason_stats()"
+    content: "USN reason flag breakdown, version counts, per-stage summaries"
+
+  benchmarks:
+    precision_recall:
+      ground_truth_sources:
+        - "NIST CFReDS forensic images"
+        - "Szechuan Sauce CTF image"
+        - "Hand-crafted binary USN records"
+      test_categories:
+        - "Record parsing (V2/V3/V4 field accuracy)"
+        - "Path reconstruction (Rewind 100% resolution)"
+        - "Ghost extraction (LogFile genuine records)"
+        - "Carving accuracy (structural validation)"
+        - "Triage correctness (12 IR questions)"
+        - "Timestomping detection (SI < FN anomalies)"
+        - "Rule matching (filename/reason patterns)"
+        - "Output fidelity (format correctness)"
+    integration_tests:
+      - "tests/image_integration.rs (end-to-end with real forensic images)"
+      - "tests/report_integration.rs (HTML report, triage question coverage)"
+
+  performance:
+    profiling_tools:
+      - "cargo bench (micro-benchmarks)"
+      - "RUST_LOG=debug timing (per-stage Instant measurements)"
+      - "perf / Instruments (CPU hotspot analysis)"
+      - "cargo flamegraph (visual call-stack profiling)"
+      - "heaptrack / dhat (heap allocation profiling)"
+    budgets:
+      cli_orchestrator: "<1s"
+      image_access: "<1s open + ~5s unallocated"
+      usn_parser: "~5s"
+      mft_parser: "~3-4s"
+      logfile_parser: "~2s"
+      unallocated_carver: "~5s"
+      rewind_engine: "~6s"
+      triage_engine: "~3s"
+      output_writers: "~2s"
+      total_pipeline: "<30s for 100MB journal"
+
+  error_reporting:
+    framework: "anyhow with .with_context() error chains"
+    bug_report_contents:
+      - "Tool version (--version)"
+      - "Full stderr output"
+      - "Audit log JSON (if available)"
+      - "RUST_LOG=debug output"
+      - "Platform info (OS, arch, rustc version)"
+    panic_handling: "RUST_BACKTRACE=1 for stack traces, output flushed per stage"
+
+  metrics:
+    - name: "usn.records.total"
+      description: "Total USN records parsed"
+    - name: "mft.entries.total"
+      description: "MFT entries parsed"
+    - name: "rewind.resolved"
+      description: "Paths successfully reconstructed"
+    - name: "ghost.records"
+      description: "USN records recovered from $LogFile"
+    - name: "carved.usn"
+      description: "USN records carved from unallocated"
+    - name: "timestomping.indicators"
+      description: "SI/FN timestamp anomalies detected"
+    - name: "triage.findings"
+      description: "Triage questions with positive results"
+    - name: "pipeline.duration_s"
+      description: "Total wall-clock processing time"

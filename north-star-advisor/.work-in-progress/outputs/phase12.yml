@@ -1,0 +1,162 @@
+roadmap:
+  document: "ACTION_ROADMAP.md"
+  generation_step: 12
+  created: "2026-03-09"
+  strategic_path: "Conference Circuit Community Builder"
+  day_1_definition: "The day the founder begins executing this roadmap"
+
+  phase_1:
+    name: "Establish Presence, Prove Value"
+    duration: "Days 1-30"
+    focus_areas:
+      - area: "KAPE Module and Integration Pipeline"
+        key_deliverables:
+          - "KAPE Module YAML submitted as PR to KapeFiles repository"
+          - "Velociraptor VQL artifact drafted"
+          - "Installation scripts for KAPE/Velociraptor users"
+        target_metric: "KAPE Module PR open or merged"
+      - area: "Benchmark Suite and Credibility"
+        key_deliverables:
+          - "Benchmark methodology document (Daubert-compliant)"
+          - "Results against 3+ reference forensic images"
+          - "MFTECmd comparison table"
+        target_metric: "Benchmark methodology published on GitHub"
+      - area: "Community Presence and First Content"
+        key_deliverables:
+          - "DFIR Discord introduction post"
+          - "First technical blog post (ghost record recovery)"
+          - "CFP submitted to DFIR conference"
+          - "Demo video (2-3 min)"
+        target_metric: "100+ GitHub unique visitors, 50+ downloads"
+    success_criteria:
+      - "KAPE Module PR submitted"
+      - "Benchmark methodology published"
+      - "1 blog post live"
+      - "DFIR Discord active membership"
+      - "1 CFP submitted"
+      - "1 demo video published"
+      - "100+ GitHub unique visitors"
+      - "50+ tool downloads"
+      - "3+ organic community mentions"
+    gate: "If fewer than 3 of 9 criteria met, re-evaluate community-first strategy"
+    resource_allocation:
+      product_development: "40%"
+      content_creation: "30%"
+      community_engagement: "20%"
+      strategy_planning: "10%"
+
+  phase_2:
+    name: "Build Community, Ship Integrations"
+    duration: "Days 31-60"
+    focus_areas:
+      - area: "Integration Completion"
+        key_deliverables:
+          - "KAPE Module PR merged"
+          - "Velociraptor VQL artifact submitted"
+          - "Autopsy integration documentation"
+          - "Windows binary release with checksums"
+        target_metric: "KAPE module merged, Velociraptor artifact submitted"
+      - area: "Content Cadence"
+        key_deliverables:
+          - "Second blog post (architecture walkthrough)"
+          - "Benchmark results for 3+ images"
+          - "Conference talk dry-run video"
+        target_metric: "2 total blog posts, benchmark page live"
+      - area: "Community Deepening"
+        key_deliverables:
+          - "48-hour GitHub issue response time"
+          - "Beta tester identification (5+ practitioners)"
+          - "Feature request tracking"
+        target_metric: "5+ beta tester contacts"
+      - area: "Enterprise Preparation (Research Only)"
+        key_deliverables:
+          - "Pricing validation survey (10+ responses)"
+          - "Enterprise feature tier spec draft"
+          - "Payment platform decision"
+        target_metric: "Survey completed, spec drafted"
+    milestones:
+      - "KAPE module merged or in active review"
+      - "Velociraptor artifact submitted"
+      - "2 blog posts published total"
+      - "200+ GitHub unique visitors (month 2)"
+      - "150+ cumulative downloads"
+      - "5+ enterprise beta contacts"
+      - "1+ conference talk accepted or waitlisted"
+    gate: "Proceed if KAPE merged and community growing; iterate if KAPE blocked"
+    resource_allocation:
+      product_development: "35%"
+      content_creation: "30%"
+      community_engagement: "25%"
+      enterprise_research: "10%"
+
+  phase_3:
+    name: "Monetize and Measure"
+    duration: "Days 61-90"
+    focus_areas:
+      - area: "Enterprise Feature MVP"
+        key_deliverables:
+          - "Batch processing (--batch flag)"
+          - "Audit logging (--audit-log flag)"
+          - "Custom triage rules (--rules flag)"
+          - "Enterprise landing page"
+          - "Payment infrastructure (Stripe/Gumroad)"
+        target_metric: "3 enterprise features live, payment working"
+      - area: "Conference Execution"
+        key_deliverables:
+          - "First conference talk or webinar delivered"
+          - "Talk recording and slides published"
+          - "Attendee follow-up list"
+        target_metric: "1+ talk delivered"
+      - area: "Measurement Infrastructure"
+        key_deliverables:
+          - "Opt-in anonymous telemetry (--telemetry flag)"
+          - "Weekly Active Cases Triaged dashboard"
+          - "Conversion funnel tracking"
+        target_metric: "North Star metric measurable"
+    milestones:
+      - "3 enterprise features shipped"
+      - "Payment infrastructure live"
+      - "1+ paying customer (stretch: 5)"
+      - "1+ conference talk delivered"
+      - "10+ weekly active cases triaged"
+      - "300+ GitHub unique visitors (month 3)"
+      - "300+ cumulative downloads"
+      - "50+ KAPE module active users"
+      - "4 total blog posts"
+    phase_gate:
+      proceed: "1+ paying customer, 300+ downloads, KAPE merged, talk delivered"
+      iterate: "Downloads growing but zero paying customers -- re-examine pricing"
+      pivot_enterprise: "Strong enterprise interest but community flat -- direct MSSP outreach"
+      pivot_platform: "KAPE/Velociraptor strong but no independent demand -- OEM licensing"
+    resource_allocation:
+      product_development: "45%"
+      community_engagement: "20%"
+      content_creation: "15%"
+      go_to_market: "20%"
+
+  risks:
+    - name: "MFTECmd adds automated triage"
+      probability: "Medium (30-40%)"
+      impact: "High"
+      mitigation: "Accelerate ghost recovery differentiation; publish benchmark comparisons"
+    - name: "Zero paying customers after 12 months"
+      probability: "Medium (40-50%)"
+      impact: "Critical"
+      mitigation: "Validate pricing early; explore consulting/training/sponsorship alternatives"
+    - name: "Conference CFPs rejected"
+      probability: "Medium-High (50%)"
+      impact: "Medium"
+      mitigation: "Start with BSides/meetups; build track record; host own webinars"
+    - name: "KAPE Module PR rejected or stalled"
+      probability: "Low-Medium (20-30%)"
+      impact: "High"
+      mitigation: "Study existing modules; engage maintainers on Discord; publish independently if needed"
+    - name: "Solo developer burnout"
+      probability: "High (60-70%)"
+      impact: "Critical"
+      mitigation: "Time-box marketing to 30%; batch social media; accept good-enough content"
+
+  review_cadence:
+    weekly: "Sunday 30-min check-in (shipped, priority, avoid-list, community, metrics)"
+    thirty_day: "2-hour review (score criteria, GitHub insights, time allocation, triggers)"
+    ninety_day: "3-hour review (phase gate, North Star baseline, assumptions, pivot decision)"

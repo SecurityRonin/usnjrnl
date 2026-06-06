@@ -1,0 +1,211 @@
+handoff_protocol_version: "1.0.0"
+pipeline_model: "linear_staged_with_optional_bypass"
+
+internal_handoffs:
+  - stage: "image_input_to_usn_parser"
+    from: "Image/File Input"
+    to: "USN Parser"
+    contract_type: "Vec<u8> (raw bytes)"
+    validation: "file exists, minimum size, NTFS partition found for images"
+
+  - stage: "usn_parser_to_mft_parser"
+    from: "USN Parser"
+    to: "MFT Parser"
+    contract_type: "Vec<UsnRecord>"
+    key_fields:
+      - mft_entry (u64)
+      - mft_sequence (u16)
+      - parent_mft_entry (u64)
+      - parent_mft_sequence (u16)
+      - usn (i64)
+      - timestamp (DateTime<Utc>)
+      - reason (UsnReason bitflags)
+      - filename (String)
+      - file_attributes (FileAttributes)
+      - record_version (u16)
+    validation: "sorted by USN, deduplicated, V2/V3/V4 normalized"
+
+  - stage: "mft_parser_to_rewind"
+    from: "MFT Parser"
+    to: "Rewind Engine"
+    contract_type: "MftData (HashMap<u64, MftEntry>)"
+    optional: true
+    key_fields:
+      - entry_number (u64)
+      - sequence_number (u16)
+      - parent_entry (u64)
+      - parent_sequence (u16)
+      - filename (String)
+      - is_directory (bool)
+      - is_allocated (bool)
+      - si_timestamps (4x Option<DateTime<Utc>>)
+      - fn_timestamps (4x Option<DateTime<Utc>>)
+    validation: "root entry 5 exists, self-referential parents broken"
+
+  - stage: "rewind_to_correlation_output"
+    from: "Rewind Engine"
+    to: "Correlation/Output"
+    contract_type: "Vec<ResolvedRecord>"
+    key_fields:
+      - record (UsnRecord)
+      - full_path (String)
+      - parent_path (String)
+      - source (RecordSource enum)
+    validation: "non-empty full_path, backslash separator, root-anchored"
+
+  - stage: "correlation_engine"
+    from: "Correlation"
+    to: "Triage/Output"
+    contract_type: "Vec<GhostRecord>"
+    key_fields:
+      - mft_entry (u64)
+      - mft_sequence (u16)
+      - deleted_name (String)
+      - last_seen (DateTime<Utc>)
+      - current_name (Option<String>)
+    validation: "ghost entries reference reallocated MFT slots"
+
+  - stage: "triage_engine"
+    from: "Triage"
+    to: "Output (HTML Report)"
+    contract_type: "Vec<TriageResult>"
+    key_fields:
+      - id (&'static str)
+      - category (&'static str)
+      - question (&'static str)
+      - has_hits (bool)
+      - hit_count (usize)
+      - record_indices (Vec<usize>)
+    validation: "all 12 questions produce results, indices in bounds"
+
+provenance_tracking:
+  enum_name: "RecordSource"
+  variants:
+    - name: "Allocated"
+      weight: "high"
+      meaning: "From active journal, path confirmed by current MFT"
+    - name: "JournalOnly"
+      weight: "medium"
+      meaning: "Path resolved from journal rename chains only"
+    - name: "Ghost"
+      weight: "medium-low"
+      meaning: "MFT entry reallocated, path reconstructed historically"
+    - name: "Carved"
+      weight: "low"
+      meaning: "Recovered from unallocated space, may be incomplete"
+
+external_handoffs:
+  formats:
+    - name: "CSV"
+      flag: "--csv"
+      target_tools: ["Timeline Explorer", "Excel", "any CSV consumer"]
+      columns: 16
+      header: true
+      delimiter: ","
+
+    - name: "JSONL"
+      flag: "--jsonl"
+      target_tools: ["Velociraptor", "Splunk", "Elastic", "jq"]
+      schema: "one JSON object per line"
+      fields: 16
+
+    - name: "SQLite"
+      flag: "--sqlite"
+      target_tools: ["DB Browser", "Python/pandas", "custom SQL"]
+      tables: ["USNJRNL_FullPaths", "MFT"]
+      indexes: ["timestamp", "full_path", "entry_number", "reason", "extension", "source"]
+
+    - name: "Body"
+      flag: "--body"
+      target_tools: ["Sleuthkit mactime", "log2timeline", "plaso"]
+      format: "pipe-delimited bodyfile"
+      fields: 11
+      header: false
+
+    - name: "TLN"
+      flag: "--tln"
+      target_tools: ["Supertimelines", "SANS timeline tools"]
+      format: "5-field pipe-delimited"
+      fields: 5
+      header: false
+
+    - name: "XML"
+      flag: "--xml"
+      target_tools: ["Custom XSLT transforms", "registry-style consumers"]
+      root_element: "usn_journal"
+      record_element: "record"
+      encoding: "UTF-8"
+
+    - name: "HTML Report"
+      flag: "--report"
+      target_tools: ["Web browser"]
+      self_contained: true
+      tabs: ["Story (triage)", "Explore (full data)"]
+      includes: ["meta", "records", "mft_timestamps", "detections", "ghost_records", "carving_stats", "triage"]
+
+integration_handoffs:
+  - name: "KAPE Module"
+    direction: "input"
+    contract: "KAPE provides %sourceDirectory% and %destinationDirectory%"
+    cli_pattern: "-j %sourceDirectory%/$Extend/$UsnJrnl:$J -m %sourceDirectory%/$MFT --csv %destinationDirectory%/usnjrnl.csv --sqlite %destinationDirectory%/usnjrnl.db --report %destinationDirectory%/usnjrnl_triage.html"
+    exit_codes: "0=success, non-zero=failure"
+
+  - name: "Velociraptor VQL Artifact"
+    direction: "output"
+    contract: "JSONL to stdout for pipe to Velociraptor parse_jsonl()"
+    cli_pattern: "--image ImagePath --jsonl /dev/stdout"
+    field_convention: "snake_case, no binary data"
+
+  - name: "Sleuthkit/Plaso Pipeline"
+    direction: "output"
+    contract: "Bodyfile format for mactime and log2timeline"
+    cli_pattern: "--body /tmp/usn.body && mactime -b /tmp/usn.body"
+
+error_context_propagation:
+  library: "anyhow"
+  pattern: ".with_context() at every stage boundary"
+  strategies:
+    - stage: "file_read"
+      pattern: "with_context(|| format!(\"Failed to read: {}\", path))"
+    - stage: "usn_parse"
+      pattern: "context(\"Failed to parse USN journal\")"
+    - stage: "mft_parse"
+      pattern: "with_context(|| format!(\"Failed to parse MFT: {}\", path))"
+    - stage: "rewind"
+      pattern: "context(\"Failed during path resolution\")"
+    - stage: "output"
+      pattern: "with_context(|| format!(\"Failed to write {}: {}\", format, path))"
+  cli_validation: "bail!() for constraint violations"
+  warnings: "eprintln!() for non-fatal degradation"
+
+error_recovery:
+  - failure: "MFT not provided"
+    recovery: "JournalOnly mode"
+    trade_off: "paths may be incomplete"
+  - failure: "MFT corrupt"
+    recovery: "skip MFT, continue without"
+    trade_off: "same as above"
+  - failure: "MFTMirr mismatch"
+    recovery: "log warning, continue"
+    trade_off: "analyst should investigate"
+  - failure: "path unresolvable"
+    recovery: "UNKNOWN\\<filename> fallback"
+    trade_off: "record still emitted"
+  - failure: "output file not writable"
+    recovery: "abort with context"
+    trade_off: "other formats may still succeed"
+  - failure: "no NTFS partition"
+    recovery: "abort"
+    trade_off: "cannot proceed"
+  - failure: "carved record low confidence"
+    recovery: "include with source=carved"
+    trade_off: "analyst filters by source"
+  - failure: "parse chunk boundary"
+    recovery: "re-parse spanning records"
+    trade_off: "slight perf cost, zero data loss"
+
+state_management:
+  model: "single-owner in main()"
+  concurrency: "none (no locks, no shared mutable state)"
+  progress: "eprintln!() to stderr"
+  orchestrator: "main() function owns all data, borrows to stages"

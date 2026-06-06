@@ -1,0 +1,71 @@
+# Phase 13: Documentation Index Outputs
+# Generated: 2026-03-08
+# Source: INDEX.md
+
+references:
+  docs:
+    # Tier 1: Strategic Authority
+    - BRAND_GUIDELINES.md
+    - NORTHSTAR.md
+    - COMPETITIVE_LANDSCAPE.md
+    - NORTHSTAR_EXTRACT.md
+    - STRATEGIC_RECOMMENDATION.md
+    - ACTION_ROADMAP.md
+
+    # Tier 2: Implementation
+    - ARCHITECTURE_BLUEPRINT.md
+    - architecture/AGENT_PROMPTS.md
+    - architecture/PIPELINE_ORCHESTRATION.md
+    - architecture/RESILIENCE_PATTERNS.md
+    - architecture/IMPLEMENTATION_SCAFFOLD.md
+    - architecture/OBSERVABILITY.md
+    - architecture/TESTING_STRATEGY.md
+    - architecture/HANDOFF_PROTOCOL.md
+    - SECURITY_ARCHITECTURE.md
+    - ADR.md
+    - POST_DEPLOYMENT.md
+
+    # Tier 3: Supporting
+    - design/USER_JOURNEYS.md
+    - design/UI_DESIGN_SYSTEM.md
+    - design/ACCESSIBILITY.md
+    - design/WIREFRAMES.md
+
+    # Meta
+    - INDEX.md
+
+  context_files:
+    - "../ai-context.yml"
+    - "../research/summary.md"
+
+  total_documents: 22
+  tiers:
+    tier_1_strategic: 6
+    tier_2_implementation: 11
+    tier_3_supporting: 4
+    meta: 1
+
+  generation_phases:
+    phase1: "BRAND_GUIDELINES.md"
+    phase2: "NORTHSTAR.md"
+    phase3: "COMPETITIVE_LANDSCAPE.md"
+    phase4: "NORTHSTAR_EXTRACT.md"
+    phase5a: "design/USER_JOURNEYS.md"
+    phase5b: "design/UI_DESIGN_SYSTEM.md"
+    phase5c: "design/ACCESSIBILITY.md"
+    phase5d: "design/WIREFRAMES.md"
+    phase6: "ARCHITECTURE_BLUEPRINT.md"
+    phase7: "architecture/AGENT_PROMPTS.md"
+    phase7d:
+      - "architecture/PIPELINE_ORCHESTRATION.md"
+      - "architecture/RESILIENCE_PATTERNS.md"
+      - "architecture/IMPLEMENTATION_SCAFFOLD.md"
+      - "architecture/OBSERVABILITY.md"
+      - "architecture/TESTING_STRATEGY.md"
+      - "architecture/HANDOFF_PROTOCOL.md"
+    phase8: "SECURITY_ARCHITECTURE.md"
+    phase9: "ADR.md"
+    phase10: "POST_DEPLOYMENT.md"
+    phase11: "STRATEGIC_RECOMMENDATION.md"
+    phase12: "ACTION_ROADMAP.md"
+    phase13: "INDEX.md"

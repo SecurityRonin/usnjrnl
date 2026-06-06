@@ -1,0 +1,88 @@
+# North Star Advisor - Project Inputs
+# Generated: 2026-03-09T06:45:00+08:00
+# Rethink session: rebrand + tier split
+
+# Core (from exploration)
+application_name: "Security Ronin Katana"
+company_name: "Security Ronin"
+product_family:
+  - "Security Ronin General (CISO sidekick) — ~/src/general"
+  - "Security Ronin Katana (forensic triage) — THIS project"
+one_line_description: "Precision DFIR triage — from disk image to incident response answers in 35 seconds"
+target_users: "Solo DFIR consultants (community tier), MSSP analysts and enterprise IR teams (enterprise tier)"
+core_problem: "DFIR practitioners waste hours stitching multiple tools or overpay for monolithic suites to answer basic incident response questions from forensic evidence"
+differentiator: "End-to-end USN journal triage with ghost recovery, unallocated carving, path reconstruction, and 12 automated IR questions — no other tool does this in 35 seconds. Enterprise tier adds collection, collaboration, and multi-source correlation."
+
+# Structured (from targeted questions)
+tech_stack: "Rust CLI, Apache-2.0 (community) + Proprietary (enterprise), EWF/NTFS image support, SQLite/JSONL/CSV/XML/TLN/HTML outputs"
+constraints: "Solo developer building two products (General + Katana), must maintain forensic integrity for court admissibility"
+anti_goals:
+  community_tier:
+    - "GUI-first application"
+    - "Plugin/extension system"
+    - "Cloud-based processing"
+    - "AI/ML-based triage classification"
+    - "Database-first architecture"
+    - "Memory forensics"
+    - "Real-time monitoring"
+    - "Case management"
+  enterprise_tier:
+    - "Replacing Velociraptor entirely (complement, not replace)"
+    - "Full network forensics platform (targeted PCAP/NetFlow, not Arkime)"
+    - "SaaS/cloud-hosted (on-prem enterprise deployment)"
+success_metric: "First 50 paying enterprise customers generating real revenue"
+
+# Licensing
+licensing:
+  community: "Apache-2.0"
+  enterprise: "Proprietary"
+  pattern: "Two repos (public + private) following chatham/chatham-pro model"
+
+# Repository structure
+repos:
+  community:
+    name: "katana"
+    visibility: "public"
+    license: "Apache-2.0"
+  enterprise:
+    name: "katana-pro"
+    visibility: "private"
+    license: "Proprietary"
+  workspace:
+    name: "katana-workspace"
+    purpose: "Local-only Cargo workspace linking both repos"
+
+# Tier definitions
+tiers:
+  community:
+    - "USN Journal parsing + ghost recovery + unallocated carving"
+    - "MFT parsing + CyberCX Rewind path reconstruction"
+    - "QuadLink 4-artifact correlation"
+    - "12 automated IR triage questions"
+    - "Single-device E01/raw image examination"
+    - "7 output formats (SQLite, JSONL, CSV, XML, TLN, HTML, body)"
+    - "CLI-first, offline, deterministic, court-admissible"
+  enterprise:
+    phase_1:
+      label: "Revenue Gates"
+      features:
+        - "RBAC + admin (role-based access, user management)"
+        - "Multi-device examination (desktop E01 + DC E01 correlation)"
+        - "Data source import: Velociraptor + Binalyze collections"
+        - "Live system triage mode"
+    phase_2:
+      label: "Expansion"
+      features:
+        - "PCAP + NetFlow analysis"
+        - "Collaborative investigation (Timesketch-style, multi-analyst)"
+    phase_3:
+      label: "Platform"
+      features:
+        - "Targeted collection agent (Velociraptor competitor)"
+
+# Business model
+business_model: "Open core + enterprise. Free CLI on GitHub for community/trust. Paid enterprise tier for team/org features."
+go_to_market: "Solo consultants first (GitHub, conferences) → MSSP/MDR → Enterprise IR"
+
+# Phase decisions (populated during generation)
+phase_decisions: {}

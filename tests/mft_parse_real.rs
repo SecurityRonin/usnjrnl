@@ -19,14 +19,25 @@ fn parse_real_mft_sanity() {
     let data = std::fs::read(&path).expect("read $MFT");
     let mft = MftData::parse(&data).expect("parse real $MFT");
 
-    println!("parsed {} entries from {} bytes", mft.entries.len(), data.len());
-    assert!(mft.entries.len() > 10_000, "real $MFT should yield many entries");
+    println!(
+        "parsed {} entries from {} bytes",
+        mft.entries.len(),
+        data.len()
+    );
+    assert!(
+        mft.entries.len() > 10_000,
+        "real $MFT should yield many entries"
+    );
 
     // Well-known NTFS metafiles must be present with their canonical names.
     let mft0 = mft.get_by_entry(0).expect("$MFT (entry 0) present");
     assert_eq!(mft0.filename, "$MFT", "entry 0 is $MFT");
     assert!(mft0.is_in_use);
-    assert_eq!(mft.get_by_entry(5).map(|e| e.filename.as_str()), Some("."), "entry 5 is root '.'");
+    assert_eq!(
+        mft.get_by_entry(5).map(|e| e.filename.as_str()),
+        Some("."),
+        "entry 5 is root '.'"
+    );
 
     // Path resolution: every in-use entry's full_path must start with the root prefix.
     let bad = mft
@@ -34,7 +45,11 @@ fn parse_real_mft_sanity() {
         .iter()
         .filter(|e| e.is_in_use)
         .find(|e| !e.full_path.starts_with(".\\"));
-    assert!(bad.is_none(), "full_path must be rooted: {:?}", bad.map(|e| &e.full_path));
+    assert!(
+        bad.is_none(),
+        "full_path must be rooted: {:?}",
+        bad.map(|e| &e.full_path)
+    );
 
     // Directories vs files both appear.
     let dirs = mft.entries.iter().filter(|e| e.is_directory).count();

@@ -519,10 +519,7 @@ mod tests {
             paths.get(&id_a).map(|s| s.as_str()),
             Some("topdir\\subdir\\file.txt")
         );
-        assert_eq!(
-            paths.get(&id_b).map(|s| s.as_str()),
-            Some("topdir\\subdir")
-        );
+        assert_eq!(paths.get(&id_b).map(|s| s.as_str()), Some("topdir\\subdir"));
         assert_eq!(paths.get(&id_c).map(|s| s.as_str()), Some("topdir"));
     }
 

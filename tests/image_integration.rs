@@ -85,7 +85,7 @@ fn extract_artifacts_from_szechuan_sauce_e01() {
             );
         }
         Err(e) => {
-            panic!("extract_artifacts failed: {:#}", e);
+            panic!("extract_artifacts failed: {e:#}");
         }
     }
 }
@@ -332,10 +332,7 @@ fn e2e_full_report_pipeline_szechuan_sauce() {
         .map(|c| c.record.usn)
         .collect();
 
-    eprintln!(
-        "[e2e] Carved: {} USN records, {} MFT entries",
-        carved_usn_count, carved_mft_count
-    );
+    eprintln!("[e2e] Carved: {carved_usn_count} USN records, {carved_mft_count} MFT entries");
 
     // Merge carved USN records
     records.extend(carve_results.usn_records.into_iter().map(|c| c.record));
@@ -356,7 +353,7 @@ fn e2e_full_report_pipeline_szechuan_sauce() {
             carved_tagged += 1;
         }
     }
-    eprintln!("[e2e] Tagged {} records as carved", carved_tagged);
+    eprintln!("[e2e] Tagged {carved_tagged} records as carved");
 
     // ── Correlation (ghost records) ──────────────────────────────────────
     let correlation = usnjrnl_forensic::correlation::CorrelationEngine::new();
@@ -459,7 +456,11 @@ fn e2e_full_report_pipeline_szechuan_sauce() {
     assert!(allocated_count > 0, "should have allocated records");
 
     if carved_tagged > 0 {
-        let carved_count = data.records.iter().filter(|r| r.source == "entry-carved").count();
+        let carved_count = data
+            .records
+            .iter()
+            .filter(|r| r.source == "entry-carved")
+            .count();
         assert!(carved_count > 0, "should have carved records in report");
         eprintln!(
             "[e2e] Report source breakdown: {} allocated, {} carved, {} ghost",

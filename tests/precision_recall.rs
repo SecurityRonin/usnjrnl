@@ -52,7 +52,7 @@ const CREDENTIAL_HIVES: &[&str] = &["SYSTEM", "SAM", "SECURITY", "DEFAULT"];
 
 /// Whether a timestamp falls within the known attack window.
 fn in_attack_window(ts: i64) -> bool {
-    ts >= ATTACK_WINDOW_START && ts <= ATTACK_WINDOW_END
+    (ATTACK_WINDOW_START..=ATTACK_WINDOW_END).contains(&ts)
 }
 
 /// Whether a filename (case-insensitive) matches any known attacker artifact.
@@ -209,7 +209,8 @@ fn classify_permissive(question_id: &str, record: &ResolvedRecord) -> bool {
             // Persistence (service + registry) is invisible to USN journal.
             // Permissive: Start Menu .lnk creation during attack window is weakly relevant.
             let lower = fname.to_lowercase();
-            in_attack_window(ts) && lower.ends_with(".lnk")
+            in_attack_window(ts)
+                && lower.ends_with(".lnk")
                 && path.to_lowercase().contains("start menu")
         }
         "evidence_destruction" => {
@@ -220,7 +221,10 @@ fn classify_permissive(question_id: &str, record: &ResolvedRecord) -> bool {
         "timestomping" => {
             // Permissive: BASIC_INFO_CHANGE on any executable during attack window
             let lower = fname.to_lowercase();
-            record.record.reason.contains(usn::UsnReason::BASIC_INFO_CHANGE)
+            record
+                .record
+                .reason
+                .contains(usn::UsnReason::BASIC_INFO_CHANGE)
                 && in_attack_window(ts)
                 && (lower.ends_with(".exe") || lower.ends_with(".dll"))
         }
@@ -259,7 +263,12 @@ fn print_diagnostics(
         if indices.is_empty() {
             return;
         }
-        eprintln!("  {} ({} total, showing first {}):", label, indices.len(), max.min(indices.len()));
+        eprintln!(
+            "  {} ({} total, showing first {}):",
+            label,
+            indices.len(),
+            max.min(indices.len())
+        );
         for &i in indices.iter().take(max) {
             let r = &records[i];
             eprintln!(
@@ -271,7 +280,7 @@ fn print_diagnostics(
             );
         }
     };
-    eprintln!("[diag] {}:", question_id);
+    eprintln!("[diag] {question_id}:");
     show("TP", tp_indices, 3);
     show("FP", fp_indices, 3);
     show("FN (missed by query)", fn_indices, 5);
@@ -304,10 +313,7 @@ struct PrecisionRecall {
     permissive_f1: f64,
 }
 
-fn compute_metrics(
-    triage_result: &TriageResult,
-    records: &[ResolvedRecord],
-) -> PrecisionRecall {
+fn compute_metrics(triage_result: &TriageResult, records: &[ResolvedRecord]) -> PrecisionRecall {
     let id = triage_result.id;
     let matched: HashSet<usize> = triage_result.record_indices.iter().copied().collect();
 
@@ -451,6 +457,7 @@ fn compute_temporal_roc(
 }
 
 /// Compute AUC (area under the ROC curve) via trapezoidal rule.
+#[allow(dead_code)] // used by the (env-gated) ROC markdown report
 fn compute_auc(roc_points: &[(f64, f64)]) -> f64 {
     if roc_points.len() < 2 {
         return 0.0;
@@ -476,7 +483,10 @@ fn compute_auc(roc_points: &[(f64, f64)]) -> f64 {
 
 // ─── Report Generation ───────────────────────────────────────────────────────
 
-fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, Vec<(f64, f64)>)]) -> String {
+fn _generate_markdown_unused(
+    metrics: &[PrecisionRecall],
+    roc_data: &[(String, Vec<(f64, f64)>)],
+) -> String {
     let mut md = String::new();
 
     md.push_str("# Triage Precision & Recall Analysis\n\n");
@@ -494,7 +504,9 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
     md.push_str("the attack window\n\n");
     md.push_str("### Ground Truth\n\n");
     md.push_str("The attack on DESKTOP-SDN1RPT is documented in four independent writeups and ");
-    md.push_str("the official DFIR Madness answer key. The known attack timeline on this image:\n\n");
+    md.push_str(
+        "the official DFIR Madness answer key. The known attack timeline on this image:\n\n",
+    );
     md.push_str("| Time (journal) | Event |\n|---|---|\n");
     md.push_str("| 03:39:57 | coreupdater[1].exe downloaded via Edge |\n");
     md.push_str("| 03:40:00 | coreupdater.exe saved to Downloads |\n");
@@ -504,7 +516,9 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
     md.push_str("| 03:47:09 | loot.zip deleted after exfiltration |\n\n");
 
     md.push_str("### Definitions\n\n");
-    md.push_str("- **Precision** = TP / (TP + FP) — of flagged records, how many are attack evidence?\n");
+    md.push_str(
+        "- **Precision** = TP / (TP + FP) — of flagged records, how many are attack evidence?\n",
+    );
     md.push_str("- **Recall** = TP / (TP + FN) — of all attack evidence, how many did we flag?\n");
     md.push_str("- **F1** = harmonic mean of precision and recall\n");
     md.push_str("- **N/A** = question has 0 known positives (data source limitation)\n\n");
@@ -610,7 +624,7 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
 
     for (qid, points) in roc_data {
         let auc = compute_auc(points);
-        md.push_str(&format!("### {} (AUC = {:.3})\n\n", qid, auc));
+        md.push_str(&format!("### {qid} (AUC = {auc:.3})\n\n"));
         md.push_str("| Window (min) | FPR | TPR |\n|---:|---:|---:|\n");
         let thresholds = [1, 2, 5, 10, 15, 30, 60, 120, 240, 480];
         for (i, (fpr, tpr)) in points.iter().enumerate() {
@@ -619,7 +633,7 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
                 thresholds[i], fpr, tpr
             ));
         }
-        md.push_str("\n");
+        md.push('\n');
     }
 
     // AUC summary table
@@ -636,9 +650,9 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
         } else {
             "Inversely correlated with attack window"
         };
-        md.push_str(&format!("| {} | {:.3} | {} |\n", qid, auc, interp));
+        md.push_str(&format!("| {qid} | {auc:.3} | {interp} |\n"));
     }
-    md.push_str("\n");
+    md.push('\n');
 
     // ── Discussion ──
     md.push_str("## Discussion\n\n");
@@ -673,7 +687,9 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
     md.push_str("### Data Source Limitations\n\n");
     md.push_str("Questions where the USN journal is fundamentally the wrong artifact:\n\n");
     md.push_str("- **lateral_movement**: RDP evidence exists in Event Logs (logon events) and PCAP, not USN journal\n");
-    md.push_str("- **persistence**: Service installation (Event ID 7045) and registry Run keys are ");
+    md.push_str(
+        "- **persistence**: Service installation (Event ID 7045) and registry Run keys are ",
+    );
     md.push_str("event log / registry hive artifacts, not USN journal events\n\n");
 
     md.push_str("### Precision-Recall Tradeoff\n\n");
@@ -682,15 +698,21 @@ fn _generate_markdown_unused(metrics: &[PrecisionRecall], roc_data: &[(String, V
     md.push_str("| **Tier 1: High-confidence** | P≥50% or R=100% | data_staging, recovered_evidence, execution_evidence, credential_access |\n");
     md.push_str("| **Tier 2: Broad-net** | Low P, detects signal among noise | initial_access, file_disguise |\n");
     md.push_str("| **Tier 3: Reason-flag gap** | 0% R due to query design | malware_deployed, sensitive_data, evidence_destruction, timestomping |\n");
-    md.push_str("| **Tier 4: Data-source N/A** | Artifact limitation | persistence, lateral_movement |\n\n");
+    md.push_str(
+        "| **Tier 4: Data-source N/A** | Artifact limitation | persistence, lateral_movement |\n\n",
+    );
 
     md.push_str("### Improvement Opportunities\n\n");
     md.push_str("1. **Expand reason-flag coverage** (Tier 3 → Tier 2): ");
-    md.push_str("Adding RENAME_NEW_NAME to malware_deployed would capture the file-move attack pattern. ");
+    md.push_str(
+        "Adding RENAME_NEW_NAME to malware_deployed would capture the file-move attack pattern. ",
+    );
     md.push_str("Adding FILE_DELETE to sensitive_data would capture exfiltration cleanup.\n");
     md.push_str("2. **Temporal clustering** (Tier 2 → Tier 1): ");
     md.push_str("ROC analysis shows attack-window hits have higher signal density. ");
-    md.push_str("Scoring records by proximity to temporal activity bursts would improve precision.\n");
+    md.push_str(
+        "Scoring records by proximity to temporal activity bursts would improve precision.\n",
+    );
     md.push_str("3. **Known-good baseline subtraction**: ");
     md.push_str("Excluding known Windows system paths (NativeImages, SoftwareDistribution) ");
     md.push_str("from broad queries would reduce FP without losing attacker signal.\n");
@@ -703,12 +725,12 @@ fn _precision_commentary_unused(question_id: &str, m: &PrecisionRecall) -> Strin
         "data_staging" => "Narrow query (FILE_CREATE + archive extensions in user dirs). Perfect precision but low recall — misses RENAME_NEW_NAME (loot.zip) and associated .lnk/.TMP records.".into(),
         "execution_evidence" => format!("All {} COREUPDATER.EXE prefetch records found (100% recall). Low precision because all {} .pf FILE_CREATE events match, not just attacker programs.", m.strict_tp, m.hit_count),
         "credential_access" => "Found the SYSTEM hive write during attack window (100% recall). Most FP are legitimate hive I/O outside the attack window.".into(),
-        "sensitive_data" => format!("0/22 hits are attack-related — all are legitimate .txt files (OneDrive logs, IE brndlog). Actual sensitive files (Social Security.zip, loot.zip) use RENAME/DELETE flags the query doesn't match."),
+        "sensitive_data" => "0/22 hits are attack-related — all are legitimate .txt files (OneDrive logs, IE brndlog). Actual sensitive files (Social Security.zip, loot.zip) use RENAME/DELETE flags the query doesn't match.".to_string(),
         "initial_access" => format!("7 coreupdater records found among {} total download artifacts. 66 FN: query misses FILE_DELETE, RENAME_OLD_NAME, and cross-question artifacts (prefetch, System32 move).", m.hit_count),
-        "malware_deployed" => format!("0/6 coreupdater System32 records found. Query catches FILE_CREATE but coreupdater reaches System32 via RENAME_NEW_NAME (file move) + SECURITY_CHANGE/STREAM_CHANGE — none matched."),
-        "evidence_destruction" => format!("0/8 strict positives found. COREUPDATER.pf has FILE_CREATE (first execution) but query catches DATA_TRUNCATION (re-execution). Attack-window .evtx writes are at 04:01 (outside 03:38-03:48 window)."),
+        "malware_deployed" => "0/6 coreupdater System32 records found. Query catches FILE_CREATE but coreupdater reaches System32 via RENAME_NEW_NAME (file move) + SECURITY_CHANGE/STREAM_CHANGE — none matched.".to_string(),
+        "evidence_destruction" => "0/8 strict positives found. COREUPDATER.pf has FILE_CREATE (first execution) but query catches DATA_TRUNCATION (re-execution). Attack-window .evtx writes are at 04:01 (outside 03:38-03:48 window).".to_string(),
         "timestomping" => "0/2 strict positives found. The 2 BASIC_INFO_CHANGE records on coreupdater.partial are missed because the query's path filter excludes Downloads. Actual timestomping of Beth_Secret.txt occurred on the DC.".into(),
-        "file_disguise" => format!("8/11 ADS ops on coreupdater files found (72.7% recall). 886 FP from Zone.Identifier/SmartScreen ADS on legitimate files — expected for this broad indicator type."),
+        "file_disguise" => "8/11 ADS ops on coreupdater files found (72.7% recall). 886 FP from Zone.Identifier/SmartScreen ADS on legitimate files — expected for this broad indicator type.".to_string(),
         "persistence" => "No strict positives: actual persistence (coreupdater service + registry Run key) is invisible to USN journal. 30 hits are Administrator profile Start Menu initialization.".into(),
         "recovered_evidence" => "All 191 ghost records from $LogFile matched and recovered. Perfect precision and recall.".into(),
         _ => String::new(),
@@ -725,7 +747,8 @@ fn format_pct(v: f64) -> String {
 
 fn generate_html(metrics: &[PrecisionRecall], roc_data: &[(String, Vec<(f64, f64)>)]) -> String {
     let mut html = String::new();
-    html.push_str(r#"<!DOCTYPE html>
+    html.push_str(
+        r#"<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Triage Precision/Recall Analysis</title>
 <style>
 body { font-family: -apple-system, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
@@ -744,16 +767,21 @@ td:first-child, td:nth-child(2) { text-align: left; }
 </style></head><body>
 <h1>Triage Precision &amp; Recall Analysis</h1>
 <p>Szechuan Sauce CTF &mdash; DESKTOP-SDN1RPT</p>
-"#);
+"#,
+    );
 
     // ── Precision-Recall scatter plot ──
-    html.push_str(r#"<h2>Precision-Recall Scatter (Strict Classification)</h2>
+    html.push_str(
+        r#"<h2>Precision-Recall Scatter (Strict Classification)</h2>
 <div class="charts"><div class="chart">
-<svg width="500" height="500" viewBox="-60 -30 560 560">"#);
+<svg width="500" height="500" viewBox="-60 -30 560 560">"#,
+    );
 
     // Axes
-    html.push_str(r#"<line x1="0" y1="500" x2="500" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>
-<line x1="0" y1="0" x2="0" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>"#);
+    html.push_str(
+        r#"<line x1="0" y1="500" x2="500" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>
+<line x1="0" y1="0" x2="0" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>"#,
+    );
     // Axis labels
     html.push_str(r#"<text x="250" y="540" text-anchor="middle" font-size="14">Recall</text>
 <text x="-30" y="250" text-anchor="middle" font-size="14" transform="rotate(-90,-30,250)">Precision</text>"#);
@@ -773,9 +801,18 @@ td:first-child, td:nth-child(2) { text-align: left; }
 
     // Plot points
     let colors = [
-        "rgb(228,26,28)", "rgb(55,126,184)", "rgb(77,175,74)", "rgb(152,78,163)",
-        "rgb(255,127,0)", "rgb(166,86,40)", "rgb(247,129,191)", "rgb(153,153,153)",
-        "rgb(102,194,165)", "rgb(252,141,98)", "rgb(141,160,203)", "rgb(231,138,195)",
+        "rgb(228,26,28)",
+        "rgb(55,126,184)",
+        "rgb(77,175,74)",
+        "rgb(152,78,163)",
+        "rgb(255,127,0)",
+        "rgb(166,86,40)",
+        "rgb(247,129,191)",
+        "rgb(153,153,153)",
+        "rgb(102,194,165)",
+        "rgb(252,141,98)",
+        "rgb(141,160,203)",
+        "rgb(231,138,195)",
     ];
     for (i, m) in metrics.iter().enumerate() {
         if !m.strict_precision.is_nan() && !m.strict_recall.is_nan() {
@@ -803,8 +840,10 @@ td:first-child, td:nth-child(2) { text-align: left; }
 <svg width="500" height="500" viewBox="-60 -30 560 560">"#);
 
     // Axes
-    html.push_str(r#"<line x1="0" y1="500" x2="500" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>
-<line x1="0" y1="0" x2="0" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>"#);
+    html.push_str(
+        r#"<line x1="0" y1="500" x2="500" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>
+<line x1="0" y1="0" x2="0" y2="500" stroke="rgb(51,51,51)" stroke-width="2"/>"#,
+    );
     html.push_str(r#"<text x="250" y="540" text-anchor="middle" font-size="14">FPR</text>
 <text x="-30" y="250" text-anchor="middle" font-size="14" transform="rotate(-90,-30,250)">TPR</text>"#);
     // Diagonal (random classifier)
@@ -828,14 +867,13 @@ td:first-child, td:nth-child(2) { text-align: left; }
             let x = fpr * 500.0;
             let y = 500.0 - tpr * 500.0;
             if j == 0 {
-                path.push_str(&format!("M{:.1},{:.1}", x, y));
+                path.push_str(&format!("M{x:.1},{y:.1}"));
             } else {
-                path.push_str(&format!(" L{:.1},{:.1}", x, y));
+                path.push_str(&format!(" L{x:.1},{y:.1}"));
             }
         }
         html.push_str(&format!(
-            r#"<path d="{}" fill="none" stroke="{}" stroke-width="2" opacity="0.7"/>"#,
-            path, color
+            r#"<path d="{path}" fill="none" stroke="{color}" stroke-width="2" opacity="0.7"/>"#
         ));
         // Label at last point
         if let Some((fpr, tpr)) = points.last() {
@@ -904,8 +942,8 @@ fn precision_recall_analysis() {
 
     // ── Extract & Parse ──
     let output_dir = tempfile::tempdir().unwrap();
-    let artifacts = extract_artifacts(image_path, output_dir.path())
-        .expect("Failed to extract artifacts");
+    let artifacts =
+        extract_artifacts(image_path, output_dir.path()).expect("Failed to extract artifacts");
 
     let journal_data = std::fs::read(&artifacts.usnjrnl).unwrap();
     let records = usn::parse_usn_journal(&journal_data).expect("Failed to parse $UsnJrnl");
@@ -982,8 +1020,7 @@ fn precision_recall_analysis() {
     // ── Generate outputs ──
     let html = generate_html(&metrics, &roc_data);
 
-    std::fs::write("precision_recall.html", &html)
-        .expect("Failed to write HTML report");
+    std::fs::write("precision_recall.html", &html).expect("Failed to write HTML report");
 
     eprintln!("\n[pr] Reports written:");
     eprintln!("[pr]   precision_recall.html");
@@ -1004,7 +1041,10 @@ fn precision_recall_analysis() {
     }
 
     // data_staging should have high precision (strict)
-    let staging = metrics.iter().find(|m| m.question_id == "data_staging").unwrap();
+    let staging = metrics
+        .iter()
+        .find(|m| m.question_id == "data_staging")
+        .unwrap();
     assert!(
         staging.strict_precision >= 0.5 || staging.strict_precision.is_nan(),
         "data_staging should have high precision, got {}",

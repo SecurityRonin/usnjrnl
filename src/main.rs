@@ -605,7 +605,7 @@ fn resolve_from_image(
 
     let format = usnjrnl_forensic::image::ImageFormat::detect(image_path)
         .with_context(|| format!("Failed to read image: {}", image_path.display()))?;
-    eprintln!("[*] Detected format: {:?}", format);
+    eprintln!("[*] Detected format: {format:?}");
 
     // Determine output directory: user-specified or temp
     let (temp_dir, extract_dir) = if let Some(dir) = output_dir {
@@ -938,17 +938,25 @@ mod tests {
         data.extend_from_slice(&build_v2_record_bytes(
             100, 1, 5, 1, 1000, 0x100, "test.txt",
         ));
+        data.extend_from_slice(&build_v2_record_bytes(100, 1, 5, 1, 2000, 0x02, "test.txt"));
+        data.extend_from_slice(&build_v2_record_bytes(200, 1, 5, 1, 3000, 0x200, "old.log"));
         data.extend_from_slice(&build_v2_record_bytes(
-            100, 1, 5, 1, 2000, 0x02, "test.txt",
+            300,
+            1,
+            5,
+            1,
+            4000,
+            0x1000,
+            "moved.exe",
         ));
         data.extend_from_slice(&build_v2_record_bytes(
-            200, 1, 5, 1, 3000, 0x200, "old.log",
-        ));
-        data.extend_from_slice(&build_v2_record_bytes(
-            300, 1, 5, 1, 4000, 0x1000, "moved.exe",
-        ));
-        data.extend_from_slice(&build_v2_record_bytes(
-            400, 1, 5, 1, 5000, 0x800 | 0x8000, "secure.dll",
+            400,
+            1,
+            5,
+            1,
+            5000,
+            0x800 | 0x8000,
+            "secure.dll",
         ));
         let path = dir.join("$UsnJrnl");
         std::fs::write(&path, &data).unwrap();
@@ -1219,8 +1227,7 @@ mod tests {
     fn test_run_no_output_format() {
         let tmp = tempfile::tempdir().unwrap();
         let journal = create_synthetic_journal(tmp.path());
-        let cli = Cli::try_parse_from(["usnjrnl", "-j", journal.to_str().unwrap()])
-            .unwrap();
+        let cli = Cli::try_parse_from(["usnjrnl", "-j", journal.to_str().unwrap()]).unwrap();
         // Should succeed — just parses and prints stats, no output file written
         run(cli).unwrap();
     }
@@ -1391,12 +1398,10 @@ mod tests {
         .unwrap();
         let result = run(cli);
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("--output-dir can only be used with --image")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("--output-dir can only be used with --image"));
     }
 
     #[test]
@@ -1412,12 +1417,10 @@ mod tests {
         .unwrap();
         let result = run(cli);
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("--carve-unallocated can only be used with --image")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("--carve-unallocated can only be used with --image"));
     }
 
     #[test]

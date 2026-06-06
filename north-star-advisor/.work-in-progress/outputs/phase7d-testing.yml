@@ -1,0 +1,191 @@
+# phase7d-testing.yml — Testing Strategy outputs for cross-referencing
+# Generated: 2026-03-09
+
+test_framework: "cargo test (Rust built-in #[test])"
+fuzz_framework: "cargo-fuzz (libFuzzer)"
+coverage_tool: "cargo-llvm-cov"
+
+current_stats:
+  total_tests: 571
+  coverage_percent: 89.25
+  passing: 571
+  failing: 0
+
+coverage_targets:
+  module_unit: 90
+  integration: 80
+  e2e: "critical paths"
+  fuzz: "hours per run"
+
+test_tiers:
+  - tier: 1
+    name: "Unit tests"
+    command: "cargo test --lib"
+    duration: "~10s"
+    ci_trigger: "every push"
+  - tier: 2
+    name: "Unit + synthetic integration"
+    command: "cargo test"
+    duration: "~15s"
+    ci_trigger: "PR to main"
+  - tier: 3
+    name: "E01 image integration"
+    command: "cargo test --features image --test image_integration -- --ignored"
+    duration: "~60s"
+    ci_trigger: "weekly schedule"
+  - tier: 4
+    name: "Precision/recall benchmark"
+    command: "cargo test --features image --release --test precision_recall -- --ignored --nocapture"
+    duration: "~90s"
+    ci_trigger: "release tag"
+  - tier: 5
+    name: "Fuzz testing"
+    command: "cargo +nightly fuzz run fuzz_usn_parse -- -max_total_time=3600"
+    duration: "1-4 hours"
+    ci_trigger: "weekly schedule"
+
+module_test_counts:
+  triage_mod: 60
+  usn_record: 54
+  main: 36
+  analysis: 35
+  logfile_usn_extractor: 33
+  usn_reader: 31
+  usn_carving: 28
+  rewind: 26
+  mft: 22
+  output_writers: 20
+  correlation: 15
+  other: 211
+
+triage_question_coverage:
+  - id: initial_access
+    tests: 5
+    covers: "Downloads/Temp exe, script drops, exclusions"
+  - id: malware_deployed
+    tests: 5
+    covers: "System32/SysWOW64 exe/dll, prefetch, scheduled tasks"
+  - id: execution_evidence
+    tests: 5
+    covers: "Prefetch creation, RunOnce, Startup folder"
+  - id: sensitive_data
+    tests: 5
+    covers: "Documents with PII extensions, database files"
+  - id: data_staging
+    tests: 5
+    covers: "Archive creation in Temp, rar/zip/7z"
+  - id: credential_access
+    tests: 5
+    covers: "SAM/SYSTEM/SECURITY hive copies, LSASS dumps"
+  - id: persistence_installed
+    tests: 5
+    covers: "Run keys, services, scheduled tasks, WMI"
+  - id: lateral_movement
+    tests: 5
+    covers: "PsExec, remote admin tools, RDP artifacts"
+  - id: evidence_destruction
+    tests: 5
+    covers: "Log clearing, journal deletion, Recycle Bin"
+  - id: timestomping
+    tests: 5
+    covers: "BASIC_INFO_CHANGE without DATA_EXTEND"
+  - id: file_disguise
+    tests: 5
+    covers: "Double extensions, renamed system files"
+  - id: recovered_evidence
+    tests: 5
+    covers: "Carved/ghost records from unallocated space"
+
+fuzz_targets:
+  - name: fuzz_usn_parse
+    input: "Raw $UsnJrnl:$J bytes"
+    invariant: "No panic, no OOM"
+  - name: fuzz_mft_parse
+    input: "Raw $MFT bytes"
+    invariant: "No panic, no OOM"
+  - name: fuzz_usn_carve
+    input: "Arbitrary disk bytes"
+    invariant: "No panic, bounded allocation"
+  - name: fuzz_logfile_extract
+    input: "Raw $LogFile bytes"
+    invariant: "No panic, no infinite loop"
+
+performance_budget:
+  total_ceiling_seconds: 35
+  stages:
+    - name: "E01 extraction"
+      budget_s: 10
+      measured_s: 8
+    - name: "USN journal parsing"
+      budget_s: 5
+      measured_s: 3
+    - name: "MFT parsing"
+      budget_s: 5
+      measured_s: 2
+    - name: "Rewind path reconstruction"
+      budget_s: 8
+      measured_s: 5
+    - name: "Triage evaluation"
+      budget_s: 2
+      measured_s: 1
+    - name: "Report generation"
+      budget_s: 2
+      measured_s: 1
+    - name: "Unallocated scanning"
+      budget_s: 3
+      measured_s: 2
+
+golden_file_formats:
+  - csv
+  - json
+  - xml
+  - bodyfile
+  - tln
+  - sqlite_schema
+  - html_report
+
+precision_recall:
+  image: "Szechuan Sauce DESKTOP-SDN1RPT.E01"
+  regimes:
+    - name: strict
+      definition: "Only records directly attributable to known attacker activity"
+    - name: permissive
+      definition: "Records forensically relevant including OS activity during attack window"
+  priority: "Recall over precision (missing evidence worse than false positives)"
+
+ci_jobs:
+  current:
+    - name: fmt
+      purpose: "Enforce rustfmt formatting"
+      blocking: true
+    - name: clippy
+      purpose: "Lint for correctness and idioms"
+      blocking: true
+    - name: test
+      purpose: "Run 571 unit tests"
+      blocking: true
+    - name: deny
+      purpose: "Audit dependencies"
+      blocking: true
+  planned:
+    - name: test-integration
+      trigger: "PR to main"
+    - name: test-image
+      trigger: "Weekly schedule"
+    - name: precision-recall
+      trigger: "Release tag"
+    - name: fuzz
+      trigger: "Weekly schedule"
+    - name: cross-platform
+      trigger: "PR to main"
+    - name: coverage
+      trigger: "PR to main"
+
+cross_platform:
+  targets:
+    - os: ubuntu-latest
+      target: x86_64-unknown-linux-gnu
+    - os: macos-latest
+      target: aarch64-apple-darwin
+    - os: windows-latest
+      target: x86_64-pc-windows-msvc

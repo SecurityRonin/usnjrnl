@@ -116,7 +116,9 @@ impl MftData {
             };
 
             // Alternate data streams = named $DATA. file_size = unnamed $DATA size.
-            let has_ads = attrs.iter().any(|a| a.type_code == 0x80 && a.name.is_some());
+            let has_ads = attrs
+                .iter()
+                .any(|a| a.type_code == 0x80 && a.name.is_some());
             let file_size = attrs
                 .iter()
                 .filter(|a| a.type_code == 0x80 && a.name.is_none())
