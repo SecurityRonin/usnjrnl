@@ -252,216 +252,24 @@ pub fn find_ntfs_partition<R: Read + Seek>(reader: &mut R) -> Result<PartitionEn
     bail!("No NTFS partition found in disk image")
 }
 
-/// A `Read + Seek` wrapper that presents a sub-range of an inner reader as a
-/// standalone stream. Seeks are offset by `base` and clamped to `size`.
-#[cfg(feature = "image")]
-struct PartitionReader<R> {
-    inner: R,
-    base: u64,
-    size: u64,
-    pos: u64,
-}
-
-#[cfg(feature = "image")]
-impl<R: Read + Seek> PartitionReader<R> {
-    fn new(mut inner: R, base: u64, size: u64) -> std::io::Result<Self> {
-        inner.seek(SeekFrom::Start(base))?;
-        Ok(Self {
-            inner,
-            base,
-            size,
-            pos: 0,
-        })
-    }
-}
-
-#[cfg(feature = "image")]
-impl<R: Read + Seek> Read for PartitionReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let remaining = self.size.saturating_sub(self.pos) as usize;
-        if remaining == 0 {
-            return Ok(0);
-        }
-        let to_read = buf.len().min(remaining);
-        let n = self.inner.read(&mut buf[..to_read])?;
-        self.pos += n as u64;
-        Ok(n)
-    }
-}
-
-#[cfg(feature = "image")]
-impl<R: Read + Seek> Seek for PartitionReader<R> {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        let new_pos = match pos {
-            SeekFrom::Start(p) => p as i64,
-            SeekFrom::End(p) => self.size as i64 + p,
-            SeekFrom::Current(p) => self.pos as i64 + p,
-        };
-        if new_pos < 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "seek to negative position",
-            ));
-        }
-        let new_pos = (new_pos as u64).min(self.size);
-        self.inner.seek(SeekFrom::Start(self.base + new_pos))?;
-        self.pos = new_pos;
-        Ok(self.pos)
-    }
-}
-
-/// Extract NTFS artifacts ($MFT, $UsnJrnl:$J, $LogFile, $MFTMirr) from a disk image.
+/// Extract NTFS artifacts ($MFT, $MFTMirr, $LogFile, $UsnJrnl:$J) from an EWF
+/// disk image into `output_dir`, via the self-owned ntfs-forensic reader.
 #[cfg(feature = "image")]
 pub fn extract_artifacts(image_path: &Path, output_dir: &Path) -> Result<ExtractedArtifacts> {
-    use anyhow::Context;
-    use ntfs::Ntfs;
-
-    std::fs::create_dir_all(output_dir)?;
-
     info!("Opening disk image: {}", image_path.display());
-    let mut reader = ewf::EwfReader::open(image_path)
+    let reader = ewf::EwfReader::open(image_path)
         .map_err(|e| anyhow::anyhow!("Failed to open EWF image: {}", e))?;
-    info!(
-        "EWF image: {:.2} GB, {} chunks",
-        reader.total_size() as f64 / 1_073_741_824.0,
-        reader.chunk_count(),
-    );
-
-    // Find NTFS partition
-    let partition = find_ntfs_partition(&mut reader)?;
-    info!(
-        "Found NTFS partition at offset {} ({:.1} MB, {:.1} GB)",
-        partition.offset,
-        partition.offset as f64 / 1_048_576.0,
-        partition.size as f64 / 1_073_741_824.0,
-    );
-
-    // Create a reader scoped to the NTFS partition
-    let mut partition_reader = PartitionReader::new(reader, partition.offset, partition.size)?;
-
-    // Initialize NTFS filesystem
-    let mut ntfs = Ntfs::new(&mut partition_reader)?;
-    ntfs.read_upcase_table(&mut partition_reader)?;
-    info!(
-        "NTFS filesystem initialized (cluster size: {})",
-        ntfs.cluster_size()
-    );
-
-    // Extract $MFT (file record 0)
-    let mft_path = output_dir.join("$MFT");
-    extract_file_by_record(&ntfs, &mut partition_reader, 0, &mft_path)
-        .context("Failed to extract $MFT")?;
-    info!(
-        "Extracted $MFT ({} bytes)",
-        std::fs::metadata(&mft_path)?.len()
-    );
-
-    // Extract $MFTMirr (file record 1)
-    let mftmirr_path = output_dir.join("$MFTMirr");
-    extract_file_by_record(&ntfs, &mut partition_reader, 1, &mftmirr_path)
-        .context("Failed to extract $MFTMirr")?;
-    info!(
-        "Extracted $MFTMirr ({} bytes)",
-        std::fs::metadata(&mftmirr_path)?.len()
-    );
-
-    // Extract $LogFile (file record 2)
-    let logfile_path = output_dir.join("$LogFile");
-    extract_file_by_record(&ntfs, &mut partition_reader, 2, &logfile_path)
-        .context("Failed to extract $LogFile")?;
-    info!(
-        "Extracted $LogFile ({} bytes)",
-        std::fs::metadata(&logfile_path)?.len()
-    );
-
-    // Extract $UsnJrnl:$J (inside $Extend directory)
-    let usnjrnl_path = output_dir.join("$UsnJrnl_$J");
-    extract_usnjrnl(&ntfs, &mut partition_reader, &usnjrnl_path)
-        .context("Failed to extract $UsnJrnl:$J")?;
-    info!(
-        "Extracted $UsnJrnl:$J ({} bytes)",
-        std::fs::metadata(&usnjrnl_path)?.len()
-    );
-
-    Ok(ExtractedArtifacts {
-        mft: mft_path,
-        mftmirr: mftmirr_path,
-        logfile: logfile_path,
-        usnjrnl: usnjrnl_path,
-    })
+    extract_artifacts_from_reader(reader, output_dir)
 }
 
-/// Extract a file's default $DATA stream by its MFT record number.
+/// Extract the artifacts from any `Read + Seek` disk image — the testable core.
 #[cfg(feature = "image")]
-fn extract_file_by_record<T: Read + Seek>(
-    ntfs: &ntfs::Ntfs,
-    fs: &mut T,
-    record_number: u64,
-    output_path: &Path,
-) -> Result<()> {
-    use ntfs::NtfsReadSeek;
-    use std::io::Write;
-
-    let file = ntfs.file(fs, record_number)?;
-    let data_item = file
-        .data(fs, "")
-        .ok_or_else(|| anyhow::anyhow!("No $DATA attribute on record {}", record_number))??;
-    let data_attr = data_item.to_attribute()?;
-    let mut data_value = data_attr.value(fs)?;
-
-    let mut output = File::create(output_path)?;
-    let mut buf = [0u8; 65536];
-    loop {
-        let n = data_value.read(fs, &mut buf)?;
-        if n == 0 {
-            break;
-        }
-        output.write_all(&buf[..n])?;
-    }
-
-    Ok(())
-}
-
-/// Extract $UsnJrnl:$J by navigating root -> $Extend -> $UsnJrnl -> :$J stream.
-#[cfg(feature = "image")]
-fn extract_usnjrnl<T: Read + Seek>(
-    ntfs: &ntfs::Ntfs,
-    fs: &mut T,
-    output_path: &Path,
-) -> Result<()> {
-    use ntfs::indexes::NtfsFileNameIndex;
-    use ntfs::NtfsReadSeek;
-    use std::io::Write;
-
-    // $Extend is MFT record 11
-    let extend_file = ntfs.file(fs, 11)?;
-    let extend_index = extend_file.directory_index(fs)?;
-    let mut finder = extend_index.finder();
-
-    // Find $UsnJrnl in $Extend directory
-    let usnjrnl_entry = NtfsFileNameIndex::find(&mut finder, ntfs, fs, "$UsnJrnl")
-        .ok_or_else(|| anyhow::anyhow!("$UsnJrnl not found in $Extend directory"))??;
-
-    let usnjrnl_file = usnjrnl_entry.to_file(ntfs, fs)?;
-
-    // Get the :$J alternate data stream
-    let data_item = usnjrnl_file
-        .data(fs, "$J")
-        .ok_or_else(|| anyhow::anyhow!("No $J data stream on $UsnJrnl"))??;
-    let data_attr = data_item.to_attribute()?;
-    let mut data_value = data_attr.value(fs)?;
-
-    let mut output = File::create(output_path)?;
-    let mut buf = [0u8; 65536];
-    loop {
-        let n = data_value.read(fs, &mut buf)?;
-        if n == 0 {
-            break;
-        }
-        output.write_all(&buf[..n])?;
-    }
-
-    Ok(())
+pub fn extract_artifacts_from_reader<R: Read + Seek>(
+    reader: R,
+    output_dir: &Path,
+) -> Result<ExtractedArtifacts> {
+    let _ = (reader, output_dir);
+    todo!("extract_artifacts_from_reader — GREEN step")
 }
 
 #[cfg(test)]
