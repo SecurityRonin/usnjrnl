@@ -10,9 +10,10 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use log::debug;
-use mft::attribute::MftAttributeType;
-use mft::MftParser;
+use ntfs_forensic::{
+    apply_fixup, parse_attributes, AttributeBody, FileName, Filetime, MftRecordHeader,
+    StandardInformation,
+};
 
 use crate::rewind::{EntryKey, RewindEngine};
 
@@ -57,114 +58,8 @@ pub struct MftData {
 impl MftData {
     /// Parse raw $MFT data.
     pub fn parse(data: &[u8]) -> Result<Self> {
-        let mut parser = MftParser::from_buffer(data.to_vec())?;
-
-        // First pass: collect all raw MFT entries
-        let raw_entries: Vec<_> = parser.iter_entries().collect();
-
-        let mut entries = Vec::new();
-        let mut by_entry = HashMap::new();
-        let mut by_key = HashMap::new();
-
-        for entry_result in raw_entries {
-            let entry = match entry_result {
-                Ok(e) => e,
-                Err(e) => {
-                    debug!("Skipping invalid MFT entry: {e}");
-                    continue;
-                }
-            };
-
-            let entry_number = entry.header.record_number;
-            let sequence_number = entry.header.sequence;
-            let is_in_use = entry.is_allocated();
-            let is_directory = entry.is_dir();
-
-            // SI timestamps
-            let mut si_created = None;
-            let mut si_modified = None;
-            let mut si_mft_modified = None;
-            let mut si_accessed = None;
-            let mut has_ads = false;
-
-            // Extract $STANDARD_INFORMATION timestamps
-            for attr in entry
-                .iter_attributes_matching(Some(vec![MftAttributeType::StandardInformation]))
-                .flatten()
-            {
-                if let Some(si) = attr.data.into_standard_info() {
-                    si_created = Some(si.created);
-                    si_modified = Some(si.modified);
-                    si_mft_modified = Some(si.mft_modified);
-                    si_accessed = Some(si.accessed);
-                }
-            }
-
-            // Use find_best_name_attribute for filename and parent ref
-            let best_name = match entry.find_best_name_attribute() {
-                Some(name) => name,
-                None => continue,
-            };
-
-            let best_filename = best_name.name.clone();
-            let parent_entry = best_name.parent.entry;
-            let parent_sequence = best_name.parent.sequence;
-            let fn_created = Some(best_name.created);
-            let fn_modified = Some(best_name.modified);
-            let fn_mft_modified = Some(best_name.mft_modified);
-            let fn_accessed = Some(best_name.accessed);
-
-            // Check for ADS: look for $DATA attributes with non-empty names
-            for attr in entry
-                .iter_attributes_matching(Some(vec![MftAttributeType::DATA]))
-                .flatten()
-            {
-                if !attr.header.name.is_empty() {
-                    has_ads = true;
-                    break;
-                }
-            }
-
-            // Resolve full path (parser is no longer borrowed by iter_entries)
-            let full_path = parser
-                .get_full_path_for_entry(&entry)
-                .unwrap_or_default()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
-
-            let idx = entries.len();
-            let mft_entry = MftEntry {
-                entry_number,
-                sequence_number,
-                filename: best_filename,
-                parent_entry,
-                parent_sequence,
-                is_directory,
-                is_in_use,
-                si_created,
-                si_modified,
-                si_mft_modified,
-                si_accessed,
-                fn_created,
-                fn_modified,
-                fn_mft_modified,
-                fn_accessed,
-                full_path,
-                file_size: 0,
-                has_ads,
-            };
-
-            by_entry.insert(entry_number, idx);
-            by_key.insert(EntryKey::new(entry_number, sequence_number), idx);
-            entries.push(mft_entry);
-        }
-
-        Ok(Self {
-            entries,
-            by_entry,
-            by_key,
-        })
+        let _ = data;
+        todo!("MftData::parse via ntfs-forensic — GREEN step")
     }
 
     /// Seed a RewindEngine with the current MFT state.
@@ -303,6 +198,26 @@ mod tests {
         let found = mft_data.get_by_entry(100);
         assert!(found.is_some());
         assert_eq!(found.unwrap().filename, "test.txt");
+    }
+
+    #[test]
+    fn parse_extracts_entry_fields_via_ntfs_forensic() {
+        let data = build_mft_entry_bytes(100, 1, 5, 5, "testfile.txt", 0x01);
+        let mft = MftData::parse(&data).expect("parse");
+        assert_eq!(mft.entries.len(), 1);
+        let e = &mft.entries[0];
+        assert_eq!(e.entry_number, 100, "entry number from the record header");
+        assert_eq!(e.sequence_number, 1);
+        assert_eq!(e.filename, "testfile.txt");
+        assert_eq!(e.parent_entry, 5);
+        assert_eq!(e.parent_sequence, 5);
+        assert!(!e.is_directory);
+        assert!(e.is_in_use);
+        assert!(e.si_created.is_some(), "$SI timestamps parsed");
+        assert!(e.fn_created.is_some(), "$FN timestamps parsed");
+        assert!(!e.has_ads);
+        assert!(mft.by_entry.contains_key(&100));
+        assert!(mft.by_key.contains_key(&EntryKey::new(100, 1)));
     }
 
     #[test]

@@ -51,10 +51,10 @@ tempfile = "3"
 ewf = { version = "0.1", optional = true }
 # Self-owned NTFS reader (replaces the ntfs crate in extraction). Path until a
 # version with read_named_stream/$ATTRIBUTE_LIST is published.
-ntfs-forensic = { path = "../ntfs-forensic", version = "0.1", optional = true }
+ntfs-forensic = { path = "../ntfs-forensic", version = "0.1" }
 
 [features]
 default = []
-image = ["ewf", "ntfs-forensic"]
+image = ["ewf"]
 
 [dev-dependencies]
