@@ -494,6 +494,122 @@ mod tests {
         assert_eq!(part.partition_type, PARTITION_TYPE_NTFS);
     }
 
+    #[test]
+    fn parse_gpt_rejects_bad_entry_params() {
+        // entry_size < 128 must be rejected.
+        let mut disk = build_gpt_disk(2048, 1_000_000);
+        disk[512 + 84..512 + 88].copy_from_slice(&64u32.to_le_bytes());
+        let mut cursor = Cursor::new(disk);
+        assert!(parse_gpt_partitions(&mut cursor).is_err());
+    }
+
+    /// Build a GPT disk with three entries: empty, end<start, and unknown-type.
+    fn build_gpt_disk_three_entries() -> Vec<u8> {
+        let entry_size = 128usize;
+        let gpt_offset = 512usize;
+        let entries_lba = 2u64;
+        let mut disk = vec![0u8; 8192];
+        // Protective MBR
+        disk[446 + 4] = PARTITION_TYPE_GPT;
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        // GPT header
+        disk[gpt_offset..gpt_offset + 8].copy_from_slice(GPT_SIGNATURE);
+        disk[gpt_offset + 72..gpt_offset + 80].copy_from_slice(&entries_lba.to_le_bytes());
+        disk[gpt_offset + 80..gpt_offset + 84].copy_from_slice(&3u32.to_le_bytes());
+        disk[gpt_offset + 84..gpt_offset + 88].copy_from_slice(&(entry_size as u32).to_le_bytes());
+        let eoff = (entries_lba as usize) * 512;
+        // entry 0: all-zero GUID -> skipped
+        // entry 1: non-zero GUID, end_lba < start_lba -> skipped
+        let e1 = eoff + entry_size;
+        disk[e1] = 0x11;
+        disk[e1 + 32..e1 + 40].copy_from_slice(&100u64.to_le_bytes());
+        disk[e1 + 40..e1 + 48].copy_from_slice(&50u64.to_le_bytes());
+        // entry 2: non-zero, non-Basic-Data GUID -> type 0xFF
+        let e2 = eoff + 2 * entry_size;
+        disk[e2] = 0x22;
+        disk[e2 + 32..e2 + 40].copy_from_slice(&10u64.to_le_bytes());
+        disk[e2 + 40..e2 + 48].copy_from_slice(&20u64.to_le_bytes());
+        disk
+    }
+
+    #[test]
+    fn parse_gpt_skips_empty_and_invalid_entries() {
+        let mut cursor = Cursor::new(build_gpt_disk_three_entries());
+        let parts = parse_gpt_partitions(&mut cursor).unwrap();
+        // entry 0 (empty) and entry 1 (end<start) skipped; entry 2 -> unknown type.
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].partition_type, 0xFF);
+    }
+
+    #[test]
+    fn find_ntfs_gpt_no_ntfs_partition_bails() {
+        // GPT partition present but its boot record lacks the NTFS OEM id, so the
+        // is_ntfs_at check is false (loop falls through) and the search bails.
+        let mut disk = build_gpt_disk(2048, 1_000_000);
+        let off = (2048 * SECTOR_SIZE) as usize;
+        disk[off + 3..off + 11].copy_from_slice(&[0u8; 8]);
+        let mut cursor = Cursor::new(disk);
+        assert!(find_ntfs_partition(&mut cursor).is_err());
+    }
+
+    #[test]
+    fn find_ntfs_via_mbr_type_07() {
+        // Pure MBR with a type-0x07 partition whose boot record has the NTFS OEM.
+        let start_lba = 4u32;
+        let mut disk = build_mbr_with_ntfs_partition(start_lba, 1000);
+        let off = start_lba as usize * 512;
+        disk.resize(off + 512, 0);
+        disk[off + 3..off + 11].copy_from_slice(NTFS_OEM_ID);
+        let mut cursor = Cursor::new(disk);
+        let part = find_ntfs_partition(&mut cursor).unwrap();
+        assert_eq!(part.offset, off as u64);
+    }
+
+    #[test]
+    fn find_ntfs_via_mbr_fallback_non_07_type() {
+        // MBR partition tagged FAT32 (0x0C) but holding an NTFS volume: the
+        // type-0x07 pass misses it and the fallback signature scan finds it.
+        let start_lba = 4u32;
+        let off = start_lba as usize * 512;
+        let mut disk = vec![0u8; off + 512];
+        disk[446 + 4] = 0x0C;
+        disk[446 + 8..446 + 12].copy_from_slice(&start_lba.to_le_bytes());
+        disk[446 + 12..446 + 16].copy_from_slice(&1000u32.to_le_bytes());
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        disk[off + 3..off + 11].copy_from_slice(NTFS_OEM_ID);
+        let mut cursor = Cursor::new(disk);
+        let part = find_ntfs_partition(&mut cursor).unwrap();
+        assert_eq!(part.offset, off as u64);
+    }
+
+    #[test]
+    fn find_ntfs_pure_mbr_no_ntfs_bails() {
+        // A non-NTFS MBR partition with no NTFS OEM anywhere: both MBR passes fall
+        // through and the search bails.
+        let mut disk = vec![0u8; 4096];
+        disk[446 + 4] = 0x0C; // FAT32
+        disk[446 + 8..446 + 12].copy_from_slice(&4u32.to_le_bytes());
+        disk[446 + 12..446 + 16].copy_from_slice(&1u32.to_le_bytes());
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        let mut cursor = Cursor::new(disk);
+        assert!(find_ntfs_partition(&mut cursor).is_err());
+    }
+
+    #[test]
+    fn find_ntfs_gpt_protective_but_invalid_gpt_bails() {
+        // Protective MBR (0xEE) but no valid GPT header: parse_gpt errors, the
+        // if-let-Ok falls through, and the search bails.
+        let mut disk = vec![0u8; 4096];
+        disk[446 + 4] = PARTITION_TYPE_GPT;
+        disk[510] = 0x55;
+        disk[511] = 0xAA;
+        let mut cursor = Cursor::new(disk);
+        assert!(find_ntfs_partition(&mut cursor).is_err());
+    }
+
     // --- NTFS detection tests ---
 
     #[test]
