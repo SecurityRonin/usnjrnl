@@ -55,3 +55,6 @@ default = []
 image = ["ewf"]
 
 [dev-dependencies]
+# Runs once before any test to enable log-macro argument evaluation under
+# coverage (the macros otherwise short-circuit when no max level is set).
+ctor = "0.2"

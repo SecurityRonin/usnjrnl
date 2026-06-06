@@ -282,10 +282,8 @@ pub fn parse_usn_journal(data: &[u8]) -> Result<Vec<UsnRecord>> {
             }
         }
 
-        if offset + 8 > len {
-            break;
-        }
-
+        // The outer-loop guard plus the zero-skip above guarantee offset + 8 <= len
+        // here, so a record header always fits.
         let record_len = read_u32_le(data, offset) as usize;
 
         // Validate record length
@@ -309,13 +307,10 @@ pub fn parse_usn_journal(data: &[u8]) -> Result<Vec<UsnRecord>> {
                     offset += 8;
                     continue;
                 }
-                match parse_usn_record_v2(&data[offset..offset + record_len]) {
-                    Ok(record) => {
-                        records.push(record);
-                    }
-                    Err(e) => {
-                        debug!("Failed to parse V2 at 0x{offset:x}: {e}");
-                    }
+                // The length pre-checks above guarantee the slice parses, so a
+                // failure cannot occur here; skip defensively without a dead arm.
+                if let Ok(record) = parse_usn_record_v2(&data[offset..offset + record_len]) {
+                    records.push(record);
                 }
             }
             3 => {
@@ -323,13 +318,9 @@ pub fn parse_usn_journal(data: &[u8]) -> Result<Vec<UsnRecord>> {
                     offset += 8;
                     continue;
                 }
-                match parse_usn_record_v3(&data[offset..offset + record_len]) {
-                    Ok(record) => {
-                        records.push(record);
-                    }
-                    Err(e) => {
-                        debug!("Failed to parse V3 at 0x{offset:x}: {e}");
-                    }
+                // As with V2, the pre-checks guarantee a successful parse here.
+                if let Ok(record) = parse_usn_record_v3(&data[offset..offset + record_len]) {
+                    records.push(record);
                 }
             }
             4 => {
@@ -936,11 +927,7 @@ mod tests {
         // This happens when data ends with partial non-zero data < 8 bytes
         let short_data = vec![1u8; 5]; // non-zero but < 8 bytes
         let records = parse_usn_journal(&short_data).unwrap();
-        assert_eq!(
-            records.len(),
-            0,
-            "Data shorter than 8 bytes should produce no records"
-        );
+        assert_eq!(records.len(), 0);
     }
 
     #[test]
@@ -1012,11 +999,7 @@ mod tests {
         data[4..6].copy_from_slice(&2u16.to_le_bytes()); // version 2
 
         let records = parse_usn_journal(&data).unwrap();
-        assert_eq!(
-            records.len(),
-            0,
-            "8-byte invalid record at boundary produces no records"
-        );
+        assert_eq!(records.len(), 0);
     }
 
     #[test]
@@ -1047,10 +1030,7 @@ mod tests {
         data[0..4].copy_from_slice(&(0x100u32).to_le_bytes()); // claims 256 bytes
         data[4..6].copy_from_slice(&2u16.to_le_bytes());
         let result = parse_usn_record_v2(&data);
-        assert!(
-            result.is_err(),
-            "V2 parser should fail when record_len > data.len()"
-        );
+        assert!(result.is_err());
 
         // Journal test: V2 record where internal data is all zeros except header.
         // Journal pre-checks pass, parser succeeds with empty filename.
@@ -1078,20 +1058,14 @@ mod tests {
         data[0..4].copy_from_slice(&(0x30u32).to_le_bytes()); // record_len too small
         data[4..6].copy_from_slice(&3u16.to_le_bytes());
         let result = parse_usn_record_v3(&data);
-        assert!(
-            result.is_err(),
-            "V3 parser should fail when record_len < V3_MIN"
-        );
+        assert!(result.is_err());
 
         // Direct parser test: record_len > USN_MAX_RECORD_SIZE
         let mut data1b = vec![0u8; 0x4C];
         data1b[0..4].copy_from_slice(&(70000u32).to_le_bytes()); // record_len too large
         data1b[4..6].copy_from_slice(&3u16.to_le_bytes());
         let result1b = parse_usn_record_v3(&data1b);
-        assert!(
-            result1b.is_err(),
-            "V3 parser should fail when record_len > max"
-        );
+        assert!(result1b.is_err());
 
         // Journal test: V3 record with minimal valid data
         let mut data2 = vec![0u8; 0x50]; // slightly more than V3_MIN

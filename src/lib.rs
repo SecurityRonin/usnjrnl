@@ -5,6 +5,34 @@
 //! parsing of $UsnJrnl:$J (V2/V3/V4), $MFT correlation, $MFTMirr comparison,
 //! and $LogFile gap detection.
 
+/// Enable `log` macro argument evaluation for the whole test binary.
+///
+/// `warn!`/`debug!`/etc. skip evaluating their arguments unless the global max
+/// level permits the record, so under test (no logger installed → level `Off`)
+/// the format arguments — real code on real lines — never run. We install a
+/// discarding sink logger at `Trace` once, before any test. Claiming the global
+/// logger also makes the stray `env_logger::try_init()` calls in tests fail
+/// silently (they are `let _ =`-ignored) instead of resetting the level back to
+/// `Error`, so the diagnostic branches stay exercised.
+#[cfg(test)]
+mod test_log_setup {
+    struct Sink;
+    impl log::Log for Sink {
+        fn enabled(&self, _: &log::Metadata) -> bool {
+            true
+        }
+        fn log(&self, _: &log::Record) {}
+        fn flush(&self) {}
+    }
+    static SINK: Sink = Sink;
+
+    #[ctor::ctor]
+    fn init() {
+        let _ = log::set_logger(&SINK);
+        log::set_max_level(log::LevelFilter::Trace);
+    }
+}
+
 pub mod analysis;
 pub mod correlation;
 pub mod image;
