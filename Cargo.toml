@@ -6,6 +6,18 @@ description = "NTFS USN Journal parser with full path reconstruction via journal
 license = "Apache-2.0"
 repository = "https://github.com/SecurityRonin/usnjrnl-forensic"
 authors = ["Albert Hui"]
+# Keep the published crate lean: ship src + the include_str! report template +
+# tests/examples, but not demo HTML, screenshots, planning docs, or dev config.
+exclude = [
+    "/.github",
+    "/.playwright-mcp",
+    "/docs",
+    "/north-star-advisor",
+    "/fuzz",
+    "/CLAUDE.md",
+    "/linkedin-posts.md",
+    "/precision_recall.html",
+]
 
 [[bin]]
 name = "usnjrnl-forensic"
