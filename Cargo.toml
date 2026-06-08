@@ -24,7 +24,7 @@ name = "usnjrnl-forensic"
 path = "src/main.rs"
 
 [dependencies]
-forensicnomicon = { version = "0.3.0", path = "../forensicnomicon", features = ["serde"] }
+forensicnomicon = { version = "0.3.1", features = ["serde"] }
 # CLI
 clap = { version = "4", features = ["derive"] }
 
@@ -61,7 +61,7 @@ tempfile = "3"
 ewf = { version = "0.1", optional = true }
 # Self-owned NTFS reader (replaces the ntfs crate in extraction). 0.2 added
 # read_named_stream/$ATTRIBUTE_LIST; 0.3 normalized onto forensicnomicon::report.
-ntfs-forensic = { path = "../ntfs-forensic", version = "0.3" }
+ntfs-forensic = "0.3"
 
 [features]
 default = []
