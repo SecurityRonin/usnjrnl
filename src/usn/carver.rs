@@ -86,31 +86,27 @@ pub fn carve_usn_records(data: &[u8]) -> (Vec<CarvedRecord>, CarvingStats) {
 
         // Check if this could be a valid USN record
         match major_version {
-            2 => {
-                if (USN_V2_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len)
-                    && offset + record_len <= len
-                {
-                    stats.candidates_examined += 1;
-                    if let Some(carved) = try_carve_v2(data, offset, record_len, &mut stats) {
-                        // Skip past this record to avoid overlapping matches
-                        let aligned = (record_len + 7) & !7;
-                        offset += aligned;
-                        results.push(carved);
-                        continue;
-                    }
+            2 if (USN_V2_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len)
+                && offset + record_len <= len =>
+            {
+                stats.candidates_examined += 1;
+                if let Some(carved) = try_carve_v2(data, offset, record_len, &mut stats) {
+                    // Skip past this record to avoid overlapping matches
+                    let aligned = (record_len + 7) & !7;
+                    offset += aligned;
+                    results.push(carved);
+                    continue;
                 }
             }
-            3 => {
-                if (USN_V3_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len)
-                    && offset + record_len <= len
-                {
-                    stats.candidates_examined += 1;
-                    if let Some(carved) = try_carve_v3(data, offset, record_len, &mut stats) {
-                        let aligned = (record_len + 7) & !7;
-                        offset += aligned;
-                        results.push(carved);
-                        continue;
-                    }
+            3 if (USN_V3_MIN_SIZE..=USN_MAX_RECORD_SIZE).contains(&record_len)
+                && offset + record_len <= len =>
+            {
+                stats.candidates_examined += 1;
+                if let Some(carved) = try_carve_v3(data, offset, record_len, &mut stats) {
+                    let aligned = (record_len + 7) & !7;
+                    offset += aligned;
+                    results.push(carved);
+                    continue;
                 }
             }
             _ => {}

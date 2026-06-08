@@ -2,6 +2,7 @@
 name = "usnjrnl-forensic"
 version = "0.7.0"
 edition = "2021"
+rust-version = "1.85"
 description = "NTFS USN Journal parser with full path reconstruction via journal rewind"
 license = "Apache-2.0"
 repository = "https://github.com/SecurityRonin/usnjrnl-forensic"

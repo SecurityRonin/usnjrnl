@@ -52,7 +52,7 @@ pub fn format_reason_stats(records: &[UsnRecord]) -> String {
     ));
     output.push_str("[*] Reason breakdown:\n");
     let mut sorted: Vec<_> = reason_counts.into_iter().collect();
-    sorted.sort_by(|a, b| b.1.cmp(&a.1));
+    sorted.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
     for (reason, count) in sorted {
         output.push_str(&format!("    {reason}: {count}\n"));
     }
