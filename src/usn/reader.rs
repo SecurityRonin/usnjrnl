@@ -2,7 +2,7 @@ use std::io::{Read, Seek, SeekFrom};
 
 use anyhow::Result;
 
-use super::record::{parse_usn_record_v2, parse_usn_record_v3, UsnRecord};
+use ntfs_core::usn::{parse_usn_record_v2, parse_usn_record_v3, UsnRecord};
 
 const BUF_SIZE: usize = 64 * 1024; // 64KB read buffer
 
@@ -166,7 +166,7 @@ impl<R: Read + Seek> Iterator for UsnJournalReader<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::reason::UsnReason;
+    use ntfs_core::usn::UsnReason;
     use std::io::Cursor;
 
     fn build_v2_record_bytes(

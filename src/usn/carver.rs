@@ -6,7 +6,7 @@
 
 use log::debug;
 
-use super::record::{parse_usn_record_v2, parse_usn_record_v3, UsnRecord};
+use ntfs_core::usn::{parse_usn_record_v2, parse_usn_record_v3, UsnRecord};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -511,8 +511,8 @@ mod tests {
         assert_eq!(r.filename, "important.xlsx");
         assert!(r
             .reason
-            .contains(super::super::reason::UsnReason::FILE_CREATE));
-        assert!(r.reason.contains(super::super::reason::UsnReason::CLOSE));
+            .contains(ntfs_core::usn::UsnReason::FILE_CREATE));
+        assert!(r.reason.contains(ntfs_core::usn::UsnReason::CLOSE));
     }
 
     #[test]

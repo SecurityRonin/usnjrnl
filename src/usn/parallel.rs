@@ -6,7 +6,7 @@
 use anyhow::Result;
 use rayon::prelude::*;
 
-use super::record::{parse_usn_journal, UsnRecord};
+use ntfs_core::usn::{parse_usn_journal, UsnRecord};
 
 /// Chunk size for parallel processing (1 MB).
 const CHUNK_SIZE: usize = 1024 * 1024;
@@ -138,8 +138,8 @@ pub fn parse_usn_journal_parallel(data: &[u8]) -> Result<Vec<UsnRecord>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::usn::reason::UsnReason;
-    use crate::usn::record::parse_usn_journal;
+    use ntfs_core::usn::UsnReason;
+    use ntfs_core::usn::parse_usn_journal;
 
     /// Build a valid V2 USN record with the given parameters.
     /// Mirrors the test helper from record.rs.
