@@ -141,6 +141,7 @@ fn query_journal(handle: isize) -> Result<UsnJournalDataV2> {
 ///
 /// Requires Administrator privileges. Open with a drive letter:
 /// ```no_run
+/// use usnjrnl_forensic::monitor::windows::WindowsJournalSource;
 /// let source = WindowsJournalSource::open('C').unwrap();
 /// ```
 pub struct WindowsJournalSource {
