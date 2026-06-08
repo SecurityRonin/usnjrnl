@@ -365,9 +365,16 @@ checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
 name = "forensicnomicon"
-version = "0.2.1"
+version = "0.3.1"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "forensicnomicon"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6081932c491c6f044128e725012bf2c929325b8574a4da4054c3c9ecbaf29045"
+checksum = "f66c898c0f3813cb476c7d1f9e78919566e753b8ce5d581ca8d0f364a55b04b5"
 
 [[package]]
 name = "getrandom"
@@ -579,9 +586,9 @@ dependencies = [
 
 [[package]]
 name = "ntfs-forensic"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
- "forensicnomicon",
+ "forensicnomicon 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror",
 ]
 
@@ -886,7 +893,7 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "usnjrnl-forensic"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -896,6 +903,7 @@ dependencies = [
  "ctor",
  "env_logger",
  "ewf",
+ "forensicnomicon 0.3.1",
  "log",
  "ntfs-forensic",
  "rayon",

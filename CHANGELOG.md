@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-06-08
+
 ### Changed
 
+- **Normalized onto `forensicnomicon::report` (breaking).** The local 5-level
+  `Severity` is now the re-exported `forensicnomicon::report::Severity`, and
+  `RuleMatch` gains `to_finding()` — a pattern-rule match becomes a canonical
+  `Finding` (dynamic `USN-<RULE>` code, code-derived category, filename/reason/
+  timestamp evidence). The typed `Rule`/`RuleMatch`/`RuleSet` API is unchanged.
 - **NTFS layer migrated onto `ntfs-forensic`.** Disk-image artifact extraction
-  now runs through the sibling [`ntfs-forensic`](../ntfs-forensic) crate, which
-  becomes the sole NTFS-layer dependency. NTFS volume parsing, `$ATTRIBUTE_LIST`
-  traversal, and named-stream resolution come from a single self-owned reader
-  shared across the SecurityRonin forensic tooling.
+  now runs through the sibling [`ntfs-forensic`](../ntfs-forensic) crate (now at
+  0.3), which becomes the sole NTFS-layer dependency. NTFS volume parsing,
+  `$ATTRIBUTE_LIST` traversal, and named-stream resolution come from a single
+  self-owned reader shared across the SecurityRonin forensic tooling.
 
 ### Added
 
@@ -33,4 +40,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/SecurityRonin/usnjrnl-forensic/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/SecurityRonin/usnjrnl-forensic/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/SecurityRonin/usnjrnl-forensic/compare/v0.6.0...v0.7.0

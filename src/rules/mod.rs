@@ -266,11 +266,13 @@ impl RuleSet {
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
-
 impl RuleMatch {
     /// Convert this rule match into a canonical [`forensicnomicon::report::Finding`].
     #[must_use]
-    pub fn to_finding(&self, source: forensicnomicon::report::Source) -> forensicnomicon::report::Finding {
+    pub fn to_finding(
+        &self,
+        source: forensicnomicon::report::Source,
+    ) -> forensicnomicon::report::Finding {
         use forensicnomicon::report::{Category, Finding, Location};
         let code = format!(
             "USN-{}",
