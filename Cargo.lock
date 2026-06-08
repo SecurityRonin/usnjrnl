@@ -582,9 +582,9 @@ dependencies = [
 
 [[package]]
 name = "ntfs-core"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ddc9e5a93e180244b518a50f9d41c9a298f9fe5f21fca5f01b62542a64b38c6"
+checksum = "4d32ea3b5f82db9c4160f02e91aeff667174b45ab8b7a308dc608fe500c53012"
 dependencies = [
  "bitflags",
  "chrono",
@@ -893,7 +893,7 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "usnjrnl-forensic"
-version = "0.7.2"
+version = "0.7.3"
 dependencies = [
  "anyhow",
  "bitflags",
