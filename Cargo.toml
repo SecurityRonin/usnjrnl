@@ -1,6 +1,6 @@
 [package]
 name = "usnjrnl-forensic"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 rust-version = "1.85"
 description = "NTFS USN Journal parser with full path reconstruction via journal rewind"
@@ -60,9 +60,10 @@ tempfile = "3"
 
 # Disk image support (optional, MIT-licensed)
 ewf = { version = "0.1", optional = true }
-# Self-owned NTFS reader (replaces the ntfs crate in extraction). 0.2 added
-# read_named_stream/$ATTRIBUTE_LIST; 0.3 normalized onto forensicnomicon::report.
-ntfs-forensic = "0.3"
+# Self-owned NTFS reader (replaces the ntfs crate in extraction). The reader
+# lives in ntfs-core since the 0.4 core/forensic workspace split; the analyzer
+# (anomaly auditor) is the separate ntfs-forensic crate, which we don't need here.
+ntfs-core = "0.4"
 
 [features]
 default = []

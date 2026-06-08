@@ -10,7 +10,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use ntfs_forensic::{
+use ntfs_core::{
     apply_fixup, parse_attributes, AttributeBody, FileName, Filetime, MftRecordHeader,
     StandardInformation,
 };

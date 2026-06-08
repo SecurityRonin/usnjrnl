@@ -280,10 +280,10 @@ pub fn extract_artifacts_from_reader<R: Read + Seek>(
     );
 
     // Re-base the volume to offset 0 (bounded to the partition) and open it.
-    let part = ntfs_forensic::OffsetReader::new(reader, partition.offset, partition.size)
+    let part = ntfs_core::OffsetReader::new(reader, partition.offset, partition.size)
         .map_err(|e| anyhow::anyhow!("partition window: {e}"))?;
     let mut fs =
-        ntfs_forensic::NtfsFs::open(part).map_err(|e| anyhow::anyhow!("open NTFS volume: {e}"))?;
+        ntfs_core::NtfsFs::open(part).map_err(|e| anyhow::anyhow!("open NTFS volume: {e}"))?;
 
     let write_artifact = |name: &str, bytes: &[u8]| -> Result<PathBuf> {
         let path = output_dir.join(name);

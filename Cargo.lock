@@ -581,10 +581,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ntfs-forensic"
-version = "0.3.0"
+name = "ntfs-core"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ac0bc31fd9480ac5a389033d7e1d903730eb279994f9ef7a5bc29fd76e8f012"
+checksum = "31457b2a5c2bf085603ed10cdb0e3b4d5886847370568334ac4081858c99ef3e"
 dependencies = [
  "forensicnomicon",
  "thiserror",
@@ -903,7 +903,7 @@ dependencies = [
  "ewf",
  "forensicnomicon",
  "log",
- "ntfs-forensic",
+ "ntfs-core",
  "rayon",
  "regex",
  "rusqlite",
