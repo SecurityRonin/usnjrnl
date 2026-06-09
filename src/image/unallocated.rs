@@ -10,8 +10,8 @@ use std::io::{Read, Seek, SeekFrom};
 use anyhow::Result;
 use log::info;
 
-use crate::mft::carver::{carve_mft_entries, CarvedMftEntry, MftCarvingStats};
-use crate::usn::carver::{carve_usn_records, CarvedRecord, CarvingStats};
+use ntfs_core::carve::{carve_mft_entries, CarvedMftEntry, MftCarvingStats};
+use ntfs_core::usn::{carve_usn_records, CarvedRecord, CarvingStats};
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -183,9 +183,9 @@ mod tests {
     use super::*;
     use std::io::Cursor;
 
-    // Re-use test helpers from the carver modules for building records.
+    // Local test helpers for building records (the carvers now live in ntfs-core).
 
-    /// Build a valid USN V2 record (same logic as usn::carver::tests).
+    /// Build a valid USN V2 record (same logic as the ntfs-core carver tests).
     fn build_usn_v2_record(
         entry: u64,
         seq: u16,

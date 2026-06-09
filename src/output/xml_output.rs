@@ -3,7 +3,7 @@ use std::io::Write;
 
 use anyhow::Result;
 
-use crate::rewind::ResolvedRecord;
+use ntfs_core::rewind::ResolvedRecord;
 
 /// Export resolved USN records to XML format.
 pub fn export_xml<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Result<()> {
@@ -74,9 +74,9 @@ pub fn export_xml<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rewind::ResolvedRecord;
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
+    use ntfs_core::rewind::ResolvedRecord;
 
     struct RecordBuilder {
         filename: String,
@@ -166,7 +166,7 @@ mod tests {
                 },
                 full_path: self.full_path,
                 parent_path: self.parent_path,
-                source: crate::rewind::RecordSource::Allocated,
+                source: ntfs_core::rewind::RecordSource::Allocated,
             }
         }
     }

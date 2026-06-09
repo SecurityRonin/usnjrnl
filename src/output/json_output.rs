@@ -3,7 +3,7 @@ use std::io::Write;
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::rewind::ResolvedRecord;
+use ntfs_core::rewind::ResolvedRecord;
 
 #[derive(Serialize)]
 struct JsonRecord {
@@ -65,9 +65,9 @@ pub fn export_jsonl<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rewind::ResolvedRecord;
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
+    use ntfs_core::rewind::ResolvedRecord;
 
     #[test]
     fn test_jsonl_export() {
@@ -89,7 +89,7 @@ mod tests {
             record,
             full_path: ".\\temp\\test.exe".into(),
             parent_path: ".\\temp".into(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
         let mut buf = Vec::new();
         export_jsonl(&resolved, &mut buf).unwrap();

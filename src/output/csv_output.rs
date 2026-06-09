@@ -2,7 +2,7 @@ use std::io::Write;
 
 use anyhow::Result;
 
-use crate::rewind::ResolvedRecord;
+use ntfs_core::rewind::ResolvedRecord;
 
 /// Export resolved USN records to CSV.
 ///
@@ -63,9 +63,9 @@ pub fn export_csv<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rewind::ResolvedRecord;
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
+    use ntfs_core::rewind::ResolvedRecord;
 
     #[test]
     fn test_csv_export_header() {
@@ -98,7 +98,7 @@ mod tests {
             record,
             full_path: ".\\Users\\test.exe".into(),
             parent_path: ".\\Users".into(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
         let mut buf = Vec::new();
         export_csv(&resolved, &mut buf).unwrap();

@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 
-use usnjrnl_forensic::mft::MftData;
-use usnjrnl_forensic::rewind::{RecordSource, RewindEngine};
+use ntfs_core::mft::MftData;
+use ntfs_core::rewind::{RecordSource, RewindEngine};
 use usnjrnl_forensic::usn;
 
 #[derive(Parser)]
@@ -187,7 +187,7 @@ fn run(cli: Cli) -> Result<()> {
         let mft_raw = std::fs::read(mft_path)?;
         let mirr_raw = std::fs::read(mirr_path)
             .with_context(|| format!("Failed to read $MFTMirr: {}", mirr_path.display()))?;
-        let comparison = usnjrnl_forensic::mftmirr::compare_mft_mirror(&mft_raw, &mirr_raw)?;
+        let comparison = ntfs_core::mftmirr::compare_mft_mirror(&mft_raw, &mirr_raw)?;
         if comparison.is_consistent {
             eprintln!("[+] $MFTMirr is consistent with $MFT");
         } else {
@@ -212,7 +212,7 @@ fn run(cli: Cli) -> Result<()> {
         eprintln!("[*] Analyzing $LogFile...");
         let log_raw = std::fs::read(logfile_path)
             .with_context(|| format!("Failed to read $LogFile: {}", logfile_path.display()))?;
-        let summary = usnjrnl_forensic::logfile::parse_logfile(&log_raw)?;
+        let summary = ntfs_core::logfile::parse_logfile(&log_raw)?;
         eprintln!(
             "[+] $LogFile: {} restart areas, {} record pages, highest LSN={}",
             summary.restart_areas.len(),
@@ -222,14 +222,13 @@ fn run(cli: Cli) -> Result<()> {
         if summary.has_gaps {
             eprintln!("[!] GAPS DETECTED in $LogFile - possible journal clearing");
         }
-        if usnjrnl_forensic::logfile::detect_journal_clearing(&summary) {
+        if ntfs_core::logfile::detect_journal_clearing(&summary) {
             eprintln!("[!] Evidence of journal clearing detected");
         }
 
         // Extract embedded USN records from $LogFile RCRD pages
         eprintln!("[*] Extracting USN records embedded in $LogFile...");
-        let extracted =
-            usnjrnl_forensic::logfile::usn_extractor::extract_usn_from_logfile(&log_raw);
+        let extracted = ntfs_core::logfile::usn_extractor::extract_usn_from_logfile(&log_raw);
         eprintln!(
             "[+] {} USN records recovered from $LogFile",
             extracted.len()
@@ -363,11 +362,11 @@ fn run(cli: Cli) -> Result<()> {
 
     // ─── TriForce Correlation ───────────────────────────────────────────────
 
-    let mut ghost_records_for_report: Vec<usnjrnl_forensic::correlation::GhostRecord> = Vec::new();
+    let mut ghost_records_for_report: Vec<ntfs_forensic::correlation::GhostRecord> = Vec::new();
 
     if !logfile_usn_records.is_empty() || mft_data.is_some() {
         eprintln!("[*] Running TriForce correlation (MFT + LogFile + UsnJrnl)...");
-        let correlation = usnjrnl_forensic::correlation::CorrelationEngine::new();
+        let correlation = ntfs_forensic::correlation::CorrelationEngine::new();
         let mft_entries_slice = mft_data
             .as_ref()
             .map(|m| m.entries.as_slice())
@@ -437,7 +436,7 @@ fn run(cli: Cli) -> Result<()> {
     if !ghost_records_for_report.is_empty() {
         let ghost_count = ghost_records_for_report.len();
         for ghost in &ghost_records_for_report {
-            resolved.push(usnjrnl_forensic::rewind::ResolvedRecord {
+            resolved.push(ntfs_core::rewind::ResolvedRecord {
                 full_path: format!(".\\{}", ghost.record.filename),
                 parent_path: ".".to_string(),
                 record: ghost.record.clone(),
@@ -512,12 +511,10 @@ fn run(cli: Cli) -> Result<()> {
 
     if let Some(ref report_path) = cli.report {
         eprintln!("[*] Running forensic analysis for triage report...");
-        let timestomping_indicators = usnjrnl_forensic::analysis::detect_timestomping(&records);
-        let secure_deletion_indicators =
-            usnjrnl_forensic::analysis::detect_secure_deletion(&records);
-        let ransomware_indicators =
-            usnjrnl_forensic::analysis::detect_ransomware_patterns(&records);
-        let journal_clearing_result = usnjrnl_forensic::analysis::detect_journal_clearing(&records);
+        let timestomping_indicators = ntfs_forensic::analysis::detect_timestomping(&records);
+        let secure_deletion_indicators = ntfs_forensic::analysis::detect_secure_deletion(&records);
+        let ransomware_indicators = ntfs_forensic::analysis::detect_ransomware_patterns(&records);
+        let journal_clearing_result = ntfs_forensic::analysis::detect_journal_clearing(&records);
 
         let image_name = cli
             .image
@@ -540,7 +537,7 @@ fn run(cli: Cli) -> Result<()> {
                     .unwrap_or_else(|| "unknown".to_string())
             });
 
-        let questions = usnjrnl_forensic::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let report_input = usnjrnl_forensic::output::report::ReportInput {
             image_name: &image_name,
             resolved: &resolved,

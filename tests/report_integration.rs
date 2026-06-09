@@ -4,12 +4,12 @@
 //! to HTML report generation, using synthetic data (no forensic images needed).
 
 use chrono::DateTime;
-use usnjrnl_forensic::analysis::JournalClearingResult;
-use usnjrnl_forensic::correlation::GhostRecord;
+use ntfs_core::rewind::{RecordSource, ResolvedRecord};
+use ntfs_forensic::analysis::JournalClearingResult;
+use ntfs_forensic::correlation::GhostRecord;
+use ntfs_forensic::triage::queries::builtin_questions;
+use ntfs_forensic::triage::run_triage;
 use usnjrnl_forensic::output::report::{build_report_data, export_report, ReportInput};
-use usnjrnl_forensic::rewind::{RecordSource, ResolvedRecord};
-use usnjrnl_forensic::triage::queries::builtin_questions;
-use usnjrnl_forensic::triage::run_triage;
 use usnjrnl_forensic::usn::{FileAttributes, UsnReason, UsnRecord};
 
 fn make_record(

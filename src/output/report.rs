@@ -9,13 +9,13 @@ use anyhow::Result;
 use chrono::Utc;
 use serde::Serialize;
 
-use crate::analysis::{
+use ntfs_core::mft::MftData;
+use ntfs_core::rewind::ResolvedRecord;
+use ntfs_forensic::analysis::{
     JournalClearingResult, RansomwareIndicator, SecureDeletionIndicator, TimestompIndicator,
 };
-use crate::correlation::GhostRecord;
-use crate::mft::MftData;
-use crate::rewind::ResolvedRecord;
-use crate::triage::{self, TriageQuestion};
+use ntfs_forensic::correlation::GhostRecord;
+use ntfs_forensic::triage::{self, TriageQuestion};
 
 const TEMPLATE: &str = include_str!("../../report/template.html");
 
@@ -401,9 +401,9 @@ pub fn export_report<W: Write>(report_data: &ReportData, writer: &mut W) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::analysis::JournalClearingResult;
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
+    use ntfs_forensic::analysis::JournalClearingResult;
 
     fn make_test_input() -> (Vec<ResolvedRecord>, Vec<GhostRecord>, JournalClearingResult) {
         let record = UsnRecord {
@@ -424,7 +424,7 @@ mod tests {
             record,
             full_path: ".\\Windows\\System32\\test.exe".to_string(),
             parent_path: ".\\Windows\\System32".to_string(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
         let clearing = JournalClearingResult {
             clearing_detected: false,
@@ -454,7 +454,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         // short_path must exist and be non-empty
@@ -486,7 +486,7 @@ mod tests {
             full_path: ".\\Users\\Admin\\AppData\\Local\\Microsoft\\Office\\UnsavedFiles\\Recovery\\AutoRecover\\evidence.docx"
                 .to_string(),
             parent_path: ".\\Users\\Admin\\AppData\\Local\\Microsoft\\Office\\UnsavedFiles\\Recovery\\AutoRecover".to_string(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
         let clearing = JournalClearingResult {
             clearing_detected: false,
@@ -510,7 +510,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         // Deep path should be shortened
@@ -539,7 +539,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         assert_eq!(data.meta.record_count, 1);
@@ -568,7 +568,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         let mut buf = Vec::new();
@@ -606,7 +606,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         let mut buf = Vec::new();
@@ -643,7 +643,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         let mut buf = Vec::new();
@@ -679,19 +679,19 @@ mod tests {
                 record: base(100, "allocated.txt"),
                 full_path: ".\\allocated.txt".to_string(),
                 parent_path: ".".to_string(),
-                source: crate::rewind::RecordSource::Allocated,
+                source: ntfs_core::rewind::RecordSource::Allocated,
             },
             ResolvedRecord {
                 record: base(101, "carved.exe"),
                 full_path: ".\\carved.exe".to_string(),
                 parent_path: ".".to_string(),
-                source: crate::rewind::RecordSource::Carved,
+                source: ntfs_core::rewind::RecordSource::Carved,
             },
             ResolvedRecord {
                 record: base(102, "ghost.dll"),
                 full_path: ".\\ghost.dll".to_string(),
                 parent_path: ".".to_string(),
-                source: crate::rewind::RecordSource::Ghost,
+                source: ntfs_core::rewind::RecordSource::Ghost,
             },
         ];
 
@@ -719,7 +719,7 @@ mod tests {
             carving_mft_dupes: 0,
         };
 
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         assert_eq!(data.records[0].source, "allocated");
@@ -750,13 +750,13 @@ mod tests {
                 record: make_record(100, "normal.txt"),
                 full_path: ".\\normal.txt".to_string(),
                 parent_path: ".".to_string(),
-                source: crate::rewind::RecordSource::Allocated,
+                source: ntfs_core::rewind::RecordSource::Allocated,
             },
             ResolvedRecord {
                 record: make_record(101, "deleted.exe"),
                 full_path: ".\\deleted.exe".to_string(),
                 parent_path: ".".to_string(),
-                source: crate::rewind::RecordSource::Carved,
+                source: ntfs_core::rewind::RecordSource::Carved,
             },
         ];
 
@@ -784,7 +784,7 @@ mod tests {
             carving_mft_dupes: 0,
         };
 
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         let recovered = data
@@ -832,7 +832,7 @@ mod tests {
     #[test]
     fn test_build_report_data_with_ghost_records() {
         let (resolved, _, clearing) = make_test_input();
-        let ghost = crate::correlation::GhostRecord {
+        let ghost = ntfs_forensic::correlation::GhostRecord {
             record: UsnRecord {
                 mft_entry: 200,
                 mft_sequence: 1,
@@ -866,7 +866,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         assert_eq!(data.ghost_records.len(), 1);
@@ -894,7 +894,7 @@ mod tests {
             carving_usn_dupes: 3,
             carving_mft_dupes: 1,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         assert_eq!(data.carving_stats.usn_carved, 42);
@@ -930,7 +930,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         assert!(data.detections.journal_clearing.detected);
@@ -941,8 +941,8 @@ mod tests {
     fn test_build_report_data_with_mft_timestamps() {
         // Exercise lines 290-295: the mft_data.map(|mft| ...) block that
         // converts MftEntry timestamps into MftTimestampEntry structs.
-        use crate::mft::{MftData, MftEntry};
-        use crate::rewind::EntryKey;
+        use ntfs_core::mft::{MftData, MftEntry};
+        use ntfs_core::rewind::EntryKey;
         use std::collections::HashMap;
 
         let (resolved, ghosts, clearing) = make_test_input();
@@ -1023,7 +1023,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         // Verify mft_timestamps were populated (lines 290-295)
@@ -1049,8 +1049,8 @@ mod tests {
     #[test]
     fn test_export_report_with_mft_data_produces_html() {
         // Ensure the full export_report path works with mft_data: Some(...)
-        use crate::mft::{MftData, MftEntry};
-        use crate::rewind::EntryKey;
+        use ntfs_core::mft::{MftData, MftEntry};
+        use ntfs_core::rewind::EntryKey;
         use std::collections::HashMap;
 
         let (resolved, ghosts, clearing) = make_test_input();
@@ -1104,7 +1104,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         let mut buf = Vec::new();
@@ -1136,7 +1136,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         // Configurable writer to exercise the write-error, flush-error, and
@@ -1186,7 +1186,7 @@ mod tests {
 
     #[test]
     fn test_report_populates_all_detections() {
-        use crate::analysis::{
+        use ntfs_forensic::analysis::{
             RansomwareIndicator, SecureDeletionIndicator, SecureDeletionPattern, TimestompIndicator,
         };
         let (resolved, ghosts, clearing) = make_test_input();
@@ -1238,7 +1238,7 @@ mod tests {
             carving_usn_dupes: 0,
             carving_mft_dupes: 0,
         };
-        let questions = crate::triage::queries::builtin_questions();
+        let questions = ntfs_forensic::triage::queries::builtin_questions();
         let data = build_report_data(&input, &questions);
 
         assert_eq!(data.detections.timestomping.len(), 2);

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use rusqlite::Connection;
 
-use crate::mft::MftEntry;
-use crate::rewind::ResolvedRecord;
+use ntfs_core::mft::MftEntry;
+use ntfs_core::rewind::ResolvedRecord;
 
 /// Export resolved USN records and MFT data to an SQLite database.
 ///
@@ -148,9 +148,9 @@ pub fn export_sqlite(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rewind::ResolvedRecord;
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
+    use ntfs_core::rewind::ResolvedRecord;
 
     #[test]
     fn test_sqlite_export() {
@@ -175,7 +175,7 @@ mod tests {
             record,
             full_path: ".\\temp\\test.exe".into(),
             parent_path: ".\\temp".into(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
 
         export_sqlite(&db_path, &resolved, None).unwrap();
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_sqlite_export_with_mft_entries() {
-        use crate::mft::MftEntry;
+        use ntfs_core::mft::MftEntry;
 
         let dir = tempfile::tempdir().unwrap();
         let db_path = dir.path().join("test_mft.sqlite");
@@ -222,7 +222,7 @@ mod tests {
             record,
             full_path: ".\\temp\\test.exe".into(),
             parent_path: ".\\temp".into(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
 
         let mft_entries = vec![
@@ -350,7 +350,7 @@ mod tests {
             record,
             full_path: ".\\noextension".into(),
             parent_path: ".".into(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }];
 
         export_sqlite(&db_path, &resolved, None).unwrap();

@@ -42,16 +42,7 @@ mod test_log_setup {
     }
 }
 
-pub mod analysis;
-pub mod correlation;
 pub mod image;
-pub mod logfile;
-pub mod mft;
-pub mod mftmirr;
 pub mod monitor;
 pub mod output;
-pub mod refs;
-pub mod rewind;
-pub mod rules;
-pub mod triage;
 pub mod usn;

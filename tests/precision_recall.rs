@@ -18,10 +18,10 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use ntfs_core::mft::MftData;
+use ntfs_core::rewind::ResolvedRecord;
+use ntfs_forensic::triage::{queries::builtin_questions, run_triage, TriageResult};
 use usnjrnl_forensic::image::extract_artifacts;
-use usnjrnl_forensic::mft::MftData;
-use usnjrnl_forensic::rewind::ResolvedRecord;
-use usnjrnl_forensic::triage::{queries::builtin_questions, run_triage, TriageResult};
 use usnjrnl_forensic::usn;
 
 // ─── Ground Truth Constants ──────────────────────────────────────────────────
@@ -156,8 +156,7 @@ fn classify_strict(question_id: &str, record: &ResolvedRecord) -> bool {
             // Only ghost ($LogFile) and carved records are true positives
             matches!(
                 record.source,
-                usnjrnl_forensic::rewind::RecordSource::Ghost
-                    | usnjrnl_forensic::rewind::RecordSource::Carved
+                ntfs_core::rewind::RecordSource::Ghost | ntfs_core::rewind::RecordSource::Carved
             )
         }
         _ => false,
@@ -241,8 +240,7 @@ fn classify_permissive(question_id: &str, record: &ResolvedRecord) -> bool {
             // Same as strict — only ghost/carved records
             matches!(
                 record.source,
-                usnjrnl_forensic::rewind::RecordSource::Ghost
-                    | usnjrnl_forensic::rewind::RecordSource::Carved
+                ntfs_core::rewind::RecordSource::Ghost | ntfs_core::rewind::RecordSource::Carved
             )
         }
         _ => false,
@@ -950,8 +948,7 @@ fn precision_recall_analysis() {
     let mft_data =
         MftData::parse(&std::fs::read(&artifacts.mft).unwrap()).expect("Failed to parse $MFT");
     let logfile_data = std::fs::read(&artifacts.logfile).unwrap();
-    let logfile_usn =
-        usnjrnl_forensic::logfile::usn_extractor::extract_usn_from_logfile(&logfile_data);
+    let logfile_usn = ntfs_core::logfile::usn_extractor::extract_usn_from_logfile(&logfile_data);
 
     eprintln!(
         "[pr] Parsed: {} USN records, {} MFT entries, {} LogFile USN records",
@@ -966,15 +963,15 @@ fn precision_recall_analysis() {
     eprintln!("[pr] Resolved {} records", resolved.len());
 
     // Add ghost records
-    let correlation = usnjrnl_forensic::correlation::CorrelationEngine::new();
+    let correlation = ntfs_forensic::correlation::CorrelationEngine::new();
     let ghost_records = correlation.find_ghost_records(&records, &logfile_usn);
     let mut all_resolved = resolved;
     for ghost in &ghost_records {
-        all_resolved.push(usnjrnl_forensic::rewind::ResolvedRecord {
+        all_resolved.push(ntfs_core::rewind::ResolvedRecord {
             full_path: format!(".\\{}", ghost.record.filename),
             parent_path: ".".to_string(),
             record: ghost.record.clone(),
-            source: usnjrnl_forensic::rewind::RecordSource::Ghost,
+            source: ntfs_core::rewind::RecordSource::Ghost,
         });
     }
 

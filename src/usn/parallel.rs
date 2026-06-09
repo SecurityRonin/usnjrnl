@@ -138,8 +138,8 @@ pub fn parse_usn_journal_parallel(data: &[u8]) -> Result<Vec<UsnRecord>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ntfs_core::usn::UsnReason;
     use ntfs_core::usn::parse_usn_journal;
+    use ntfs_core::usn::UsnReason;
 
     /// Build a valid V2 USN record with the given parameters.
     /// Mirrors the test helper from record.rs.

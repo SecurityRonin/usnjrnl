@@ -7,17 +7,17 @@
 
 #![cfg(feature = "image")]
 
-use std::collections::HashSet;
-use std::path::Path;
-use usnjrnl_forensic::analysis::{
+use ntfs_core::rewind::RecordSource;
+use ntfs_forensic::analysis::{
     detect_journal_clearing, detect_ransomware_patterns, detect_secure_deletion,
     detect_timestomping,
 };
+use ntfs_forensic::triage::{queries::builtin_questions, run_triage};
+use std::collections::HashSet;
+use std::path::Path;
 use usnjrnl_forensic::image::extract_artifacts;
 use usnjrnl_forensic::image::unallocated::scan_for_unallocated;
 use usnjrnl_forensic::output::report::{build_report_data, export_report, ReportInput};
-use usnjrnl_forensic::rewind::RecordSource;
-use usnjrnl_forensic::triage::{queries::builtin_questions, run_triage};
 
 /// Test E01 extraction against the Szechuan Sauce CTF desktop image.
 /// Image: 20200918_0417_DESKTOP-SDN1RPT.E01 (from DESKTOP-E01.zip)
@@ -117,13 +117,13 @@ fn extracted_artifacts_are_valid_for_parsing() {
     );
 
     // Parse the extracted $MFT
-    let mft_data = usnjrnl_forensic::mft::MftData::parse(&std::fs::read(&artifacts.mft).unwrap())
+    let mft_data = ntfs_core::mft::MftData::parse(&std::fs::read(&artifacts.mft).unwrap())
         .expect("Failed to parse extracted $MFT");
     eprintln!("Parsed MFT from extracted $MFT successfully");
 
     // Parse the extracted $LogFile
     let logfile_data = std::fs::read(&artifacts.logfile).unwrap();
-    let logfile_summary = usnjrnl_forensic::logfile::parse_logfile(&logfile_data)
+    let logfile_summary = ntfs_core::logfile::parse_logfile(&logfile_data)
         .expect("Failed to parse extracted $LogFile");
     eprintln!(
         "Parsed LogFile: {} restart areas from extracted $LogFile",
@@ -166,7 +166,7 @@ fn run_carving_e2e(image_path: &Path) {
 
     // Parse allocated $MFT to build known (entry, seq) set
     let mft_raw = std::fs::read(&artifacts.mft).unwrap();
-    let mft_data = usnjrnl_forensic::mft::MftData::parse(&mft_raw).expect("Failed to parse $MFT");
+    let mft_data = ntfs_core::mft::MftData::parse(&mft_raw).expect("Failed to parse $MFT");
     let known_mft: HashSet<(u64, u16)> = mft_data
         .entries
         .iter()
@@ -292,7 +292,7 @@ fn e2e_full_report_pipeline_szechuan_sauce() {
     let journal_data = std::fs::read(&artifacts.usnjrnl).unwrap();
     let mut records = usnjrnl_forensic::usn::parse_usn_journal(&journal_data)
         .expect("Failed to parse $UsnJrnl:$J");
-    let mft_data = usnjrnl_forensic::mft::MftData::parse(&std::fs::read(&artifacts.mft).unwrap())
+    let mft_data = ntfs_core::mft::MftData::parse(&std::fs::read(&artifacts.mft).unwrap())
         .expect("Failed to parse $MFT");
     let logfile_data = std::fs::read(&artifacts.logfile).unwrap();
 
@@ -356,14 +356,14 @@ fn e2e_full_report_pipeline_szechuan_sauce() {
     eprintln!("[e2e] Tagged {carved_tagged} records as carved");
 
     // ── Correlation (ghost records) ──────────────────────────────────────
-    let correlation = usnjrnl_forensic::correlation::CorrelationEngine::new();
+    let correlation = ntfs_forensic::correlation::CorrelationEngine::new();
     let logfile_usn_records =
-        usnjrnl_forensic::logfile::usn_extractor::extract_usn_from_logfile(&logfile_data);
+        ntfs_core::logfile::usn_extractor::extract_usn_from_logfile(&logfile_data);
     let ghost_records = correlation.find_ghost_records(&records, &logfile_usn_records);
 
     // Add ghost records to resolved list
     for ghost in &ghost_records {
-        resolved.push(usnjrnl_forensic::rewind::ResolvedRecord {
+        resolved.push(ntfs_core::rewind::ResolvedRecord {
             full_path: format!(".\\{}", ghost.record.filename),
             parent_path: ".".to_string(),
             record: ghost.record.clone(),

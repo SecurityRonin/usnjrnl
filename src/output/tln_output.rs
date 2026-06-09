@@ -5,7 +5,7 @@ use std::io::Write;
 
 use anyhow::Result;
 
-use crate::rewind::ResolvedRecord;
+use ntfs_core::rewind::ResolvedRecord;
 
 /// Export resolved USN records to TLN (5-field pipe-delimited timeline) format.
 pub fn export_tln<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Result<()> {
@@ -25,9 +25,9 @@ pub fn export_tln<W: Write>(records: &[ResolvedRecord], writer: &mut W) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rewind::ResolvedRecord;
     use crate::usn::{FileAttributes, UsnReason, UsnRecord};
     use chrono::DateTime;
+    use ntfs_core::rewind::ResolvedRecord;
 
     fn make_record(
         filename: &str,
@@ -53,7 +53,7 @@ mod tests {
             },
             full_path: full_path.into(),
             parent_path: parent_path.into(),
-            source: crate::rewind::RecordSource::Allocated,
+            source: ntfs_core::rewind::RecordSource::Allocated,
         }
     }
 

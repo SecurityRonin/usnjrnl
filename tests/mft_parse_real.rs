@@ -8,7 +8,7 @@
 //! NTFS_FORENSIC_MFT=/tmp/real_mft.raw \
 //!   cargo test --test mft_parse_real -- --ignored --nocapture
 //! ```
-use usnjrnl_forensic::mft::MftData;
+use ntfs_core::mft::MftData;
 
 #[test]
 #[ignore = "requires NTFS_FORENSIC_MFT (raw $MFT bytes)"]
