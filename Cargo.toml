@@ -1,6 +1,6 @@
 [package]
 name = "usnjrnl-forensic"
-version = "0.7.3"
+version = "0.8.0"
 edition = "2021"
 rust-version = "1.85"
 description = "NTFS USN Journal parser with full path reconstruction via journal rewind"
@@ -25,7 +25,7 @@ name = "usnjrnl-forensic"
 path = "src/main.rs"
 
 [dependencies]
-forensicnomicon = { version = "0.3.1", features = ["serde"] }
+forensicnomicon = { version = "1", features = ["serde"] }
 # CLI
 clap = { version = "4", features = ["derive"] }
 

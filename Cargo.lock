@@ -368,7 +368,34 @@ name = "forensicnomicon"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f66c898c0f3813cb476c7d1f9e78919566e753b8ce5d581ca8d0f364a55b04b5"
+
+[[package]]
+name = "forensicnomicon"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ed4548e40fc4f7f22f769ba68afbb426c379c168ea4ab019421f10d91fa3b4e"
 dependencies = [
+ "forensicnomicon-core",
+ "forensicnomicon-data",
+ "serde",
+]
+
+[[package]]
+name = "forensicnomicon-core"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5d5b96ffd37d1e758a1657839de8b4d5e7bfc024a5500509d07ff7acd7b9461"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "forensicnomicon-data"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "664814f07d95790e9c38a9c2c3a0a5539ba4e1ef8e4de72cf32424fc397364ba"
+dependencies = [
+ "forensicnomicon-core",
  "serde",
 ]
 
@@ -588,7 +615,7 @@ checksum = "873564e37f7a828e6b41447dca621e7e9cf693d1579c2083071b2305216621e4"
 dependencies = [
  "bitflags",
  "chrono",
- "forensicnomicon",
+ "forensicnomicon 0.3.1",
  "thiserror",
 ]
 
@@ -599,7 +626,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "120cd289b5cb6800ca64feceef3dbe9c8f27ca829aaf9dee9a23736c06fa3287"
 dependencies = [
  "chrono",
- "forensicnomicon",
+ "forensicnomicon 0.3.1",
  "ntfs-core",
  "regex",
 ]
@@ -905,7 +932,7 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "usnjrnl-forensic"
-version = "0.7.3"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "bitflags",
@@ -915,7 +942,7 @@ dependencies = [
  "ctor",
  "env_logger",
  "ewf",
- "forensicnomicon",
+ "forensicnomicon 1.0.0",
  "log",
  "ntfs-core",
  "ntfs-forensic",
