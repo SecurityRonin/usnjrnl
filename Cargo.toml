@@ -1,6 +1,6 @@
 [package]
 name = "usnjrnl-forensic"
-version = "0.8.0"
+version = "0.8.1"
 edition = "2021"
 rust-version = "1.85"
 description = "NTFS USN Journal parser with full path reconstruction via journal rewind"
@@ -59,13 +59,13 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tempfile = "3"
 
 # Disk image support (optional, MIT-licensed)
-ewf = { version = "0.1", optional = true }
+ewf = { version = "0.3", optional = true }
 # Self-owned NTFS stack since the core/forensic workspace split. The raw reader
 # (records, rewind, carving, $MFT/$LogFile/$MFTMirr parsing) lives in ntfs-core;
 # the findings intelligence (USN analysis, TriForce correlation, rules, triage)
 # lives in ntfs-forensic. usnjrnl-forensic is a thin CLI shell over both.
-ntfs-core = "0.7"
-ntfs-forensic = "0.6"
+ntfs-core = "0.9"
+ntfs-forensic = "0.8"
 
 [features]
 default = []
