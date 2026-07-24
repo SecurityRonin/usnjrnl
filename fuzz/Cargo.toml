@@ -9,6 +9,9 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+# The $MFT/$LogFile/$MFTMirr parsers + carver live in ntfs-core since the
+# reader migration; fuzz them where they live (matches the parent crate's pin).
+ntfs-core = "0.9"
 
 [dependencies.usnjrnl-forensic]
 path = ".."

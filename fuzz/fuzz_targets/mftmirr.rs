@@ -9,5 +9,5 @@ fuzz_target!(|data: &[u8]| {
         None => return,
     };
     let (mft, mftmirr) = rest.split_at(split);
-    let _ = usnjrnl_forensic::mftmirr::compare_mft_mirror(mft, mftmirr);
+    let _ = ntfs_core::mftmirr::compare_mft_mirror(mft, mftmirr);
 });

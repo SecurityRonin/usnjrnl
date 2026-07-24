@@ -4,5 +4,5 @@
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
-    let _ = usnjrnl_forensic::mft::carver::carve_mft_entries(data);
+    let _ = ntfs_core::carve::carve_mft_entries(data);
 });
